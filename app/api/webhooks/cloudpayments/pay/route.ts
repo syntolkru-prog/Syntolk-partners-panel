@@ -5,9 +5,12 @@ import { cloudPaymentsEventKey, parseCloudPaymentsBody, verifyCloudPaymentsSigna
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const secret = process.env.CLOUDPAYMENTS_API_SECRET ?? "";
-  const signature = request.headers.get("x-content-hmac") ?? request.headers.get("content-hmac");
+  const signatures = {
+    contentHmac: request.headers.get("content-hmac"),
+    xContentHmac: request.headers.get("x-content-hmac"),
+  };
 
-  if (!verifyCloudPaymentsSignature(rawBody, signature, secret)) {
+  if (!verifyCloudPaymentsSignature(rawBody, signatures, secret)) {
     return NextResponse.json({ code: 13 }, { status: 401 });
   }
 
