@@ -1,16 +1,10 @@
 import { Shell, Money } from "@/components/shell";
+import { adminNav } from "@/lib/navigation";
 import { partners } from "@/lib/demo-data";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/partners", label: "Партнёры" },
-  { href: "/admin/payouts", label: "Выплаты" },
-  { href: "/admin/settings", label: "Настройки" },
-];
 
 export default function AdminPartnersPage() {
   return (
-    <Shell title="Партнёры" subtitle="Заявки, индивидуальные условия, клиенты и финансовые показатели." nav={nav} role="АДМИНИСТРАТОР">
+    <Shell title="Партнёры" subtitle="Заявки, индивидуальные условия, клиенты и финансовые показатели." nav={adminNav} role="АДМИНИСТРАТОР">
       <section className="toolbar card compact">
         <div>
           <span className="eyebrow">БАЗА ПАРТНЁРОВ</span>
