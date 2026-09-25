@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminApiKey } from "@/lib/api-auth";
+import { sendTemplatedEmail } from "@/lib/email";
+import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
 
 export async function GET(request: NextRequest) {
   const authError = requireAdminApiKey(request);
@@ -139,6 +141,11 @@ export async function PATCH(request: NextRequest) {
       return updated;
     });
 
+    if (payout.status === "PAID") {
+      await prisma.notification.create({ data: { partnerId: payout.partnerId, type: "PAYOUT_PAID", title: "Выплата отмечена как выполненная", message: `Выплата ${Number(payout.amount).toLocaleString("ru-RU")} ₽ отмечена как выплаченная.`, metadata: { payoutId: payout.id, reference: payout.reference } } });
+      await sendTemplatedEmail({ type: "PAYOUT_PAID", to: payout.partner.email, recipientId: payout.partnerId, variables: { name: payout.partner.name, amount: Number(payout.amount).toLocaleString("ru-RU") }, fallbackSubject: "Syntolk Partners: выплата выполнена", fallbackBody: "<h2>Выплата выполнена</h2><p>Сумма: {{amount}} ₽</p>" }).catch(()=>null);
+      await triggerOutgoingWebhook("payout.paid", { payoutId: payout.id, partnerId: payout.partnerId, amount: Number(payout.amount), reference: payout.reference }).catch(()=>null);
+    }
     return NextResponse.json({ payout });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
