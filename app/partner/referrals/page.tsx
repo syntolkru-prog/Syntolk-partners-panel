@@ -1,11 +1,5 @@
 import { Shell, Money } from "@/components/shell";
-
-const nav = [
-  { href: "/partner", label: "Обзор" },
-  { href: "/partner/referrals", label: "Клиенты" },
-  { href: "/partner/payouts", label: "Выплаты" },
-  { href: "/partner/resources", label: "Материалы" },
-];
+import { partnerNav } from "@/lib/navigation";
 
 const clients = [
   { name: "a***@mail.ru", plan: "Pro", registered: "02.09.2026", status: "Активен", revenue: 14970, earned: 2994 },
@@ -15,7 +9,7 @@ const clients = [
 
 export default function PartnerReferralsPage() {
   return (
-    <Shell title="Мои клиенты" subtitle="Клиенты, закреплённые за вашей партнёрской ссылкой." nav={nav} role="ПАРТНЁР">
+    <Shell title="Мои клиенты" subtitle="Клиенты, закреплённые за вашей партнёрской ссылкой." nav={partnerNav} role="ПАРТНЁР">
       <section className="stat-grid">
         <article><span>Всего клиентов</span><strong>163</strong><small>за всё время</small></article>
         <article><span>Активные</span><strong>141</strong><small>86,5%</small></article>
