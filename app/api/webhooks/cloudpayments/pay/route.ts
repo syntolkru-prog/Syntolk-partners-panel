@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
   const amount = Number(payload.Amount ?? 0);
   const currency = String(payload.Currency ?? "RUB");
   const subscriptionId = payload.SubscriptionId ? String(payload.SubscriptionId) : null;
+  const invoiceId = payload.InvoiceId ? String(payload.InvoiceId) : null;
 
   if (!transactionId || !accountId || !Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json({ code: 13 }, { status: 400 });
@@ -54,23 +55,32 @@ export async function POST(request: NextRequest) {
         amount,
         currency,
         subscriptionId,
+        invoiceId,
         paidAt: new Date(),
         rawPayload: payload,
       },
     });
 
     const commissionAmount = amount * (Number(referral.partner.commissionRate) / 100);
+    const commissionKey = `cloudpayments:earning:${transactionId}`;
 
     await tx.commission.upsert({
-      where: { partnerId_paymentId: { partnerId: referral.partnerId, paymentId: payment.id } },
+      where: { idempotencyKey: commissionKey },
       update: {},
       create: {
         partnerId: referral.partnerId,
         paymentId: payment.id,
+        kind: "EARNING",
+        idempotencyKey: commissionKey,
         amount: commissionAmount,
         rate: referral.partner.commissionRate,
         availableAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       },
+    });
+
+    await tx.referral.update({
+      where: { id: referral.id },
+      data: { status: "ACTIVE" },
     });
 
     await tx.webhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
