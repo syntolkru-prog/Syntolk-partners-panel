@@ -1,15 +1,9 @@
 import { Shell, Money } from "@/components/shell";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/partners", label: "Партнёры" },
-  { href: "/admin/payouts", label: "Выплаты" },
-  { href: "/admin/settings", label: "Настройки" },
-];
+import { adminNav } from "@/lib/navigation";
 
 export default function AdminSettingsPage() {
   return (
-    <Shell title="Настройки программы" subtitle="Правила атрибуции, комиссии, холд, выплаты и бренд партнёрского кабинета." nav={nav} role="АДМИНИСТРАТОР">
+    <Shell title="Настройки программы" subtitle="Правила атрибуции, комиссии, холд, выплаты и бренд партнёрского кабинета." nav={adminNav} role="АДМИНИСТРАТОР">
       <section className="settings-layout">
         <article className="card">
           <span className="eyebrow">КОМИССИИ</span><h2>Финансовые правила</h2>
