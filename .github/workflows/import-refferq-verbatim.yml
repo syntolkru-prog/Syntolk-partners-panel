@@ -1,0 +1,45 @@
+name: Import Refferq verbatim
+
+on:
+  push:
+    branches:
+      - feature/affiliate-foundation
+    paths:
+      - .github/workflows/import-refferq-verbatim.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout destination repository
+        uses: actions/checkout@v4
+        with:
+          ref: feature/refferq-full-copy
+          fetch-depth: 0
+
+      - name: Import exact Refferq tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote remove refferq 2>/dev/null || true
+          git remote add refferq https://github.com/Refferq/Refferq.git
+          git fetch --no-tags refferq main
+
+          # Replace the working tree/index with the exact upstream Refferq tree.
+          git read-tree --reset -u refferq/main
+
+          # Commit only if the tree differs from the current branch.
+          if ! git diff --quiet --cached; then
+            git commit -m "chore: import Refferq upstream tree verbatim"
+          fi
+
+          # Verify file contents/tree are identical to upstream.
+          git diff --exit-code refferq/main HEAD -- .
+
+          git push origin HEAD:feature/refferq-full-copy
