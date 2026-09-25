@@ -8,6 +8,8 @@ export async function POST(request:NextRequest){
   if(!b.externalUserId||!b.partnerCode)return NextResponse.json({error:"externalUserId and partnerCode required"},{status:400});
   const partner=await prisma.partner.findUnique({where:{code:String(b.partnerCode).toLowerCase()}});
   if(!partner||partner.status!=="ACTIVE")return NextResponse.json({error:"partner not found"},{status:404});
+  const settings=await prisma.programSettings.upsert({where:{id:"default"},create:{},update:{}});
+  if(settings.selfReferralBlocked&&partner.syntolkUserId===String(b.externalUserId))return NextResponse.json({error:"self-referral not allowed"},{status:403});
   const existing=await prisma.referral.findUnique({where:{externalUserId:String(b.externalUserId)}});
   const referral=existing||await prisma.referral.create({data:{partnerId:partner.id,externalUserId:String(b.externalUserId),status:"REGISTERED",source:b.source||"api",medium:b.medium||null,campaign:b.campaign||null,registeredAt:new Date(),metadata:b.metadata||{}}});
   await logApiCall(a.key!.id,request,existing?200:201,start,a.ipHash);
