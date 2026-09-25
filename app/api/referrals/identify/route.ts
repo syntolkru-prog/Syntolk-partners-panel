@@ -28,6 +28,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Referral click not found or partner inactive" }, { status: 404 });
   }
 
+  const settings = await prisma.programSettings.upsert({ where: { id: "default" }, create: {}, update: {} });
+  if (settings.selfReferralBlocked && click.partner.syntolkUserId && click.partner.syntolkUserId === externalUserId) {
+    return NextResponse.json({ error: "Self-referral is not allowed" }, { status: 403 });
+  }
+
   const ageMs = Date.now() - click.createdAt.getTime();
   const maxAgeMs = click.partner.cookieDays * 24 * 60 * 60 * 1000;
   if (ageMs > maxAgeMs) {
