@@ -5,7 +5,7 @@ import { requireAdminAccess } from "@/lib/api-auth";
 
 export async function GET(request:NextRequest){
   const a=await requireAdminAccess(request); if(a.error)return a.error;
-  const keys=await prisma.apiKey.findMany({select:{id:true,name:true,prefix:true,scopes:true,rateLimit:true,isActive:true,lastUsedAt:true,expiresAt:true,createdAt:true,account:{select:{email:true,name:true}}},orderBy:{createdAt:"desc"}});
+  const keys=await prisma.apiKey.findMany({select:{id:true,name:true,prefix:true,scopes:true,rateLimit:true,isActive:true,lastUsedAt:true,expiresAt:true,createdAt:true,account:{select:{email:true,name:true}},_count:{select:{usageLogs:true}}},orderBy:{createdAt:"desc"}});
   return NextResponse.json({keys});
 }
 export async function POST(request:NextRequest){
