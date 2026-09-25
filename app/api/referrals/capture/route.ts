@@ -19,6 +19,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Referral code is invalid or inactive" }, { status: 404 });
   }
 
+  const settings = await prisma.programSettings.upsert({ where: { id: "default" }, create: {}, update: {} });
+  const country = request.headers.get("cf-ipcountry") || request.headers.get("x-vercel-ip-country") || "";
+  const blockedCountries = Array.isArray(settings.blockedCountries) ? settings.blockedCountries as string[] : [];
+  if (country && blockedCountries.map(x=>x.toUpperCase()).includes(country.toUpperCase())) {
+    return NextResponse.json({ error: "Referral tracking unavailable in this country" }, { status: 451 });
+  }
+  const landingUrl = body?.landingUrl ? String(body.landingUrl) : "";
+  const blockedKeywords = Array.isArray(settings.blockKeywords) ? settings.blockKeywords as string[] : [];
+  if (blockedKeywords.some(k => landingUrl.toLowerCase().includes(k.toLowerCase()))) {
+    return NextResponse.json({ error: "Blocked referral destination" }, { status: 400 });
+  }
+
   const clickId = randomUUID();
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const realIp = request.headers.get("x-real-ip");
