@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApiKey } from "@/lib/api-auth";
+import { requireAdminAccess } from "@/lib/api-auth";
 import { sendTemplatedEmail } from "@/lib/email";
 import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
 
 export async function GET(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
   const payouts = await prisma.payout.findMany({
     include: { partner: true, items: { include: { commission: true } } },
     orderBy: { createdAt: "desc" },
@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const partnerId = String(body?.partnerId ?? "").trim();
@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const payoutId = String(body?.payoutId ?? "").trim();
