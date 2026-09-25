@@ -53,11 +53,88 @@ enum ResourceType {
   LOGO
   TEXT
   LANDING
+  EMAIL_TEMPLATE
+  SOCIAL_POST
+  DOCUMENT
+  VIDEO
   OTHER
+}
+
+enum AccountRole {
+  ADMIN
+  PARTNER
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum CommissionRuleType {
+  PERCENTAGE
+  FIXED
+}
+
+enum EmailTemplateType {
+  WELCOME
+  PARTNER_APPLICATION
+  PARTNER_APPROVED
+  PARTNER_REJECTED
+  COMMISSION_CREATED
+  COMMISSION_APPROVED
+  PAYOUT_READY
+  PAYOUT_PAID
+  REFUND_ADJUSTMENT
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum TeamMemberStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED
 }
 
 model PartnerGroup {
   id             String    @id @default(cuid())
+  programId      String?
   name           String    @unique
   description    String?
   commissionRate Decimal   @db.Decimal(5, 2)
@@ -66,32 +143,6 @@ model PartnerGroup {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   partners       Partner[]
-}
-
-model Partner {
-  id              String        @id @default(cuid())
-  groupId         String?
-  name            String
-  email           String        @unique
-  code            String        @unique
-  status          PartnerStatus @default(PENDING)
-  commissionRate  Decimal       @default(20.00) @db.Decimal(5, 2)
-  cookieDays      Int           @default(60)
-  payoutDetails   Json?
-  note            String?
-  approvedAt      DateTime?
-  suspendedAt     DateTime?
-  lastActiveAt    DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  group           PartnerGroup? @relation(fields: [groupId], references: [id])
-  clicks          ReferralClick[]
-  referrals       Referral[]
-  commissions     Commission[]
-  payouts         Payout[]
-
-  @@index([groupId])
-  @@index([status])
 }
 
 model ReferralClick {
@@ -107,6 +158,9 @@ model ReferralClick {
   campaign    String?
   content     String?
   term        String?
+  isSuspicious Boolean @default(false)
+  fraudScore   Int      @default(0)
+  fraudReasons Json?
   createdAt   DateTime @default(now())
   partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
@@ -211,6 +265,7 @@ model Payout {
   updatedAt   DateTime     @updatedAt
   partner     Partner      @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   items       PayoutItem[]
+  invoices     Invoice[]
 
   @@index([partnerId, status])
   @@index([createdAt])
@@ -254,6 +309,14 @@ model MarketingResource {
   description String?
   url         String?
   content     String?
+  fileUrl     String?
+  fileName    String?
+  fileSize    Int?
+  mimeType    String?
+  category    String?
+  tags        Json         @default("[]")
+  downloads   Int          @default(0)
+  createdBy   String?
   isActive    Boolean      @default(true)
   sortOrder   Int          @default(0)
   createdAt   DateTime     @default(now())
@@ -287,4 +350,317 @@ model WebhookEvent {
   createdAt   DateTime @default(now())
 
   @@index([provider, eventType])
+}
+
+
+model Account {
+  id           String        @id @default(cuid())
+  partnerId    String?       @unique
+  email        String        @unique
+  name         String
+  passwordHash String?
+  role         AccountRole   @default(PARTNER)
+  status       AccountStatus @default(PENDING)
+  emailVerifiedAt DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  partner      Partner?      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  apiKeys      ApiKey[]
+
+  @@index([role, status])
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([email, expiresAt])
+}
+
+model Program {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  description    String?
+  commissionRate Decimal  @default(20.00) @db.Decimal(5, 2)
+  cookieDays     Int      @default(60)
+  currency       String   @default("RUB")
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  requireApproval Boolean @default(true)
+  minimumPayoutAmount Decimal @default(5000) @db.Decimal(12, 2)
+  payoutFrequency String  @default("MONTHLY")
+  termsUrl       String?
+  logoUrl        String?
+  brandColor     String   @default("#6c5ce7")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  partners       Partner[]
+  groups         PartnerGroup[]
+  commissionRules CommissionRule[]
+  coupons        Coupon[]
+
+  @@index([isActive, isDefault])
+}
+
+model CommissionRule {
+  id         String             @id @default(cuid())
+  programId  String?
+  name       String
+  type       CommissionRuleType
+  value      Decimal            @db.Decimal(12, 2)
+  conditions Json               @default("{}")
+  isDefault  Boolean            @default(false)
+  isActive   Boolean            @default(true)
+  priority   Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  program    Program?           @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId, isActive, priority])
+}
+
+model Coupon {
+  id            String             @id @default(cuid())
+  programId     String?
+  partnerId     String?
+  code          String             @unique
+  description   String?
+  discountType  CouponDiscountType @default(PERCENTAGE)
+  discountValue Decimal            @db.Decimal(12, 2)
+  currency      String             @default("RUB")
+  maxUses       Int?
+  usedCount     Int                @default(0)
+  minimumAmount Decimal?           @db.Decimal(12, 2)
+  isActive      Boolean            @default(true)
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  createdBy     String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  program       Program?           @relation(fields: [programId], references: [id], onDelete: Cascade)
+  partner       Partner?           @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([programId])
+  @@index([partnerId])
+  @@index([isActive, expiresAt])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  partnerId     String
+  payoutId      String?
+  amount        Decimal       @db.Decimal(12, 2)
+  tax           Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @db.Decimal(12, 2)
+  currency      String        @default("RUB")
+  status        InvoiceStatus @default(DRAFT)
+  lineItems     Json          @default("[]")
+  billingInfo   Json          @default("{}")
+  notes         String?
+  issuedAt      DateTime?
+  dueAt         DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  partner       Partner       @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  payout        Payout?       @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, status])
+  @@index([payoutId])
+}
+
+model EmailTemplate {
+  id        String            @id @default(cuid())
+  type      EmailTemplateType
+  name      String
+  subject   String
+  body      String
+  variables Json              @default("[]")
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  logs      EmailLog[]
+
+  @@index([type, isActive])
+}
+
+model EmailLog {
+  id             String      @id @default(cuid())
+  templateId     String?
+  recipientId    String?
+  recipientEmail String
+  subject        String
+  body           String
+  status         EmailStatus @default(PENDING)
+  providerId     String?
+  sentAt         DateTime?
+  error          String?
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now())
+  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId])
+  @@index([status, createdAt])
+}
+
+model IntegrationSettings {
+  id             String   @id @default(cuid())
+  key            String   @unique
+  provider       String
+  publicKey      String?
+  webhookUrl     String?
+  trackingScript String?
+  isActive       Boolean  @default(true)
+  config         Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OutgoingWebhook {
+  id              String   @id @default(cuid())
+  name            String
+  url             String
+  secret          String
+  events          Json     @default("[]")
+  isActive        Boolean  @default(true)
+  failureCount    Int      @default(0)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  logs            OutgoingWebhookLog[]
+}
+
+model OutgoingWebhookLog {
+  id           String                    @id @default(cuid())
+  webhookId    String
+  eventType    String
+  payload      Json                      @default("{}")
+  status       WebhookDeliveryStatus     @default(PENDING)
+  statusCode   Int?
+  response     String?
+  error        String?
+  attempts     Int                       @default(0)
+  nextRetryAt  DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime                  @default(now())
+  webhook      OutgoingWebhook           @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@index([status, nextRetryAt])
+}
+
+model SavedReport {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  reportType  String
+  columns     Json     @default("[]")
+  filters     Json     @default("{}")
+  sortBy      String?
+  sortOrder   String   @default("desc")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ScheduledReport {
+  id         String          @id @default(cuid())
+  name       String
+  reportType String
+  frequency  ReportFrequency @default(WEEKLY)
+  recipients Json            @default("[]")
+  filters    Json            @default("{}")
+  format     String          @default("csv")
+  isActive   Boolean         @default(true)
+  lastRunAt  DateTime?
+  nextRunAt  DateTime?
+  createdBy  String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([isActive, nextRunAt])
+}
+
+model ApiKey {
+  id         String   @id @default(cuid())
+  accountId  String
+  name       String
+  keyHash    String   @unique
+  prefix     String
+  scopes     Json     @default("[\"read\"]")
+  rateLimit  Int      @default(100)
+  isActive   Boolean  @default(true)
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  usageLogs  ApiUsageLog[]
+
+  @@index([accountId, isActive])
+}
+
+model ApiUsageLog {
+  id         String   @id @default(cuid())
+  apiKeyId   String
+  endpoint   String
+  method     String
+  statusCode Int
+  responseMs Int
+  ipHash     String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  apiKey     ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyId, createdAt])
+  @@index([endpoint, createdAt])
+}
+
+model RateLimitEntry {
+  id           String   @id @default(cuid())
+  identifier   String
+  endpoint     String
+  windowStart  DateTime
+  requestCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@unique([identifier, endpoint, windowStart])
+  @@index([identifier, endpoint])
+}
+
+model TeamMember {
+  id          String           @id @default(cuid())
+  email       String           @unique
+  name        String
+  role        TeamRole         @default(VIEWER)
+  permissions Json             @default("[]")
+  invitedBy   String
+  accountId   String?
+  status      TeamMemberStatus @default(PENDING)
+  invitedAt   DateTime         @default(now())
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  partnerId String?
+  type      String
+  title     String
+  message   String
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  partner   Partner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, readAt])
 }
