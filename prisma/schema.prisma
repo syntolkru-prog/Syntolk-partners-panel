@@ -156,7 +156,9 @@ model Partner {
   email           String        @unique
   code            String        @unique
   status          PartnerStatus @default(PENDING)
+  syntolkUserId   String?       @unique
   commissionRate  Decimal       @default(20.00) @db.Decimal(5, 2)
+  usesCustomCommission Boolean  @default(false)
   cookieDays      Int           @default(60)
   payoutDetails   Json?
   notificationPreferences Json @default("{}")
@@ -267,6 +269,7 @@ model Commission {
   partnerId      String
   paymentId      String?
   refundId       String?
+  commissionRuleId String?
   kind           CommissionKind   @default(EARNING)
   idempotencyKey String           @unique
   amount         Decimal          @db.Decimal(12, 2)
@@ -281,11 +284,13 @@ model Commission {
   partner        Partner          @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   payment        Payment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   refund         Refund?          @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  commissionRule CommissionRule?  @relation(fields: [commissionRuleId], references: [id], onDelete: SetNull)
   payoutItems    PayoutItem[]
 
   @@index([partnerId, status])
   @@index([paymentId])
   @@index([refundId])
+  @@index([commissionRuleId])
 }
 
 model Payout {
@@ -475,6 +480,7 @@ model CommissionRule {
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
   program    Program?           @relation(fields: [programId], references: [id], onDelete: Cascade)
+  commissions Commission[]
 
   @@index([programId, isActive, priority])
 }
