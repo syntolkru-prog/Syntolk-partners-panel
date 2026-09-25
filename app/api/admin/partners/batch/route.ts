@@ -1,0 +1,4 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdminAccess } from "@/lib/api-auth";
+export async function PATCH(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;const b=await request.json() as any;const ids=Array.isArray(b.ids)?b.ids:[];if(!ids.length)return NextResponse.json({error:"ids required"},{status:400});const data:any={};if(b.status!==undefined)data.status=b.status;if(b.groupId!==undefined)data.groupId=b.groupId||null;if(b.commissionRate!==undefined)data.commissionRate=Number(b.commissionRate);const result=await prisma.partner.updateMany({where:{id:{in:ids}},data});await prisma.auditLog.create({data:{actorId:a.session?.accountId,actorType:"ADMIN",action:"BATCH_UPDATE_PARTNERS",objectType:"PARTNER",payload:{ids,data}}});return NextResponse.json({updated:result.count});}
