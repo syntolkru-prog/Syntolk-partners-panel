@@ -103,7 +103,7 @@ export async function PATCH(request: NextRequest) {
     const payout = await prisma.$transaction(async (tx) => {
       const current = await tx.payout.findUnique({
         where: { id: payoutId },
-        include: { items: true },
+        include: { items: true, partner: true },
       });
 
       if (!current) throw new Error("PAYOUT_NOT_FOUND");
