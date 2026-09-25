@@ -14,11 +14,24 @@ enum PartnerStatus {
   REJECTED
 }
 
+enum ReferralStatus {
+  CAPTURED
+  REGISTERED
+  ACTIVE
+  CANCELED
+}
+
 enum CommissionStatus {
   PENDING
   APPROVED
-  REVERSED
   PAID
+  REVERSED
+}
+
+enum CommissionKind {
+  EARNING
+  REFUND
+  MANUAL_ADJUSTMENT
 }
 
 enum PaymentStatus {
@@ -35,8 +48,29 @@ enum PayoutStatus {
   CANCELED
 }
 
+enum ResourceType {
+  BANNER
+  LOGO
+  TEXT
+  LANDING
+  OTHER
+}
+
+model PartnerGroup {
+  id             String    @id @default(cuid())
+  name           String    @unique
+  description    String?
+  commissionRate Decimal   @db.Decimal(5, 2)
+  cookieDays     Int       @default(60)
+  isDefault      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  partners       Partner[]
+}
+
 model Partner {
   id              String        @id @default(cuid())
+  groupId         String?
   name            String
   email           String        @unique
   code            String        @unique
@@ -44,25 +78,60 @@ model Partner {
   commissionRate  Decimal       @default(20.00) @db.Decimal(5, 2)
   cookieDays      Int           @default(60)
   payoutDetails   Json?
+  note            String?
+  approvedAt      DateTime?
+  suspendedAt     DateTime?
+  lastActiveAt    DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  group           PartnerGroup? @relation(fields: [groupId], references: [id])
+  clicks          ReferralClick[]
   referrals       Referral[]
   commissions     Commission[]
   payouts         Payout[]
+
+  @@index([groupId])
+  @@index([status])
+}
+
+model ReferralClick {
+  id          String   @id @default(cuid())
+  clickId     String   @unique
+  partnerId   String
+  landingUrl  String?
+  referer     String?
+  userAgent   String?
+  ipHash      String?
+  source      String?
+  medium      String?
+  campaign    String?
+  content     String?
+  term        String?
+  createdAt   DateTime @default(now())
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, createdAt])
 }
 
 model Referral {
-  id              String    @id @default(cuid())
+  id              String         @id @default(cuid())
   partnerId       String
-  externalUserId  String    @unique
+  externalUserId  String         @unique
   firstClickId    String?
+  status          ReferralStatus @default(REGISTERED)
   source          String?
+  medium          String?
   campaign        String?
-  createdAt       DateTime  @default(now())
-  partner         Partner   @relation(fields: [partnerId], references: [id])
+  registeredAt    DateTime?
+  canceledAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  partner         Partner        @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   payments        Payment[]
 
   @@index([partnerId])
+  @@index([status])
 }
 
 model Payment {
@@ -73,46 +142,59 @@ model Payment {
   currency              String        @default("RUB")
   status                PaymentStatus @default(SUCCEEDED)
   subscriptionId        String?
+  invoiceId             String?
+  description           String?
   paidAt                DateTime
   rawPayload            Json?
   createdAt             DateTime      @default(now())
-  referral              Referral      @relation(fields: [referralId], references: [id])
+  updatedAt             DateTime      @updatedAt
+  referral              Referral      @relation(fields: [referralId], references: [id], onDelete: Restrict)
   commissions           Commission[]
   refunds               Refund[]
 
   @@index([referralId])
   @@index([subscriptionId])
+  @@index([paidAt])
 }
 
 model Refund {
-  id                    String   @id @default(cuid())
+  id                    String       @id @default(cuid())
   paymentId             String
-  externalTransactionId String   @unique
-  amount                Decimal  @db.Decimal(12, 2)
+  externalTransactionId String       @unique
+  amount                Decimal      @db.Decimal(12, 2)
   refundedAt            DateTime
   rawPayload            Json?
-  createdAt             DateTime @default(now())
-  payment               Payment  @relation(fields: [paymentId], references: [id])
+  createdAt             DateTime     @default(now())
+  payment               Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  commissions           Commission[]
 
   @@index([paymentId])
 }
 
 model Commission {
-  id          String           @id @default(cuid())
-  partnerId   String
-  paymentId   String
-  amount      Decimal          @db.Decimal(12, 2)
-  rate        Decimal          @db.Decimal(5, 2)
-  status      CommissionStatus @default(PENDING)
-  availableAt DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  partner     Partner          @relation(fields: [partnerId], references: [id])
-  payment     Payment          @relation(fields: [paymentId], references: [id])
-  payoutItems PayoutItem[]
+  id             String           @id @default(cuid())
+  partnerId      String
+  paymentId      String?
+  refundId       String?
+  kind           CommissionKind   @default(EARNING)
+  idempotencyKey String           @unique
+  amount         Decimal          @db.Decimal(12, 2)
+  rate           Decimal          @db.Decimal(5, 2)
+  status         CommissionStatus @default(PENDING)
+  availableAt    DateTime?
+  approvedAt     DateTime?
+  paidAt         DateTime?
+  note           String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  partner        Partner          @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  payment        Payment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  refund         Refund?          @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  payoutItems    PayoutItem[]
 
-  @@unique([partnerId, paymentId])
   @@index([partnerId, status])
+  @@index([paymentId])
+  @@index([refundId])
 }
 
 model Payout {
@@ -120,25 +202,78 @@ model Payout {
   partnerId   String
   amount      Decimal      @db.Decimal(12, 2)
   status      PayoutStatus @default(DRAFT)
+  method      String?
   reference   String?
   note        String?
+  preparedAt  DateTime?
   paidAt      DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  partner     Partner      @relation(fields: [partnerId], references: [id])
+  partner     Partner      @relation(fields: [partnerId], references: [id], onDelete: Restrict)
   items       PayoutItem[]
 
   @@index([partnerId, status])
+  @@index([createdAt])
 }
 
 model PayoutItem {
   id           String     @id @default(cuid())
   payoutId     String
   commissionId String     @unique
-  payout       Payout     @relation(fields: [payoutId], references: [id])
-  commission   Commission @relation(fields: [commissionId], references: [id])
+  payout       Payout     @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  commission   Commission @relation(fields: [commissionId], references: [id], onDelete: Restrict)
 
   @@index([payoutId])
+}
+
+model ProgramSettings {
+  id                     String   @id @default("default")
+  programName            String   @default("Syntolk Partners")
+  websiteUrl             String   @default("https://syntolk.ru")
+  currency               String   @default("RUB")
+  baseCommissionRate     Decimal  @default(20.00) @db.Decimal(5, 2)
+  cookieDays             Int      @default(60)
+  commissionHoldDays     Int      @default(14)
+  minimumPayoutAmount    Decimal  @default(5000) @db.Decimal(12, 2)
+  hideCustomerEmails     Boolean  @default(true)
+  requireApproval        Boolean  @default(true)
+  allowManualReferrals   Boolean  @default(false)
+  selfReferralBlocked    Boolean  @default(true)
+  termsOfService         String?
+  brandName              String   @default("Syntolk")
+  brandLogoUrl           String?
+  supportEmail           String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model MarketingResource {
+  id          String       @id @default(cuid())
+  type        ResourceType
+  title       String
+  description String?
+  url         String?
+  content     String?
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorType  String
+  action     String
+  objectType String
+  objectId   String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([objectType, objectId])
 }
 
 model WebhookEvent {
@@ -147,6 +282,9 @@ model WebhookEvent {
   eventKey    String   @unique
   eventType   String
   processedAt DateTime?
+  error       String?
   payload     Json
   createdAt   DateTime @default(now())
+
+  @@index([provider, eventType])
 }
