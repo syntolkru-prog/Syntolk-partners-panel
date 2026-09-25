@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cloudPaymentsEventKey, parseCloudPaymentsBody, verifyCloudPaymentsSignature } from "@/lib/cloudpayments";
 import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
+import { proratedReversal } from "@/lib/commission-engine";
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       include: {
         referral: { include: { partner: true } },
         refunds: true,
+        commissions: { where: { kind: "EARNING" }, orderBy: { createdAt: "asc" } },
       },
     });
 
@@ -61,6 +63,7 @@ export async function POST(request: NextRequest) {
 
     const refundedBefore = payment.refunds.reduce((sum, item) => sum + Number(item.amount), 0);
     const totalRefunded = Math.min(Number(payment.amount), refundedBefore + amount);
+    const effectiveRefundAmount = Math.max(0, totalRefunded - refundedBefore);
     const fullyRefunded = totalRefunded >= Number(payment.amount);
 
     await tx.payment.update({
@@ -68,8 +71,17 @@ export async function POST(request: NextRequest) {
       data: { status: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED" },
     });
 
-    const rate = payment.referral.partner.commissionRate;
-    const adjustmentAmount = -Math.min(amount, Number(payment.amount)) * (Number(rate) / 100);
+    const earning = payment.commissions[0];
+    if (!earning || effectiveRefundAmount <= 0) {
+      await tx.webhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
+      return { duplicate: false, ignoredAdjustment: true };
+    }
+    const rate = earning.rate;
+    const adjustmentAmount = proratedReversal({
+      refundAmount: effectiveRefundAmount,
+      paymentAmount: Number(payment.amount),
+      originalCommissionAmount: Number(earning.amount),
+    });
     const adjustmentKey = `cloudpayments:refund:${refundTransactionId}`;
 
     await tx.commission.upsert({
@@ -83,6 +95,7 @@ export async function POST(request: NextRequest) {
         idempotencyKey: adjustmentKey,
         amount: adjustmentAmount,
         rate,
+        commissionRuleId: earning.commissionRuleId,
         status: "APPROVED",
         availableAt: new Date(),
         approvedAt: new Date(),
