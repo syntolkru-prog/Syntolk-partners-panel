@@ -1,0 +1,725 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PartnerStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum ReferralStatus {
+  CAPTURED
+  REGISTERED
+  ACTIVE
+  CANCELED
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  REVERSED
+}
+
+enum CommissionKind {
+  EARNING
+  REFUND
+  MANUAL_ADJUSTMENT
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELED
+}
+
+enum PayoutStatus {
+  DRAFT
+  READY
+  PAID
+  CANCELED
+}
+
+enum ResourceType {
+  BANNER
+  LOGO
+  TEXT
+  LANDING
+  EMAIL_TEMPLATE
+  SOCIAL_POST
+  DOCUMENT
+  VIDEO
+  OTHER
+}
+
+enum AccountRole {
+  ADMIN
+  PARTNER
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum CommissionRuleType {
+  PERCENTAGE
+  FIXED
+}
+
+enum EmailTemplateType {
+  WELCOME
+  PARTNER_APPLICATION
+  PARTNER_APPROVED
+  PARTNER_REJECTED
+  COMMISSION_CREATED
+  COMMISSION_APPROVED
+  PAYOUT_READY
+  PAYOUT_PAID
+  REFUND_ADJUSTMENT
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+enum ReportFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum TeamMemberStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+model PartnerGroup {
+  id             String    @id @default(cuid())
+  programId      String?
+  name           String    @unique
+  description    String?
+  commissionRate Decimal   @db.Decimal(5, 2)
+  cookieDays     Int       @default(60)
+  isDefault      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  partners       Partner[]
+  program        Program?  @relation(fields: [programId], references: [id])
+
+  @@index([programId])
+}
+
+model Partner {
+  id              String        @id @default(cuid())
+  programId       String?
+  groupId         String?
+  name            String
+  email           String        @unique
+  code            String        @unique
+  status          PartnerStatus @default(PENDING)
+  syntolkUserId   String?       @unique
+  commissionRate  Decimal       @default(20.00) @db.Decimal(5, 2)
+  usesCustomCommission Boolean  @default(false)
+  cookieDays      Int           @default(60)
+  payoutDetails   Json?
+  notificationPreferences Json @default("{}")
+  note            String?
+  approvedAt      DateTime?
+  suspendedAt     DateTime?
+  lastActiveAt    DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  program         Program?      @relation(fields: [programId], references: [id])
+  group           PartnerGroup? @relation(fields: [groupId], references: [id])
+  account         Account?
+  clicks          ReferralClick[]
+  referrals       Referral[]
+  commissions     Commission[]
+  payouts         Payout[]
+  coupons         Coupon[]
+  invoices        Invoice[]
+  notifications   Notification[]
+
+  @@index([programId])
+  @@index([groupId])
+  @@index([status])
+}
+
+model ReferralClick {
+  id          String   @id @default(cuid())
+  clickId     String   @unique
+  partnerId   String
+  landingUrl  String?
+  referer     String?
+  userAgent   String?
+  ipHash      String?
+  source      String?
+  medium      String?
+  campaign    String?
+  content     String?
+  term        String?
+  isSuspicious Boolean @default(false)
+  fraudScore   Int      @default(0)
+  fraudReasons Json?
+  createdAt   DateTime @default(now())
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, createdAt])
+}
+
+model Referral {
+  id              String         @id @default(cuid())
+  partnerId       String
+  externalUserId  String         @unique
+  firstClickId    String?
+  status          ReferralStatus @default(REGISTERED)
+  source          String?
+  medium          String?
+  campaign        String?
+  registeredAt    DateTime?
+  canceledAt      DateTime?
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  partner         Partner        @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  payments        Payment[]
+
+  @@index([partnerId])
+  @@index([status])
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  externalTransactionId String        @unique
+  referralId            String
+  amount                Decimal       @db.Decimal(12, 2)
+  currency              String        @default("RUB")
+  status                PaymentStatus @default(SUCCEEDED)
+  subscriptionId        String?
+  invoiceId             String?
+  description           String?
+  paidAt                DateTime
+  rawPayload            Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  referral              Referral      @relation(fields: [referralId], references: [id], onDelete: Restrict)
+  commissions           Commission[]
+  refunds               Refund[]
+
+  @@index([referralId])
+  @@index([subscriptionId])
+  @@index([paidAt])
+}
+
+model Refund {
+  id                    String       @id @default(cuid())
+  paymentId             String
+  externalTransactionId String       @unique
+  amount                Decimal      @db.Decimal(12, 2)
+  refundedAt            DateTime
+  rawPayload            Json?
+  createdAt             DateTime     @default(now())
+  payment               Payment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  commissions           Commission[]
+
+  @@index([paymentId])
+}
+
+model Commission {
+  id             String           @id @default(cuid())
+  partnerId      String
+  paymentId      String?
+  refundId       String?
+  commissionRuleId String?
+  kind           CommissionKind   @default(EARNING)
+  idempotencyKey String           @unique
+  amount         Decimal          @db.Decimal(12, 2)
+  rate           Decimal          @db.Decimal(5, 2)
+  status         CommissionStatus @default(PENDING)
+  availableAt    DateTime?
+  approvedAt     DateTime?
+  paidAt         DateTime?
+  note           String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  partner        Partner          @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  payment        Payment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  refund         Refund?          @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  commissionRule CommissionRule?  @relation(fields: [commissionRuleId], references: [id], onDelete: SetNull)
+  payoutItems    PayoutItem[]
+
+  @@index([partnerId, status])
+  @@index([paymentId])
+  @@index([refundId])
+  @@index([commissionRuleId])
+}
+
+model Payout {
+  id          String       @id @default(cuid())
+  partnerId   String
+  amount      Decimal      @db.Decimal(12, 2)
+  status      PayoutStatus @default(DRAFT)
+  method      String?
+  reference   String?
+  note        String?
+  preparedAt  DateTime?
+  paidAt      DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  partner     Partner      @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  items       PayoutItem[]
+  invoices     Invoice[]
+
+  @@index([partnerId, status])
+  @@index([createdAt])
+}
+
+model PayoutItem {
+  id           String     @id @default(cuid())
+  payoutId     String
+  commissionId String     @unique
+  payout       Payout     @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  commission   Commission @relation(fields: [commissionId], references: [id], onDelete: Restrict)
+
+  @@index([payoutId])
+}
+
+model ProgramSettings {
+  id                     String   @id @default("default")
+  programName            String   @default("Syntolk Partners")
+  websiteUrl             String   @default("https://syntolk.ru")
+  currency               String   @default("RUB")
+  baseCommissionRate     Decimal  @default(20.00) @db.Decimal(5, 2)
+  cookieDays             Int      @default(60)
+  commissionHoldDays     Int      @default(14)
+  minimumPayoutAmount    Decimal  @default(5000) @db.Decimal(12, 2)
+  hideCustomerEmails     Boolean  @default(true)
+  requireApproval        Boolean  @default(true)
+  allowManualReferrals   Boolean  @default(false)
+  selfReferralBlocked    Boolean  @default(true)
+  termsOfService         String?
+  brandName              String   @default("Syntolk")
+  brandLogoUrl           String?
+  supportEmail           String?
+  companyName            String?  @default("Syntolk")
+  portalSubdomain        String?
+  faviconUrl             String?
+  brandBackgroundColor   String   @default("#11131a")
+  brandButtonColor       String   @default("#6c5ce7")
+  brandTextColor         String   @default("#151821")
+  blockedCountries       Json     @default("[]")
+  urlParameters          Json     @default("[]")
+  blockKeywords          Json     @default("[]")
+  blockSocialMediaAds    Json     @default("[]")
+  disablePersonalizedLinks Boolean @default(false)
+  requireBusinessEmail   Boolean  @default(false)
+  enablePostbacks        Boolean  @default(true)
+  payoutFrequency        String   @default("MONTHLY")
+  payoutMethods          Json     @default("[\"MANUAL\"]")
+  programWideCouponCode  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model MarketingResource {
+  id          String       @id @default(cuid())
+  type        ResourceType
+  title       String
+  description String?
+  url         String?
+  content     String?
+  fileUrl     String?
+  fileName    String?
+  fileSize    Int?
+  mimeType    String?
+  category    String?
+  tags        Json         @default("[]")
+  downloads   Int          @default(0)
+  createdBy   String?
+  isActive    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorType  String
+  action     String
+  objectType String
+  objectId   String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([objectType, objectId])
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  eventKey    String   @unique
+  eventType   String
+  processedAt DateTime?
+  error       String?
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  @@index([provider, eventType])
+}
+
+
+model Account {
+  id           String        @id @default(cuid())
+  partnerId    String?       @unique
+  email        String        @unique
+  name         String
+  passwordHash String?
+  role         AccountRole   @default(PARTNER)
+  status       AccountStatus @default(PENDING)
+  emailVerifiedAt DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  partner      Partner?      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  apiKeys      ApiKey[]
+
+  @@index([role, status])
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([email, expiresAt])
+}
+
+model Program {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  description    String?
+  commissionRate Decimal  @default(20.00) @db.Decimal(5, 2)
+  cookieDays     Int      @default(60)
+  currency       String   @default("RUB")
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  requireApproval Boolean @default(true)
+  minimumPayoutAmount Decimal @default(5000) @db.Decimal(12, 2)
+  payoutFrequency String  @default("MONTHLY")
+  termsUrl       String?
+  logoUrl        String?
+  brandColor     String   @default("#6c5ce7")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  partners       Partner[]
+  groups         PartnerGroup[]
+  commissionRules CommissionRule[]
+  coupons        Coupon[]
+
+  @@index([isActive, isDefault])
+}
+
+model CommissionRule {
+  id         String             @id @default(cuid())
+  programId  String?
+  name       String
+  type       CommissionRuleType
+  value      Decimal            @db.Decimal(12, 2)
+  conditions Json               @default("{}")
+  isDefault  Boolean            @default(false)
+  isActive   Boolean            @default(true)
+  priority   Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  program    Program?           @relation(fields: [programId], references: [id], onDelete: Cascade)
+  commissions Commission[]
+
+  @@index([programId, isActive, priority])
+}
+
+model Coupon {
+  id            String             @id @default(cuid())
+  programId     String?
+  partnerId     String?
+  code          String             @unique
+  description   String?
+  discountType  CouponDiscountType @default(PERCENTAGE)
+  discountValue Decimal            @db.Decimal(12, 2)
+  currency      String             @default("RUB")
+  maxUses       Int?
+  usedCount     Int                @default(0)
+  minimumAmount Decimal?           @db.Decimal(12, 2)
+  isActive      Boolean            @default(true)
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  createdBy     String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  program       Program?           @relation(fields: [programId], references: [id], onDelete: Cascade)
+  partner       Partner?           @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([programId])
+  @@index([partnerId])
+  @@index([isActive, expiresAt])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  partnerId     String
+  payoutId      String?
+  amount        Decimal       @db.Decimal(12, 2)
+  tax           Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @db.Decimal(12, 2)
+  currency      String        @default("RUB")
+  status        InvoiceStatus @default(DRAFT)
+  lineItems     Json          @default("[]")
+  billingInfo   Json          @default("{}")
+  notes         String?
+  issuedAt      DateTime?
+  dueAt         DateTime?
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  partner       Partner       @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  payout        Payout?       @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, status])
+  @@index([payoutId])
+}
+
+model EmailTemplate {
+  id        String            @id @default(cuid())
+  type      EmailTemplateType
+  name      String
+  subject   String
+  body      String
+  variables Json              @default("[]")
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  logs      EmailLog[]
+
+  @@index([type, isActive])
+}
+
+model EmailLog {
+  id             String      @id @default(cuid())
+  templateId     String?
+  recipientId    String?
+  recipientEmail String
+  subject        String
+  body           String
+  status         EmailStatus @default(PENDING)
+  providerId     String?
+  sentAt         DateTime?
+  error          String?
+  metadata       Json        @default("{}")
+  createdAt      DateTime    @default(now())
+  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([recipientId])
+  @@index([status, createdAt])
+}
+
+model IntegrationSettings {
+  id             String   @id @default(cuid())
+  key            String   @unique
+  provider       String
+  publicKey      String?
+  webhookUrl     String?
+  trackingScript String?
+  isActive       Boolean  @default(true)
+  config         Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model OutgoingWebhook {
+  id              String   @id @default(cuid())
+  name            String
+  url             String
+  secret          String
+  events          Json     @default("[]")
+  isActive        Boolean  @default(true)
+  failureCount    Int      @default(0)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  logs            OutgoingWebhookLog[]
+}
+
+model OutgoingWebhookLog {
+  id           String                    @id @default(cuid())
+  webhookId    String
+  eventType    String
+  payload      Json                      @default("{}")
+  status       WebhookDeliveryStatus     @default(PENDING)
+  statusCode   Int?
+  response     String?
+  error        String?
+  attempts     Int                       @default(0)
+  nextRetryAt  DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime                  @default(now())
+  webhook      OutgoingWebhook           @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@index([status, nextRetryAt])
+}
+
+model SavedReport {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  reportType  String
+  columns     Json     @default("[]")
+  filters     Json     @default("{}")
+  sortBy      String?
+  sortOrder   String   @default("desc")
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ScheduledReport {
+  id         String          @id @default(cuid())
+  name       String
+  reportType String
+  frequency  ReportFrequency @default(WEEKLY)
+  recipients Json            @default("[]")
+  filters    Json            @default("{}")
+  format     String          @default("csv")
+  isActive   Boolean         @default(true)
+  lastRunAt  DateTime?
+  nextRunAt  DateTime?
+  createdBy  String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([isActive, nextRunAt])
+}
+
+model ApiKey {
+  id         String   @id @default(cuid())
+  accountId  String
+  name       String
+  keyHash    String   @unique
+  prefix     String
+  scopes     Json     @default("[\"read\"]")
+  rateLimit  Int      @default(100)
+  isActive   Boolean  @default(true)
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  usageLogs  ApiUsageLog[]
+
+  @@index([accountId, isActive])
+}
+
+model ApiUsageLog {
+  id         String   @id @default(cuid())
+  apiKeyId   String
+  endpoint   String
+  method     String
+  statusCode Int
+  responseMs Int
+  ipHash     String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  apiKey     ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyId, createdAt])
+  @@index([endpoint, createdAt])
+}
+
+model RateLimitEntry {
+  id           String   @id @default(cuid())
+  identifier   String
+  endpoint     String
+  windowStart  DateTime
+  requestCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@unique([identifier, endpoint, windowStart])
+  @@index([identifier, endpoint])
+}
+
+model TeamMember {
+  id          String           @id @default(cuid())
+  email       String           @unique
+  name        String
+  role        TeamRole         @default(VIEWER)
+  permissions Json             @default("[]")
+  invitedBy   String
+  accountId   String?
+  status      TeamMemberStatus @default(PENDING)
+  invitedAt   DateTime         @default(now())
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  partnerId String?
+  type      String
+  title     String
+  message   String
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  partner   Partner? @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, readAt])
+}

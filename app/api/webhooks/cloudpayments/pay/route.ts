@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { cloudPaymentsEventKey, parseCloudPaymentsBody, verifyCloudPaymentsSignature } from "@/lib/cloudpayments";
+import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
+import { calculateCommission } from "@/lib/commission-engine";
+
+export async function POST(request: NextRequest) {
+  const rawBody = await request.text();
+  const secret = process.env.CLOUDPAYMENTS_API_SECRET ?? "";
+  const signatures = {
+    contentHmac: request.headers.get("content-hmac"),
+    xContentHmac: request.headers.get("x-content-hmac"),
+  };
+
+  if (!verifyCloudPaymentsSignature(rawBody, signatures, secret)) {
+    return NextResponse.json({ code: 13 }, { status: 401 });
+  }
+
+  const payload = parseCloudPaymentsBody(rawBody, request.headers.get("content-type"));
+  const transactionId = String(payload.TransactionId ?? "");
+  const accountId = String(payload.AccountId ?? "");
+  const amount = Number(payload.Amount ?? 0);
+  const currency = String(payload.Currency ?? "RUB");
+  const subscriptionId = payload.SubscriptionId ? String(payload.SubscriptionId) : null;
+  const invoiceId = payload.InvoiceId ? String(payload.InvoiceId) : null;
+
+  if (!transactionId || !accountId || !Number.isFinite(amount) || amount <= 0) {
+    return NextResponse.json({ code: 13 }, { status: 400 });
+  }
+
+  const eventKey = cloudPaymentsEventKey("pay", payload);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const existingEvent = await tx.webhookEvent.findUnique({ where: { eventKey } });
+    if (existingEvent?.processedAt) return { duplicate: true };
+
+    const event = existingEvent ?? await tx.webhookEvent.create({
+      data: { provider: "cloudpayments", eventKey, eventType: "pay", payload: payload as any },
+    });
+
+    const referral = await tx.referral.findUnique({
+      where: { externalUserId: accountId },
+      include: { partner: { include: { group: true, program: true } } },
+    });
+
+    if (!referral || referral.partner.status !== "ACTIVE") {
+      await tx.webhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
+      return { ignored: true };
+    }
+
+    const payment = await tx.payment.upsert({
+      where: { externalTransactionId: transactionId },
+      update: {},
+      create: {
+        externalTransactionId: transactionId,
+        referralId: referral.id,
+        amount,
+        currency,
+        subscriptionId,
+        invoiceId,
+        paidAt: new Date(),
+        rawPayload: payload as any,
+      },
+    });
+
+    const calculated = await calculateCommission(tx, {
+      amount,
+      currency,
+      partner: referral.partner,
+      referral,
+      subscriptionId,
+      invoiceId,
+    });
+    const commissionAmount = calculated.amount;
+    const commissionKey = `cloudpayments:earning:${transactionId}`;
+
+    await tx.commission.upsert({
+      where: { idempotencyKey: commissionKey },
+      update: {},
+      create: {
+        partnerId: referral.partnerId,
+        paymentId: payment.id,
+        kind: "EARNING",
+        idempotencyKey: commissionKey,
+        amount: commissionAmount,
+        rate: calculated.rate,
+        commissionRuleId: calculated.ruleId,
+        note: `Calculated by ${calculated.source}`,
+        availableAt: new Date(Date.now() + calculated.holdDays * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    await tx.referral.update({
+      where: { id: referral.id },
+      data: { status: "ACTIVE" },
+    });
+
+    await tx.webhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
+    return { duplicate: false, partnerId: referral.partnerId, paymentId: payment.id, transactionId, commissionAmount };
+  });
+
+  if ("partnerId" in result && result.partnerId) {
+    await prisma.notification.create({ data: { partnerId: result.partnerId as string, type: "COMMISSION_CREATED", title: "Новое начисление", message: `Начислена комиссия ${Number(result.commissionAmount).toLocaleString("ru-RU")} ₽`, metadata: { paymentId: result.paymentId, transactionId: result.transactionId } } }).catch(()=>null);
+    await triggerOutgoingWebhook("commission.created", result).catch(()=>null);
+  }
+  return NextResponse.json({ code: 0, ...result });
+}

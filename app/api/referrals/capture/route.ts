@@ -1,0 +1,75 @@
+import { randomUUID, createHash } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { evaluateClickFraud } from "@/lib/fraud";
+
+function hashIp(value: string) {
+  const salt = process.env.REFERRAL_IP_HASH_SALT ?? "development-only";
+  return createHash("sha256").update(`${salt}:${value}`).digest("hex");
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const code = String(body?.code ?? "").trim();
+
+  if (!code) return NextResponse.json({ error: "Referral code is required" }, { status: 400 });
+
+  const partner = await prisma.partner.findUnique({ where: { code } });
+  if (!partner || partner.status !== "ACTIVE") {
+    return NextResponse.json({ error: "Referral code is invalid or inactive" }, { status: 404 });
+  }
+
+  const settings = await prisma.programSettings.upsert({ where: { id: "default" }, create: {}, update: {} });
+  const country = request.headers.get("cf-ipcountry") || request.headers.get("x-vercel-ip-country") || "";
+  const blockedCountries = Array.isArray(settings.blockedCountries) ? settings.blockedCountries as string[] : [];
+  if (country && blockedCountries.map(x=>x.toUpperCase()).includes(country.toUpperCase())) {
+    return NextResponse.json({ error: "Referral tracking unavailable in this country" }, { status: 451 });
+  }
+  const landingUrl = body?.landingUrl ? String(body.landingUrl) : "";
+  const referer = body?.referer ? String(body.referer) : (request.headers.get("referer") ?? "");
+  const blockedAds = Array.isArray(settings.blockSocialMediaAds) ? settings.blockSocialMediaAds as string[] : [];
+  if (blockedAds.some(v => referer.toLowerCase().includes(v.toLowerCase()))) {
+    return NextResponse.json({ error: "Referral source is blocked by program policy" }, { status: 403 });
+  }
+  const blockedKeywords = Array.isArray(settings.blockKeywords) ? settings.blockKeywords as string[] : [];
+  if (blockedKeywords.some(k => landingUrl.toLowerCase().includes(k.toLowerCase()))) {
+    return NextResponse.json({ error: "Blocked referral destination" }, { status: 400 });
+  }
+
+  const clickId = randomUUID();
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const realIp = request.headers.get("x-real-ip");
+  const ip = forwarded || realIp || "unknown";
+
+  const ipHash = hashIp(ip);
+  const fraud = await evaluateClickFraud({
+    partnerId: partner.id,
+    ipHash,
+    userAgent: request.headers.get("user-agent") ?? "",
+  });
+
+  await prisma.referralClick.create({
+    data: {
+      clickId,
+      partnerId: partner.id,
+      landingUrl: body?.landingUrl ? String(body.landingUrl) : null,
+      referer: referer || null,
+      userAgent: request.headers.get("user-agent"),
+      ipHash,
+      isSuspicious: fraud.suspicious,
+      fraudScore: fraud.score,
+      fraudReasons: fraud.reasons,
+      source: body?.source ? String(body.source) : null,
+      medium: body?.medium ? String(body.medium) : null,
+      campaign: body?.campaign ? String(body.campaign) : null,
+      content: body?.content ? String(body.content) : null,
+      term: body?.term ? String(body.term) : null,
+    },
+  });
+
+  return NextResponse.json({
+    clickId,
+    partner: { code: partner.code, name: partner.name },
+    expiresInDays: partner.cookieDays,
+  });
+}

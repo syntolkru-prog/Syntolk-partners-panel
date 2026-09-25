@@ -1,0 +1,5 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdminAccess } from "@/lib/api-auth";
+export async function GET(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;if(!a.session)return NextResponse.json({mode:"api-key"});const account=await prisma.account.findUnique({where:{id:a.session.accountId},select:{id:true,email:true,name:true,role:true,status:true,lastLoginAt:true,createdAt:true}});return NextResponse.json({account});}
+export async function PATCH(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;if(!a.session)return NextResponse.json({error:"Browser admin session required"},{status:403});const b=await request.json() as any;const data:any={};if(b.name!==undefined)data.name=String(b.name);const account=await prisma.account.update({where:{id:a.session.accountId},data,select:{id:true,email:true,name:true,role:true,status:true,lastLoginAt:true}});return NextResponse.json({account});}

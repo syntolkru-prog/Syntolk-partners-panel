@@ -1,0 +1,5 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdminAccess } from "@/lib/api-auth";
+import { sendTemplatedEmail } from "@/lib/email";
+export async function POST(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;const b=await request.json() as any;if(!b.to)return NextResponse.json({error:"to required"},{status:400});const [payments,partners,refunds]=await Promise.all([prisma.payment.aggregate({_sum:{amount:true},_count:true}),prisma.partner.count({where:{status:"ACTIVE"}}),prisma.refund.aggregate({_sum:{amount:true},_count:true})]);const result=await sendTemplatedEmail({type:"COMMISSION_CREATED",to:String(b.to),fallbackSubject:b.subject||"Syntolk Partners — отчёт",fallbackBody:`<h2>Syntolk Partners</h2><p>Активных партнёров: ${partners}</p><p>Платежей: ${payments._count}</p><p>Выручка: ${Number(payments._sum.amount||0).toLocaleString("ru-RU")} ₽</p><p>Возвраты: ${Number(refunds._sum.amount||0).toLocaleString("ru-RU")} ₽</p>`});return NextResponse.json(result);}
