@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cloudPaymentsEventKey, parseCloudPaymentsBody, verifyCloudPaymentsSignature } from "@/lib/cloudpayments";
+import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -73,8 +74,12 @@ export async function POST(request: NextRequest) {
       data: { processedAt: new Date() },
     });
 
-    return { duplicate: false };
+    return { duplicate: false, partnerId: payment.referral.partnerId, paymentId: payment.id, adjustmentAmount };
   });
 
+  if ("partnerId" in result && result.partnerId) {
+    await prisma.notification.create({ data: { partnerId: result.partnerId as string, type: "PAYMENT_CANCELED", title: "Оплата отменена", message: `Комиссия скорректирована на ${Number(result.adjustmentAmount).toLocaleString("ru-RU")} ₽`, metadata: { paymentId: result.paymentId } } }).catch(()=>null);
+    await triggerOutgoingWebhook("payment.canceled", result).catch(()=>null);
+  }
   return NextResponse.json({ code: 0, ...result });
 }
