@@ -1,11 +1,5 @@
 import { Shell, Money } from "@/components/shell";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/partners", label: "Партнёры" },
-  { href: "/admin/payouts", label: "Выплаты" },
-  { href: "/admin/settings", label: "Настройки" },
-];
+import { adminNav } from "@/lib/navigation";
 
 const rows = [
   { partner: "Иван Петров", amount: 48820, entries: 31, method: "СБП / вручную", status: "Готово к выплате" },
@@ -15,7 +9,7 @@ const rows = [
 
 export default function AdminPayoutsPage() {
   return (
-    <Shell title="Ручные выплаты" subtitle="Формируйте выплату из подтверждённых комиссий и фиксируйте факт перевода." nav={nav} role="АДМИНИСТРАТОР">
+    <Shell title="Ручные выплаты" subtitle="Формируйте выплату из подтверждённых комиссий и фиксируйте факт перевода." nav={adminNav} role="АДМИНИСТРАТОР">
       <section className="hero-panel">
         <div><span className="muted">Сейчас готово к выплате</span><strong className="hero-money"><Money value={143820}/></strong><span>14 партнёров</span></div>
         <div className="hero-meta"><span>Минимум <b><Money value={5000}/></b></span><span>Следующая сверка <b>30 сентября</b></span></div>
