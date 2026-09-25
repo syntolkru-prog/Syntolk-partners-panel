@@ -1,0 +1,4 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdminAccess } from "@/lib/api-auth";
+export async function GET(request:NextRequest,{params}:{params:Promise<{id:string}>}){const a=await requireAdminAccess(request);if(a.error)return a.error;const {id}=await params;const partner=await prisma.partner.findUnique({where:{id},include:{group:true,program:true,account:{select:{id:true,email:true,name:true,status:true,lastLoginAt:true}},referrals:{include:{payments:{include:{commissions:true,refunds:true}}},orderBy:{createdAt:"desc"}},payouts:{include:{items:true,invoices:true},orderBy:{createdAt:"desc"}},commissions:{orderBy:{createdAt:"desc"},take:200},coupons:true,invoices:true}});if(!partner)return NextResponse.json({error:"Not found"},{status:404});return NextResponse.json({partner});}
