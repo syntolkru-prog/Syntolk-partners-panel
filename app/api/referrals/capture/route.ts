@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 function hashIp(value: string) {
-  return createHash("sha256").update(value).digest("hex");
+  const salt = process.env.REFERRAL_IP_HASH_SALT ?? "development-only";
+  return createHash("sha256").update(`${salt}:${value}`).digest("hex");
 }
 
 export async function POST(request: NextRequest) {
