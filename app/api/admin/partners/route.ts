@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdminApiKey } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authError = requireAdminApiKey(request);
+  if (authError) return authError;
   const partners = await prisma.partner.findMany({
     include: {
       group: true,
@@ -29,6 +32,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const authError = requireAdminApiKey(request);
+  if (authError) return authError;
+
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const name = String(body?.name ?? "").trim();
   const email = String(body?.email ?? "").trim().toLowerCase();
@@ -59,6 +65,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const authError = requireAdminApiKey(request);
+  if (authError) return authError;
+
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = String(body?.id ?? "").trim();
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
