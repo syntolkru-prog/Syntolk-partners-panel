@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApiKey } from "@/lib/api-auth";
+import { requireAdminAccess } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const [
     partnerCount,
