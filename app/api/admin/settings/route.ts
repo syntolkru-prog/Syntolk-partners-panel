@@ -24,7 +24,11 @@ export async function PATCH(request: NextRequest) {
     "programName", "websiteUrl", "currency", "baseCommissionRate", "cookieDays",
     "commissionHoldDays", "minimumPayoutAmount", "hideCustomerEmails",
     "requireApproval", "allowManualReferrals", "selfReferralBlocked",
-    "termsOfService", "brandName", "brandLogoUrl", "supportEmail",
+    "termsOfService", "brandName", "brandLogoUrl", "supportEmail", "companyName",
+    "portalSubdomain", "faviconUrl", "brandBackgroundColor", "brandButtonColor", "brandTextColor",
+    "blockedCountries", "urlParameters", "blockKeywords", "blockSocialMediaAds",
+    "disablePersonalizedLinks", "requireBusinessEmail", "enablePostbacks", "payoutFrequency",
+    "payoutMethods", "programWideCouponCode",
   ] as const;
 
   const data: any = {};
