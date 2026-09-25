@@ -3,13 +3,9 @@ import { partners } from "@/lib/demo-data";
 
 const nav = [
   { href: "/admin", label: "Dashboard" },
-  { href: "/admin#partners", label: "Партнёры" },
-  { href: "/admin#clients", label: "Клиенты" },
-  { href: "/admin#commissions", label: "Начисления" },
-  { href: "/admin#payouts", label: "Выплаты" },
-  { href: "/admin#returns", label: "Возвраты" },
-  { href: "/admin#analytics", label: "Аналитика" },
-  { href: "/admin#settings", label: "Настройки" },
+  { href: "/admin/partners", label: "Партнёры" },
+  { href: "/admin/payouts", label: "Выплаты" },
+  { href: "/admin/settings", label: "Настройки" },
 ];
 
 export default function AdminPage() {
