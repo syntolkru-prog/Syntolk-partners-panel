@@ -14,13 +14,14 @@ jobs:
   import:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout destination repository
+      - name: Checkout destination branch
         uses: actions/checkout@v4
         with:
           ref: feature/refferq-full-copy
           fetch-depth: 0
+          submodules: false
 
-      - name: Import exact Refferq tree
+      - name: Import Refferq tree except workflow file
         shell: bash
         run: |
           set -euxo pipefail
@@ -31,15 +32,16 @@ jobs:
           git remote add refferq https://github.com/Refferq/Refferq.git
           git fetch --no-tags refferq main
 
-          # Replace the working tree/index with the exact upstream Refferq tree.
           git read-tree --reset -u refferq/main
 
-          # Commit only if the tree differs from the current branch.
+          # GITHUB_TOKEN cannot push changes to workflow files.
+          # The one upstream workflow is copied separately via GitHub API.
+          rm -rf .github/workflows
+          git add -A
+
           if ! git diff --quiet --cached; then
-            git commit -m "chore: import Refferq upstream tree verbatim"
+            git commit -m "chore: import Refferq upstream tree verbatim except workflow"
           fi
 
-          # Verify file contents/tree are identical to upstream.
-          git diff --exit-code refferq/main HEAD -- .
-
+          git diff --exit-code refferq/main HEAD -- . ':(exclude).github/workflows/**'
           git push origin HEAD:feature/refferq-full-copy
