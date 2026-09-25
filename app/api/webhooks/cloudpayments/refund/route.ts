@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     if (existingEvent?.processedAt) return { duplicate: true };
 
     const event = existingEvent ?? await tx.webhookEvent.create({
-      data: { provider: "cloudpayments", eventKey, eventType: "refund", payload },
+      data: { provider: "cloudpayments", eventKey, eventType: "refund", payload: payload as any },
     });
 
     const payment = await tx.payment.findUnique({
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         externalTransactionId: refundTransactionId,
         amount,
         refundedAt: new Date(),
-        rawPayload: payload,
+        rawPayload: payload as any,
       },
     });
 
