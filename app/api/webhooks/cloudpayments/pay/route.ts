@@ -61,6 +61,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const settings = await tx.programSettings.upsert({
+      where: { id: "default" },
+      create: {},
+      update: {},
+    });
     const commissionAmount = amount * (Number(referral.partner.commissionRate) / 100);
     const commissionKey = `cloudpayments:earning:${transactionId}`;
 
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
         idempotencyKey: commissionKey,
         amount: commissionAmount,
         rate: referral.partner.commissionRate,
-        availableAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        availableAt: new Date(Date.now() + settings.commissionHoldDays * 24 * 60 * 60 * 1000),
       },
     });
 
