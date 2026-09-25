@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApiKey } from "@/lib/api-auth";
+import { requireAdminAccess } from "@/lib/api-auth";
 import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
 
 export async function POST(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const now = new Date();
   const due = await prisma.commission.findMany({
