@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { currentSession } from "@/lib/session";
 
 function safeEqual(a: string, b: string) {
   const left = Buffer.from(a);
@@ -28,4 +29,22 @@ export function requireSyntolkInternalKey(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return null;
+}
+
+export async function requireAdminAccess(request: NextRequest) {
+  const session = await currentSession();
+  if (session?.role === "ADMIN") return { session, error: null };
+
+  const keyError = requireAdminApiKey(request);
+  if (!keyError) return { session: null, error: null };
+
+  return { session: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+}
+
+export async function requirePartnerAccess() {
+  const session = await currentSession();
+  if (!session || !["PARTNER","ADMIN"].includes(session.role)) {
+    return { session: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  return { session, error: null };
 }
