@@ -1,6 +1,7 @@
 import { randomUUID, createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { evaluateClickFraud } from "@/lib/fraud";
 
 function hashIp(value: string) {
   const salt = process.env.REFERRAL_IP_HASH_SALT ?? "development-only";
@@ -23,6 +24,13 @@ export async function POST(request: NextRequest) {
   const realIp = request.headers.get("x-real-ip");
   const ip = forwarded || realIp || "unknown";
 
+  const ipHash = hashIp(ip);
+  const fraud = await evaluateClickFraud({
+    partnerId: partner.id,
+    ipHash,
+    userAgent: request.headers.get("user-agent") ?? "",
+  });
+
   await prisma.referralClick.create({
     data: {
       clickId,
@@ -30,7 +38,10 @@ export async function POST(request: NextRequest) {
       landingUrl: body?.landingUrl ? String(body.landingUrl) : null,
       referer: body?.referer ? String(body.referer) : null,
       userAgent: request.headers.get("user-agent"),
-      ipHash: hashIp(ip),
+      ipHash,
+      isSuspicious: fraud.suspicious,
+      fraudScore: fraud.score,
+      fraudReasons: fraud.reasons,
       source: body?.source ? String(body.source) : null,
       medium: body?.medium ? String(body.medium) : null,
       campaign: body?.campaign ? String(body.campaign) : null,
