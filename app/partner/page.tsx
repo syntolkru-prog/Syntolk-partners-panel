@@ -3,12 +3,9 @@ import { commissions, partnerStats } from "@/lib/demo-data";
 
 const nav = [
   { href: "/partner", label: "Обзор" },
-  { href: "/partner#links", label: "Мои ссылки" },
-  { href: "/partner#analytics", label: "Аналитика" },
-  { href: "/partner#clients", label: "Клиенты" },
-  { href: "/partner#commissions", label: "Начисления" },
-  { href: "/partner#payouts", label: "Выплаты" },
-  { href: "/partner#materials", label: "Материалы" },
+  { href: "/partner/referrals", label: "Клиенты" },
+  { href: "/partner/payouts", label: "Выплаты" },
+  { href: "/partner/resources", label: "Материалы" },
 ];
 
 export default function PartnerPage() {
