@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Default to read-only. Jobs that need to write (the docker job pushes to
+# GHCR) opt in explicitly via their own permissions block.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: typecheck + test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: openpartner
+          POSTGRES_PASSWORD: openpartner
+          POSTGRES_DB: openpartner
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openpartner"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://openpartner:openpartner@localhost:5432/openpartner
+      # Quoted so YAML doesn't parse these as integers or booleans.
+      ADMIN_API_KEY: "op_ci_0000000000000000000000000000000000000000000000000000000000"
+      SECRETS_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.11.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # @openpartner/db is consumed via its "types": "dist/index.d.ts"
+      # field, so downstream typechecks need its build output to exist.
+      # Also produces the migration bundle the Migrate step runs.
+      - name: Build @openpartner/db
+        run: pnpm --filter @openpartner/db build
+
+      - name: Migrate
+        run: pnpm migrate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Audit
+        # Fails on any high-severity CVE in the resolved workspace.
+        # Moderate/low are tolerated — too many false-positive patterns
+        # in transitive deps to block on them at v1.
+        run: pnpm audit --audit-level=high --prod
+        continue-on-error: false
+
+  docker:
+    name: docker ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    # On PRs: build only (validates the Dockerfile + pnpm deploy path).
+    # On main/tags: build and push to ghcr.io/<owner>/openpartner-<service>.
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, router, portal]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/openpartner-${{ matrix.service }}
+          # edge = rolling main; semver = v1.2.3 and 1.2.3 + 1.2 + latest;
+          # sha = always-unique fallback for deploys that want a pin.
+          tags: |
+            type=edge,branch=main
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      - name: Build${{ github.event_name != 'pull_request' && ' + push' || '' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.service }}/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
