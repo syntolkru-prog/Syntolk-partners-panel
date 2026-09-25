@@ -1,16 +1,10 @@
 import { Shell, Money } from "@/components/shell";
+import { partnerNav } from "@/lib/navigation";
 import { commissions, partnerStats } from "@/lib/demo-data";
-
-const nav = [
-  { href: "/partner", label: "Обзор" },
-  { href: "/partner/referrals", label: "Клиенты" },
-  { href: "/partner/payouts", label: "Выплаты" },
-  { href: "/partner/resources", label: "Материалы" },
-];
 
 export default function PartnerPage() {
   return (
-    <Shell title="Партнёрский кабинет" subtitle="Доход, клиенты и выплаты в одном месте." nav={nav} role="ПАРТНЁР">
+    <Shell title="Партнёрский кабинет" subtitle="Доход, клиенты и выплаты в одном месте." nav={partnerNav} role="ПАРТНЁР">
       <section className="hero-panel">
         <div>
           <span className="muted">Доступно к выплате</span>
