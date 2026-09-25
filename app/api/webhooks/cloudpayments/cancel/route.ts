@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const payment = await tx.payment.findUnique({
       where: { externalTransactionId: transactionId },
-      include: { referral: { include: { partner: true } } },
+      include: { referral: { include: { partner: true } }, commissions: { orderBy: { createdAt: "asc" } } },
     });
 
     if (!payment) {
@@ -48,9 +48,18 @@ export async function POST(request: NextRequest) {
       data: { status: "CANCELED" },
     });
 
-    const rate = payment.referral.partner.commissionRate;
+    const earning = payment.commissions.find(c => c.kind === "EARNING");
+    const priorAdjustments = payment.commissions
+      .filter(c => c.kind === "REFUND")
+      .reduce((sum, c) => sum + Number(c.amount), 0);
+    if (!earning) {
+      await tx.webhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
+      return { duplicate: false, ignoredAdjustment: true };
+    }
+    const rate = earning.rate;
+    const remainingCommission = Math.max(0, Number(earning.amount) + priorAdjustments);
     const adjustmentKey = `cloudpayments:cancel:${transactionId}`;
-    const adjustmentAmount = -Math.min(amount, Number(payment.amount)) * (Number(rate) / 100);
+    const adjustmentAmount = -remainingCommission;
 
     await tx.commission.upsert({
       where: { idempotencyKey: adjustmentKey },
@@ -62,6 +71,7 @@ export async function POST(request: NextRequest) {
         idempotencyKey: adjustmentKey,
         amount: adjustmentAmount,
         rate,
+        commissionRuleId: earning.commissionRuleId,
         status: "APPROVED",
         availableAt: new Date(),
         approvedAt: new Date(),
