@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdminApiKey } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authError = requireAdminApiKey(request);
+  if (authError) return authError;
   const settings = await prisma.programSettings.upsert({
     where: { id: "default" },
     create: {},
@@ -11,6 +14,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  const authError = requireAdminApiKey(request);
+  if (authError) return authError;
+
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
