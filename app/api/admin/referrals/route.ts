@@ -1,0 +1,5 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdminAccess } from "@/lib/api-auth";
+export async function GET(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;const q=new URL(request.url).searchParams;const status=q.get("status") as any;const partnerId=q.get("partnerId");const referrals=await prisma.referral.findMany({where:{...(status?{status}:{}),...(partnerId?{partnerId}:{})},include:{partner:{include:{group:true,program:true}},payments:{orderBy:{paidAt:"desc"}}},orderBy:{createdAt:"desc"}});return NextResponse.json({referrals});}
+export async function PATCH(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;const b=await request.json() as any;if(!b.id||!["REGISTERED","ACTIVE","CANCELED","CAPTURED"].includes(b.status))return NextResponse.json({error:"invalid referral update"},{status:400});const referral=await prisma.referral.update({where:{id:b.id},data:{status:b.status,canceledAt:b.status==="CANCELED"?new Date():null,metadata:b.metadata??undefined}});return NextResponse.json({referral});}
