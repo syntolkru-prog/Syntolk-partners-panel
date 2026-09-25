@@ -27,7 +27,7 @@ export async function PATCH(request: NextRequest) {
     "termsOfService", "brandName", "brandLogoUrl", "supportEmail",
   ] as const;
 
-  const data: Record<string, unknown> = {};
+  const data: any = {};
   for (const key of allowed) {
     if (body[key] !== undefined) data[key] = body[key];
   }
@@ -44,7 +44,7 @@ export async function PATCH(request: NextRequest) {
       action: "UPDATE_PROGRAM_SETTINGS",
       objectType: "PROGRAM_SETTINGS",
       objectId: "default",
-      payload: data as object,
+      payload: data,
     },
   });
 
