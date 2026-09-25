@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   const title = String(body?.title ?? "").trim();
   const type = String(body?.type ?? "OTHER");
 
-  if (!title || !["BANNER", "LOGO", "TEXT", "LANDING", "OTHER"].includes(type)) {
+  if (!title || !["BANNER", "LOGO", "TEXT", "LANDING", "EMAIL_TEMPLATE", "SOCIAL_POST", "DOCUMENT", "VIDEO", "OTHER"].includes(type)) {
     return NextResponse.json({ error: "Invalid resource" }, { status: 400 });
   }
 
@@ -31,6 +31,13 @@ export async function POST(request: NextRequest) {
       description: body?.description ? String(body.description) : null,
       url: body?.url ? String(body.url) : null,
       content: body?.content ? String(body.content) : null,
+      fileUrl: body?.fileUrl ? String(body.fileUrl) : null,
+      fileName: body?.fileName ? String(body.fileName) : null,
+      fileSize: body?.fileSize !== undefined ? Number(body.fileSize) : null,
+      mimeType: body?.mimeType ? String(body.mimeType) : null,
+      category: body?.category ? String(body.category) : null,
+      tags: Array.isArray(body?.tags) ? body.tags : [],
+      createdBy: auth.session?.accountId ?? "api",
       sortOrder: Number(body?.sortOrder ?? 0),
       isActive: body?.isActive === undefined ? true : Boolean(body.isActive),
     },
@@ -48,11 +55,13 @@ export async function PATCH(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
   const data: any = {};
-  for (const key of ["title", "description", "url", "content"] as const) {
+  for (const key of ["title", "description", "url", "content", "fileUrl", "fileName", "mimeType", "category"] as const) {
     if (body?.[key] !== undefined) data[key] = body[key] ? String(body[key]) : null;
   }
   if (body?.type !== undefined) data.type = String(body.type);
   if (body?.sortOrder !== undefined) data.sortOrder = Number(body.sortOrder);
+  if (body?.fileSize !== undefined) data.fileSize = Number(body.fileSize);
+  if (body?.tags !== undefined) data.tags = Array.isArray(body.tags) ? body.tags : [];
   if (body?.isActive !== undefined) data.isActive = Boolean(body.isActive);
 
   const resource = await prisma.marketingResource.update({ where: { id }, data });
