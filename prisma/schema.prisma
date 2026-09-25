@@ -143,6 +143,42 @@ model PartnerGroup {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   partners       Partner[]
+  program        Program?  @relation(fields: [programId], references: [id])
+
+  @@index([programId])
+}
+
+model Partner {
+  id              String        @id @default(cuid())
+  programId       String?
+  groupId         String?
+  name            String
+  email           String        @unique
+  code            String        @unique
+  status          PartnerStatus @default(PENDING)
+  commissionRate  Decimal       @default(20.00) @db.Decimal(5, 2)
+  cookieDays      Int           @default(60)
+  payoutDetails   Json?
+  note            String?
+  approvedAt      DateTime?
+  suspendedAt     DateTime?
+  lastActiveAt    DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  program         Program?      @relation(fields: [programId], references: [id])
+  group           PartnerGroup? @relation(fields: [groupId], references: [id])
+  account         Account?
+  clicks          ReferralClick[]
+  referrals       Referral[]
+  commissions     Commission[]
+  payouts         Payout[]
+  coupons         Coupon[]
+  invoices        Invoice[]
+  notifications   Notification[]
+
+  @@index([programId])
+  @@index([groupId])
+  @@index([status])
 }
 
 model ReferralClick {
