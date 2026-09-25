@@ -58,8 +58,12 @@ export async function POST(request: NextRequest) {
       email,
       code,
       status: settings.requireApproval ? "PENDING" : "ACTIVE",
-      commissionRate: settings.baseCommissionRate,
-      cookieDays: settings.cookieDays,
+      commissionRate: body?.commissionRate !== undefined ? Number(body.commissionRate) : settings.baseCommissionRate,
+      usesCustomCommission: body?.commissionRate !== undefined,
+      cookieDays: body?.cookieDays !== undefined ? Number(body.cookieDays) : settings.cookieDays,
+      groupId: body?.groupId ? String(body.groupId) : null,
+      programId: body?.programId ? String(body.programId) : null,
+      syntolkUserId: body?.syntolkUserId ? String(body.syntolkUserId) : null,
     },
   });
 
@@ -84,9 +88,15 @@ export async function PATCH(request: NextRequest) {
     if (status === "ACTIVE") data.approvedAt = new Date();
     if (status === "SUSPENDED") data.suspendedAt = new Date();
   }
-  if (body?.commissionRate !== undefined) data.commissionRate = Number(body.commissionRate);
+  if (body?.commissionRate !== undefined) {
+    data.commissionRate = Number(body.commissionRate);
+    data.usesCustomCommission = true;
+  }
+  if (body?.resetCommissionOverride === true) data.usesCustomCommission = false;
   if (body?.cookieDays !== undefined) data.cookieDays = Number(body.cookieDays);
   if (body?.groupId !== undefined) data.groupId = body.groupId ? String(body.groupId) : null;
+  if (body?.programId !== undefined) data.programId = body.programId ? String(body.programId) : null;
+  if (body?.syntolkUserId !== undefined) data.syntolkUserId = body.syntolkUserId ? String(body.syntolkUserId) : null;
   if (body?.note !== undefined) data.note = body.note ? String(body.note) : null;
 
   const partner = await prisma.partner.update({ where: { id }, data });
