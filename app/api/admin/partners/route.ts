@@ -72,7 +72,7 @@ export async function PATCH(request: NextRequest) {
   const id = String(body?.id ?? "").trim();
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
-  const data: Record<string, unknown> = {};
+  const data: any = {};
   if (body?.status) {
     const status = String(body.status);
     if (!["PENDING", "ACTIVE", "SUSPENDED", "REJECTED"].includes(status)) {
@@ -94,7 +94,7 @@ export async function PATCH(request: NextRequest) {
       action: "UPDATE_PARTNER",
       objectType: "PARTNER",
       objectId: id,
-      payload: data as object,
+      payload: data,
     },
   });
 
