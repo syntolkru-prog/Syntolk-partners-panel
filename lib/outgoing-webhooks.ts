@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
-function safeWebhookUrl(raw: string) {
+export function safeWebhookUrl(raw: string) {
   try {
     const url = new URL(raw);
     if (url.protocol !== "https:") return false;
@@ -11,6 +11,12 @@ function safeWebhookUrl(raw: string) {
     return true;
   } catch { return false; }
 }
+
+export const AVAILABLE_PARTNER_EVENTS = [
+  "partner.approved","partner.rejected","referral.created","commission.created",
+  "commission.approved","commission.refund_adjustment","payment.canceled",
+  "payout.ready","payout.paid"
+] as const;
 
 export async function triggerOutgoingWebhook(eventType: string, data: unknown) {
   const hooks = await prisma.outgoingWebhook.findMany({ where: { isActive: true } });
