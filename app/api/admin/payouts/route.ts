@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       return created;
     });
 
+    await prisma.notification.create({ data: { partnerId: payout.partnerId, type: "PAYOUT_READY", title: "Выплата подготовлена", message: `${Number(payout.amount).toLocaleString("ru-RU")} ₽ подготовлено к ручной выплате.`, metadata: { payoutId: payout.id } } }).catch(()=>null);
+    await triggerOutgoingWebhook("payout.ready", { payoutId: payout.id, partnerId: payout.partnerId, amount: Number(payout.amount) }).catch(()=>null);
     return NextResponse.json({ payout }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
