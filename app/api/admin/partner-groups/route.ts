@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApiKey } from "@/lib/api-auth";
+import { requireAdminAccess } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const groups = await prisma.partnerGroup.findMany({
     include: { _count: { select: { partners: true } } },
@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const name = String(body?.name ?? "").trim();
@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = String(body?.id ?? "").trim();
