@@ -43,6 +43,13 @@ export async function POST(request: NextRequest) {
       const amount = commissions.reduce((sum, item) => sum + Number(item.amount), 0);
       if (amount <= 0) throw new Error("NON_POSITIVE_BALANCE");
 
+      const settings = await tx.programSettings.upsert({
+        where: { id: "default" },
+        create: {},
+        update: {},
+      });
+      if (amount < Number(settings.minimumPayoutAmount)) throw new Error("BELOW_MINIMUM_PAYOUT");
+
       const created = await tx.payout.create({
         data: {
           partnerId,
