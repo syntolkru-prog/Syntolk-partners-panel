@@ -26,6 +26,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Referral tracking unavailable in this country" }, { status: 451 });
   }
   const landingUrl = body?.landingUrl ? String(body.landingUrl) : "";
+  const referer = body?.referer ? String(body.referer) : (request.headers.get("referer") ?? "");
+  const blockedAds = Array.isArray(settings.blockSocialMediaAds) ? settings.blockSocialMediaAds as string[] : [];
+  if (blockedAds.some(v => referer.toLowerCase().includes(v.toLowerCase()))) {
+    return NextResponse.json({ error: "Referral source is blocked by program policy" }, { status: 403 });
+  }
   const blockedKeywords = Array.isArray(settings.blockKeywords) ? settings.blockKeywords as string[] : [];
   if (blockedKeywords.some(k => landingUrl.toLowerCase().includes(k.toLowerCase()))) {
     return NextResponse.json({ error: "Blocked referral destination" }, { status: 400 });
@@ -48,7 +53,7 @@ export async function POST(request: NextRequest) {
       clickId,
       partnerId: partner.id,
       landingUrl: body?.landingUrl ? String(body.landingUrl) : null,
-      referer: body?.referer ? String(body.referer) : null,
+      referer: referer || null,
       userAgent: request.headers.get("user-agent"),
       ipHash,
       isSuspicious: fraud.suspicious,
