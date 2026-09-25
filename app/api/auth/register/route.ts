@@ -24,6 +24,11 @@ export async function POST(request: NextRequest) {
   if (exists) return NextResponse.json({ error: "Account already exists" }, { status: 409 });
 
   const settings = await prisma.programSettings.upsert({ where: { id: "default" }, create: {}, update: {} });
+  if (settings.requireBusinessEmail) {
+    const domain = email.split("@")[1] ?? "";
+    const freeDomains = new Set(["gmail.com","googlemail.com","yahoo.com","outlook.com","hotmail.com","mail.ru","yandex.ru","icloud.com"]);
+    if (freeDomains.has(domain)) return NextResponse.json({ error: "Business email required" }, { status: 400 });
+  }
   const passwordHash = await hash(password, 12);
 
   const result = await prisma.$transaction(async tx => {
