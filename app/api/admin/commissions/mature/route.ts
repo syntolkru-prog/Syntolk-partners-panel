@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdminApiKey } from "@/lib/api-auth";
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authError = requireAdminApiKey(request);
+  if (authError) return authError;
   const now = new Date();
 
   const result = await prisma.commission.updateMany({
