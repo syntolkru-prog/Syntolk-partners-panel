@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdminApiKey } from "@/lib/api-auth";
+import { requireAdminAccess } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const resources = await prisma.marketingResource.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const title = String(body?.title ?? "").trim();
@@ -40,8 +40,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const id = String(body?.id ?? "").trim();
@@ -60,8 +60,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const authError = requireAdminApiKey(request);
-  if (authError) return authError;
+  const auth = await requireAdminAccess(request);
+  if (auth.error) return auth.error;
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
