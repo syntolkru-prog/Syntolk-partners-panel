@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PartnerStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  REVERSED
+  PAID
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELED
+}
+
+enum PayoutStatus {
+  DRAFT
+  READY
+  PAID
+  CANCELED
+}
+
+model Partner {
+  id              String        @id @default(cuid())
+  name            String
+  email           String        @unique
+  code            String        @unique
+  status          PartnerStatus @default(PENDING)
+  commissionRate  Decimal       @default(20.00) @db.Decimal(5, 2)
+  cookieDays      Int           @default(60)
+  payoutDetails   Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  referrals       Referral[]
+  commissions     Commission[]
+  payouts         Payout[]
+}
+
+model Referral {
+  id              String    @id @default(cuid())
+  partnerId       String
+  externalUserId  String    @unique
+  firstClickId    String?
+  source          String?
+  campaign        String?
+  createdAt       DateTime  @default(now())
+  partner         Partner   @relation(fields: [partnerId], references: [id])
+  payments        Payment[]
+
+  @@index([partnerId])
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  externalTransactionId String        @unique
+  referralId            String
+  amount                Decimal       @db.Decimal(12, 2)
+  currency              String        @default("RUB")
+  status                PaymentStatus @default(SUCCEEDED)
+  subscriptionId        String?
+  paidAt                DateTime
+  rawPayload            Json?
+  createdAt             DateTime      @default(now())
+  referral              Referral      @relation(fields: [referralId], references: [id])
+  commissions           Commission[]
+  refunds               Refund[]
+
+  @@index([referralId])
+  @@index([subscriptionId])
+}
+
+model Refund {
+  id                    String   @id @default(cuid())
+  paymentId             String
+  externalTransactionId String   @unique
+  amount                Decimal  @db.Decimal(12, 2)
+  refundedAt            DateTime
+  rawPayload            Json?
+  createdAt             DateTime @default(now())
+  payment               Payment  @relation(fields: [paymentId], references: [id])
+
+  @@index([paymentId])
+}
+
+model Commission {
+  id          String           @id @default(cuid())
+  partnerId   String
+  paymentId   String
+  amount      Decimal          @db.Decimal(12, 2)
+  rate        Decimal          @db.Decimal(5, 2)
+  status      CommissionStatus @default(PENDING)
+  availableAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  partner     Partner          @relation(fields: [partnerId], references: [id])
+  payment     Payment          @relation(fields: [paymentId], references: [id])
+  payoutItems PayoutItem[]
+
+  @@unique([partnerId, paymentId])
+  @@index([partnerId, status])
+}
+
+model Payout {
+  id          String       @id @default(cuid())
+  partnerId   String
+  amount      Decimal      @db.Decimal(12, 2)
+  status      PayoutStatus @default(DRAFT)
+  reference   String?
+  note        String?
+  paidAt      DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  partner     Partner      @relation(fields: [partnerId], references: [id])
+  items       PayoutItem[]
+
+  @@index([partnerId, status])
+}
+
+model PayoutItem {
+  id           String     @id @default(cuid())
+  payoutId     String
+  commissionId String     @unique
+  payout       Payout     @relation(fields: [payoutId], references: [id])
+  commission   Commission @relation(fields: [commissionId], references: [id])
+
+  @@index([payoutId])
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  eventKey    String   @unique
+  eventType   String
+  processedAt DateTime?
+  payload     Json
+  createdAt   DateTime @default(now())
+}
