@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (existingEvent?.processedAt) return { duplicate: true };
 
     const event = existingEvent ?? await tx.webhookEvent.create({
-      data: { provider: "cloudpayments", eventKey, eventType: "pay", payload },
+      data: { provider: "cloudpayments", eventKey, eventType: "pay", payload: payload as any },
     });
 
     const referral = await tx.referral.findUnique({
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         subscriptionId,
         invoiceId,
         paidAt: new Date(),
-        rawPayload: payload,
+        rawPayload: payload as any,
       },
     });
 
