@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requirePartnerAccess } from "@/lib/api-auth";
+export async function GET(){const a=await requirePartnerAccess();if(a.error)return a.error;const partnerId=a.session!.partnerId;if(!partnerId)return NextResponse.json({error:"Partner profile required"},{status:403});const [payouts,approved,pending]=await Promise.all([prisma.payout.findMany({where:{partnerId},include:{items:{include:{commission:true}},invoices:true},orderBy:{createdAt:"desc"}}),prisma.commission.aggregate({where:{partnerId,status:"APPROVED",payoutItems:{none:{}}},_sum:{amount:true}}),prisma.commission.aggregate({where:{partnerId,status:"PENDING"},_sum:{amount:true}})]);return NextResponse.json({balance:{available:Number(approved._sum.amount||0),pending:Number(pending._sum.amount||0)},payouts});}
