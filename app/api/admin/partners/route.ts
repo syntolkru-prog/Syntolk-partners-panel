@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminApiKey } from "@/lib/api-auth";
+import { sendTemplatedEmail } from "@/lib/email";
+import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
 
 export async function GET(request: NextRequest) {
   const authError = requireAdminApiKey(request);
@@ -97,6 +99,13 @@ export async function PATCH(request: NextRequest) {
       payload: data,
     },
   });
+
+  if (data.status === "ACTIVE" || data.status === "REJECTED") {
+    const type = data.status === "ACTIVE" ? "PARTNER_APPROVED" : "PARTNER_REJECTED";
+    await prisma.notification.create({ data: { partnerId: partner.id, type, title: data.status === "ACTIVE" ? "Заявка одобрена" : "Заявка отклонена", message: data.status === "ACTIVE" ? "Ваш аккаунт Syntolk Partners активирован." : "Статус вашей заявки изменён администратором." } });
+    await sendTemplatedEmail({ type, to: partner.email, recipientId: partner.id, variables: { name: partner.name }, fallbackSubject: data.status === "ACTIVE" ? "Syntolk Partners: заявка одобрена" : "Syntolk Partners: статус заявки", fallbackBody: data.status === "ACTIVE" ? "<h2>Добро пожаловать в Syntolk Partners</h2><p>Ваша заявка одобрена.</p>" : "<h2>Syntolk Partners</h2><p>Ваша заявка не была одобрена.</p>" }).catch(()=>null);
+    await triggerOutgoingWebhook(data.status === "ACTIVE" ? "partner.approved" : "partner.rejected", { partnerId: partner.id, email: partner.email }).catch(()=>null);
+  }
 
   return NextResponse.json({ partner });
 }
