@@ -1,15 +1,9 @@
 import { Shell, Money } from "@/components/shell";
-
-const nav = [
-  { href: "/partner", label: "Обзор" },
-  { href: "/partner/referrals", label: "Клиенты" },
-  { href: "/partner/payouts", label: "Выплаты" },
-  { href: "/partner/resources", label: "Материалы" },
-];
+import { partnerNav } from "@/lib/navigation";
 
 export default function PartnerPayoutsPage() {
   return (
-    <Shell title="Выплаты" subtitle="Баланс, готовые суммы и история ручных выплат." nav={nav} role="ПАРТНЁР">
+    <Shell title="Выплаты" subtitle="Баланс, готовые суммы и история ручных выплат." nav={partnerNav} role="ПАРТНЁР">
       <section className="hero-panel"><div><span className="muted">Доступно к выплате</span><strong className="hero-money"><Money value={86420}/></strong><span className="positive">Минимум 5 000 ₽ выполнен</span></div><div className="hero-meta"><span>Ожидает холда <b><Money value={38400}/></b></span><span>Выплачено <b><Money value={35620}/></b></span></div></section>
       <section className="card">
         <div className="section-title"><div><span className="eyebrow">ИСТОРИЯ</span><h2>Последние выплаты</h2></div></div>
