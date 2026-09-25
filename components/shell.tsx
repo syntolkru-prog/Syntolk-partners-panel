@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { currentSession } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 
 type NavItem = { href: string; label: string };
 
-export function Shell({
+export async function Shell({
   title,
   subtitle,
   nav,
@@ -16,6 +18,23 @@ export function Shell({
   role: string;
   children: ReactNode;
 }) {
+  const session = await currentSession();
+  const account = session
+    ? await prisma.account.findUnique({
+        where: { id: session.accountId },
+        select: { name: true, email: true },
+      })
+    : null;
+
+  const name = account?.name ?? (role === "АДМИНИСТРАТОР" ? "Syntolk Admin" : "Партнёр Syntolk");
+  const email = account?.email ?? "";
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "S";
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -30,14 +49,14 @@ export function Shell({
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="avatar">AP</div>
-          <div><b>Александр Петров</b><small>alex@syntolk.ru</small></div>
+          <div className="avatar">{initials}</div>
+          <div><b>{name}</b><small>{email}</small></div>
         </div>
       </aside>
       <main className="content">
         <header className="page-header">
           <div><p className="eyebrow">SYNTOLK PARTNER CENTER</p><h1>{title}</h1><p>{subtitle}</p></div>
-          <button className="button secondary">Помощь</button>
+          <Link className="button secondary" href={role === "АДМИНИСТРАТОР" ? "/admin/settings" : "/partner/settings"}>Настройки</Link>
         </header>
         {children}
       </main>
@@ -45,6 +64,6 @@ export function Shell({
   );
 }
 
-export function Money({ value }: { value: number }) {
-  return <>{new Intl.NumberFormat("ru-RU").format(value)} ₽</>;
+export function Money({ value, currency = "RUB" }: { value: number; currency?: string }) {
+  return <>{new Intl.NumberFormat("ru-RU", { style: "currency", currency, maximumFractionDigits: 2 }).format(value)}</>;
 }
