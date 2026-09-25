@@ -21,5 +21,6 @@ export const partnerNav = [
   { href: "/partner/reports", label: "Аналитика" },
   { href: "/partner/payouts", label: "Выплаты" },
   { href: "/partner/resources", label: "Материалы" },
+  { href: "/partner/notifications", label: "Уведомления" },
   { href: "/partner/settings", label: "Настройки" },
 ];
