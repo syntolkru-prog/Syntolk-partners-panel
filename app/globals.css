@@ -132,3 +132,15 @@ th { color:var(--muted); font-size:12px; font-weight:700; }
 .auth-page{min-height:100vh;display:grid;place-items:center;padding:30px;background:radial-gradient(circle at 20% 0,#ece9ff,transparent 32%),var(--bg)}.auth-card{width:min(480px,100%);background:#fff;border:1px solid var(--line);border-radius:24px;padding:34px;box-shadow:0 24px 80px rgba(22,24,34,.08)}.auth-card.wide{width:min(560px,100%)}.auth-brand{margin-bottom:28px}.auth-form{display:grid;gap:15px;margin-top:22px}.auth-form label{display:grid;gap:7px;font-size:13px;font-weight:700}.auth-form .input{width:100%}.auth-form .button{margin-top:4px}.auth-tabs{display:grid;grid-template-columns:1fr 1fr;background:#f3f4f7;border-radius:12px;padding:4px;margin-top:22px}.auth-tabs button{border:0;background:transparent;padding:10px;border-radius:9px;font-weight:700;color:var(--muted);cursor:pointer}.auth-tabs button.active{background:#fff;color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.06)}.form-message{background:#f7f7fb;border-radius:10px;padding:10px 12px;font-size:13px}.auth-footer{margin:22px 0 0;color:var(--muted);font-size:13px}.auth-footer a{color:var(--accent);font-weight:700}.otp-input{text-align:center;font-size:28px;letter-spacing:.25em;font-weight:800}
 
 .textarea{width:100%;min-height:130px;resize:vertical;margin:14px 0}.sidebar nav{padding-bottom:8px}.sidebar::-webkit-scrollbar{width:6px}.sidebar::-webkit-scrollbar-thumb{background:#2d3140;border-radius:10px}
+
+.form-stack{display:grid;gap:12px;margin:14px 0 20px}
+.inline-form{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.inline-form .input{flex:1 1 180px}
+.mini-input{max-width:170px}
+.checkbox-list{display:grid;gap:12px;margin-top:14px}
+.checkbox-list label{display:flex;gap:10px;align-items:center;font-size:14px;font-weight:650}
+.checkbox-list input[type="checkbox"]{width:18px;height:18px;accent-color:var(--accent)}
+.secret-box{display:grid;gap:8px;margin-top:14px;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;background:#f7f7fb;overflow:auto}
+.secret-box code{font-size:12px;word-break:break-all}
+.notice-banner{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:14px 18px;margin-bottom:18px;border:1px solid var(--line);border-radius:14px;background:#fff8e8}
+.resource-copy{white-space:pre-wrap;background:#f7f7fb;border-radius:10px;padding:12px;margin:12px 0;font-size:13px}
