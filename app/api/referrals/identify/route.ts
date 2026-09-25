@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSyntolkInternalKey } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
+  const authError = requireSyntolkInternalKey(request);
+  if (authError) return authError;
+
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const clickId = String(body?.clickId ?? "").trim();
   const externalUserId = String(body?.externalUserId ?? "").trim();
