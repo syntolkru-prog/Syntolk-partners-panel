@@ -1,0 +1,6 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdminAccess } from "@/lib/api-auth";
+export async function GET(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;return NextResponse.json({reports:await prisma.savedReport.findMany({orderBy:{createdAt:"desc"}})});}
+export async function POST(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;const b=await request.json() as any;if(!b.name||!b.reportType)return NextResponse.json({error:"name/reportType required"},{status:400});const report=await prisma.savedReport.create({data:{name:b.name,description:b.description||null,reportType:b.reportType,columns:b.columns||[],filters:b.filters||{},sortBy:b.sortBy||null,sortOrder:b.sortOrder||"desc",createdBy:a.session?.accountId||"api"}});return NextResponse.json({report},{status:201});}
+export async function DELETE(request:NextRequest){const a=await requireAdminAccess(request);if(a.error)return a.error;const id=new URL(request.url).searchParams.get("id");if(!id)return NextResponse.json({error:"id required"},{status:400});await prisma.savedReport.delete({where:{id}});return NextResponse.json({success:true});}
