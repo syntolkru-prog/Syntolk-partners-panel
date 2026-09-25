@@ -1,9 +1,11 @@
 export const adminNav = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/partners", label: "Партнёры" },
+  { href: "/admin/customers", label: "Клиенты" },
   { href: "/admin/transactions", label: "Транзакции" },
   { href: "/admin/commissions", label: "Начисления" },
   { href: "/admin/payouts", label: "Выплаты" },
+  { href: "/admin/invoices", label: "Счета" },
   { href: "/admin/programs", label: "Программы" },
   { href: "/admin/marketing", label: "Маркетинг" },
   { href: "/admin/reports", label: "Отчёты" },
