@@ -1,0 +1,166 @@
+# Quickstart
+
+End-to-end walkthrough: spin up the stack, run first-run install, invite a partner, simulate a click, stitch an identity, post an event, approve the commission, run a payout, export the data.
+
+## 1. Spin up
+
+```bash
+git clone https://github.com/getcoherence/openpartner
+cd openpartner
+cp .env.example .env
+# edit .env: set ADMIN_API_KEY (bootstrap) and SECRETS_ENCRYPTION_KEY
+# (both random 32-byte hex). Generate each with:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+pnpm install
+docker compose up -d postgres
+pnpm migrate
+
+pnpm dev:api       # :4601
+pnpm dev:router    # :4701
+pnpm dev:portal    # :5673
+```
+
+## 2. First-run install (UI)
+
+Open **http://localhost:5673/install** — a three-step wizard:
+
+1. **You** — admin name + email
+2. **Program** — program name + optional support email (surfaced to partners in their footer)
+3. **Email delivery** — SMTP or Postmark credentials (stored encrypted in the DB) or "None" to print magic links to the `pnpm dev:api` console
+
+On submit, OpenPartner emails you a one-time activation link. Click it and you're signed in as the first admin with a session cookie. From here, everything else is admin UI — no more curl bootstrap.
+
+> The `ADMIN_API_KEY` env remains valid as a headless / CI bearer. Everything below works with either auth mode.
+
+## 3. Bootstrap via API (headless)
+
+If you'd rather skip the wizard for scripted setups, the admin key still works as a bearer token.
+
+```bash
+export ADMIN=$(grep '^ADMIN_API_KEY=' .env | cut -d= -f2)
+
+# Create a partner.
+PARTNER=$(curl -s -X POST http://localhost:4601/partners \
+  -H "Authorization: Bearer $ADMIN" \
+  -H "content-type: application/json" \
+  -d '{"email":"ada@example.com","name":"Ada"}' | jq -r .id)
+# ^ Also emails Ada an invite with a magic link. She clicks it, sets
+#   up her own partner dashboard session — admin never sees her creds.
+
+# Create a campaign (20% recurring percent rule).
+CAMPAIGN=$(curl -s -X POST http://localhost:4601/campaigns \
+  -H "Authorization: Bearer $ADMIN" \
+  -H "content-type: application/json" \
+  -d '{"name":"Default","commissionRule":{"type":"percent","value":20,"recurring":true}}' | jq -r .id)
+
+# Partners create their own Links — but admin can seed one for
+# testing. In the real UX the partner does this from their dashboard.
+curl -s -X POST http://localhost:4601/partners/$PARTNER/links \
+  -H "Authorization: Bearer $ADMIN" \
+  -H "content-type: application/json" \
+  -d "{\"linkKey\":\"ada\",\"campaignId\":\"$CAMPAIGN\",\"destinationUrl\":\"https://example.com/signup\"}"
+```
+
+## 4. Simulate the funnel
+
+```bash
+# Click — router sets _cref cookie, writes Click row, 302s to destinationUrl.
+CLICK=$(curl -sI http://localhost:4701/r/ada | grep -i '^set-cookie' | sed -E 's/.*_cref=([^;]+).*/\1/' | tr -d '\r')
+
+# Stitch a user (this is what the SDK's identify() call does).
+curl -s -X POST http://localhost:4601/attribution/identify \
+  -H "content-type: application/json" \
+  -d "{\"cref\":\"$CLICK\",\"userId\":\"user_123\"}"
+
+# Server-to-server revenue event.
+curl -s -X POST http://localhost:4601/attribution/events \
+  -H "Authorization: Bearer $ADMIN" \
+  -H "content-type: application/json" \
+  -d '{"userId":"user_123","type":"invoice_paid","value":200,"currency":"USD"}'
+```
+
+## 5. Review + payout
+
+```bash
+# The commission is 'accrued'; approve it.
+COMMISSION=$(curl -s -H "Authorization: Bearer $ADMIN" \
+  "http://localhost:4601/partners/$PARTNER/commissions" | jq -r '.commissions[0].id')
+
+curl -s -X POST http://localhost:4601/commissions/$COMMISSION/approve \
+  -H "Authorization: Bearer $ADMIN"
+
+# Connect Stripe (opens a hosted onboarding URL — partner completes there).
+curl -s -X POST http://localhost:4601/partners/$PARTNER/connect/start \
+  -H "Authorization: Bearer $ADMIN" \
+  -H "content-type: application/json" \
+  -d '{"returnUrl":"http://localhost:5673","refreshUrl":"http://localhost:5673"}'
+
+# Run the payout batch (requires partner to have completed Connect).
+curl -s -X POST http://localhost:4601/payouts/run \
+  -H "Authorization: Bearer $ADMIN"
+```
+
+## 6. Export / import
+
+```bash
+# Full dump — round-trippable into a self-hosted instance.
+curl -s -H "Authorization: Bearer $ADMIN" \
+  http://localhost:4601/export.json > export.json
+
+# One table at a time, CSV or JSON.
+curl -s -H "Authorization: Bearer $ADMIN" \
+  http://localhost:4601/export/Click.csv > clicks.csv
+
+# On a fresh selfhost instance:
+curl -s -X POST http://localhost:4601/import \
+  -H "Authorization: Bearer $ADMIN" \
+  -H "content-type: application/json" \
+  --data @export.json
+```
+
+## 7. Deployment modes
+
+Set `OPENPARTNER_MODE` in `.env`:
+
+| Mode | Billing | Partner payouts |
+| --- | --- | --- |
+| `selfhost` | none | operator handles out-of-band |
+| `flat` | merchant subscription (Stripe Checkout via `POST /billing/checkout`; set `STRIPE_FLAT_PRICE_ID`) | Stripe Connect Standard |
+| `revshare` | 3% of each payout retained as platform fee (tracked in `Payout.metadata.platformFee`) | Stripe Connect Standard |
+
+See `/billing/status` for the current state, and `/billing/portal` in `flat` mode for the merchant's Stripe customer portal.
+
+## 8. Browser SDK
+
+```ts
+import { OpenPartner } from '@openpartner/sdk';
+
+const op = OpenPartner.init({ apiUrl: 'https://openpartner.example.com' });
+
+// On login or signup:
+op.identify(currentUser.id);
+```
+
+The SDK captures `?cref=…` from the landing URL and the `_cref` cookie, stashes in localStorage so the attribution survives ITP / multi-session gaps, then POSTs to `/attribution/identify` when you call `identify()`.
+
+## 9. Server SDK
+
+For conversion events your backend controls (custom events, non-Stripe billing):
+
+```ts
+import { OpenPartnerServer } from '@openpartner/sdk/server';
+
+const op = new OpenPartnerServer({
+  apiUrl: process.env.OPENPARTNER_API_URL!,
+  apiKey: process.env.OPENPARTNER_API_KEY!,
+});
+
+await op.trackEvent({
+  userId: user.id,
+  type: 'invoice_paid',
+  value: 249,
+  currency: 'USD',
+});
+```
+
+See [`packages/sdk/README.md`](../packages/sdk/README.md) for full integration docs, including framework notes and error handling.
