@@ -159,6 +159,7 @@ model Partner {
   commissionRate  Decimal       @default(20.00) @db.Decimal(5, 2)
   cookieDays      Int           @default(60)
   payoutDetails   Json?
+  notificationPreferences Json @default("{}")
   note            String?
   approvedAt      DateTime?
   suspendedAt     DateTime?
@@ -334,6 +335,22 @@ model ProgramSettings {
   brandName              String   @default("Syntolk")
   brandLogoUrl           String?
   supportEmail           String?
+  companyName            String?  @default("Syntolk")
+  portalSubdomain        String?
+  faviconUrl             String?
+  brandBackgroundColor   String   @default("#11131a")
+  brandButtonColor       String   @default("#6c5ce7")
+  brandTextColor         String   @default("#151821")
+  blockedCountries       Json     @default("[]")
+  urlParameters          Json     @default("[]")
+  blockKeywords          Json     @default("[]")
+  blockSocialMediaAds    Json     @default("[]")
+  disablePersonalizedLinks Boolean @default(false)
+  requireBusinessEmail   Boolean  @default(false)
+  enablePostbacks        Boolean  @default(true)
+  payoutFrequency        String   @default("MONTHLY")
+  payoutMethods          Json     @default("[\"MANUAL\"]")
+  programWideCouponCode  String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 }
