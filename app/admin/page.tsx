@@ -1,16 +1,10 @@
 import { Shell, Money } from "@/components/shell";
+import { adminNav } from "@/lib/navigation";
 import { partners } from "@/lib/demo-data";
-
-const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/partners", label: "Партнёры" },
-  { href: "/admin/payouts", label: "Выплаты" },
-  { href: "/admin/settings", label: "Настройки" },
-];
 
 export default function AdminPage() {
   return (
-    <Shell title="Управление партнёрской программой" subtitle="Полный контроль партнёров, комиссий, возвратов и ручных выплат." nav={nav} role="АДМИНИСТРАТОР">
+    <Shell title="Управление партнёрской программой" subtitle="Полный контроль партнёров, комиссий, возвратов и ручных выплат." nav={adminNav} role="АДМИНИСТРАТОР">
       <section className="stat-grid admin-stats">
         <article><span>Партнёры</span><strong>186</strong><small>73 активных</small></article>
         <article><span>Продажи партнёров</span><strong><Money value={1842900}/></strong><small>за 30 дней</small></article>
