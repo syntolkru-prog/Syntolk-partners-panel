@@ -8,7 +8,8 @@
     "start": "next start",
     "check": "tsc --noEmit",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
@@ -25,6 +26,10 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "prisma": "^6.0.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "tsx": "^4.20.6"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
