@@ -35,7 +35,10 @@ export async function POST(request: NextRequest) {
 
     const payment = await tx.payment.findUnique({
       where: { externalTransactionId: originalTransactionId },
-      include: { commissions: true, refunds: true },
+      include: {
+        referral: { include: { partner: true } },
+        refunds: true,
+      },
     });
 
     if (!payment) {
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
       return { ignored: true };
     }
 
-    await tx.refund.upsert({
+    const refund = await tx.refund.upsert({
       where: { externalTransactionId: refundTransactionId },
       update: {},
       create: {
@@ -64,18 +67,27 @@ export async function POST(request: NextRequest) {
       data: { status: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED" },
     });
 
-    for (const commission of payment.commissions) {
-      const retained = Math.max(0, Number(payment.amount) - totalRefunded);
-      const correctedAmount = retained * (Number(commission.rate) / 100);
+    const rate = payment.referral.partner.commissionRate;
+    const adjustmentAmount = -Math.min(amount, Number(payment.amount)) * (Number(rate) / 100);
+    const adjustmentKey = `cloudpayments:refund:${refundTransactionId}`;
 
-      await tx.commission.update({
-        where: { id: commission.id },
-        data: {
-          amount: correctedAmount,
-          status: correctedAmount === 0 ? "REVERSED" : commission.status,
-        },
-      });
-    }
+    await tx.commission.upsert({
+      where: { idempotencyKey: adjustmentKey },
+      update: {},
+      create: {
+        partnerId: payment.referral.partnerId,
+        paymentId: payment.id,
+        refundId: refund.id,
+        kind: "REFUND",
+        idempotencyKey: adjustmentKey,
+        amount: adjustmentAmount,
+        rate,
+        status: "APPROVED",
+        availableAt: new Date(),
+        approvedAt: new Date(),
+        note: "Корректировка комиссии из-за возврата CloudPayments",
+      },
+    });
 
     await tx.webhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
     return { duplicate: false };
