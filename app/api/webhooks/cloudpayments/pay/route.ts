@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cloudPaymentsEventKey, parseCloudPaymentsBody, verifyCloudPaymentsSignature } from "@/lib/cloudpayments";
+import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -89,8 +90,12 @@ export async function POST(request: NextRequest) {
     });
 
     await tx.webhookEvent.update({ where: { id: event.id }, data: { processedAt: new Date() } });
-    return { duplicate: false };
+    return { duplicate: false, partnerId: referral.partnerId, paymentId: payment.id, transactionId, commissionAmount };
   });
 
+  if ("partnerId" in result && result.partnerId) {
+    await prisma.notification.create({ data: { partnerId: result.partnerId as string, type: "COMMISSION_CREATED", title: "Новое начисление", message: `Начислена комиссия ${Number(result.commissionAmount).toLocaleString("ru-RU")} ₽`, metadata: { paymentId: result.paymentId, transactionId: result.transactionId } } }).catch(()=>null);
+    await triggerOutgoingWebhook("commission.created", result).catch(()=>null);
+  }
   return NextResponse.json({ code: 0, ...result });
 }
