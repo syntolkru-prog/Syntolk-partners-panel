@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cloudPaymentsEventKey, parseCloudPaymentsBody, verifyCloudPaymentsSignature } from "@/lib/cloudpayments";
 import { triggerOutgoingWebhook } from "@/lib/outgoing-webhooks";
+import { calculateCommission } from "@/lib/commission-engine";
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     const referral = await tx.referral.findUnique({
       where: { externalUserId: accountId },
-      include: { partner: true },
+      include: { partner: { include: { group: true, program: true } } },
     });
 
     if (!referral || referral.partner.status !== "ACTIVE") {
@@ -62,12 +63,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const settings = await tx.programSettings.upsert({
-      where: { id: "default" },
-      create: {},
-      update: {},
+    const calculated = await calculateCommission(tx, {
+      amount,
+      currency,
+      partner: referral.partner,
+      referral,
+      subscriptionId,
+      invoiceId,
     });
-    const commissionAmount = amount * (Number(referral.partner.commissionRate) / 100);
+    const commissionAmount = calculated.amount;
     const commissionKey = `cloudpayments:earning:${transactionId}`;
 
     await tx.commission.upsert({
@@ -79,8 +83,10 @@ export async function POST(request: NextRequest) {
         kind: "EARNING",
         idempotencyKey: commissionKey,
         amount: commissionAmount,
-        rate: referral.partner.commissionRate,
-        availableAt: new Date(Date.now() + settings.commissionHoldDays * 24 * 60 * 60 * 1000),
+        rate: calculated.rate,
+        commissionRuleId: calculated.ruleId,
+        note: `Calculated by ${calculated.source}`,
+        availableAt: new Date(Date.now() + calculated.holdDays * 24 * 60 * 60 * 1000),
       },
     });
 
