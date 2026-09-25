@@ -53,3 +53,60 @@ export async function triggerOutgoingWebhook(eventType: string, data: unknown) {
     }
   }
 }
+
+
+export async function retryOutgoingWebhookLog(logId: string) {
+  const log = await prisma.outgoingWebhookLog.findUnique({
+    where: { id: logId },
+    include: { webhook: true },
+  });
+  if (!log) throw new Error("WEBHOOK_LOG_NOT_FOUND");
+  if (!log.webhook.isActive) throw new Error("WEBHOOK_DISABLED");
+  if (!safeWebhookUrl(log.webhook.url)) throw new Error("UNSAFE_WEBHOOK_URL");
+
+  const payload = JSON.stringify(log.payload);
+  const signature = createHmac("sha256", log.webhook.secret).update(payload).digest("hex");
+  const attempt = log.attempts + 1;
+
+  try {
+    const response = await fetch(log.webhook.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-syntolk-signature": signature,
+        "x-syntolk-event": log.eventType,
+      },
+      body: payload,
+      signal: AbortSignal.timeout(15_000),
+    });
+    const responseText = await response.text().catch(() => "");
+    await prisma.outgoingWebhookLog.update({
+      where: { id: log.id },
+      data: {
+        attempts: attempt,
+        status: response.ok ? "SUCCESS" : "FAILED",
+        statusCode: response.status,
+        response: responseText,
+        error: response.ok ? null : `HTTP ${response.status}`,
+        completedAt: new Date(),
+        nextRetryAt: response.ok ? null : new Date(Date.now() + Math.min(60, attempt * 5) * 60_000),
+      },
+    });
+    if (response.ok) {
+      await prisma.outgoingWebhook.update({ where: { id: log.webhookId }, data: { failureCount: 0, lastTriggeredAt: new Date() } });
+    }
+    return { success: response.ok, statusCode: response.status };
+  } catch (error) {
+    await prisma.outgoingWebhookLog.update({
+      where: { id: log.id },
+      data: {
+        attempts: attempt,
+        status: "FAILED",
+        error: error instanceof Error ? error.message : "network_error",
+        completedAt: new Date(),
+        nextRetryAt: new Date(Date.now() + Math.min(60, attempt * 5) * 60_000),
+      },
+    });
+    return { success: false };
+  }
+}
