@@ -33,10 +33,10 @@ export function CreatorDomainsPage() {
 
   return (
     <Page
-      title="Custom domains"
-      subtitle="Use your own domain for share links instead of the default openpartner.dev URL."
+      title="Пользовательские домены"
+      subtitle="Используйте свой домен для партнёрских ссылок вместо стандартного адреса Syntolk."
       actions={
-        <Button onClick={() => setShowAdd(true)}>Add domain</Button>
+        <Button onClick={() => setShowAdd(true)}>Добавить домен</Button>
       }
     >
       <ErrorBanner error={list.error} />
@@ -50,11 +50,11 @@ export function CreatorDomainsPage() {
         />
       )}
       {list.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : !list.data || list.data.domains.length === 0 ? (
         <EmptyState
-          title="No custom domains yet"
-          hint="Point your own domain at the OpenPartner router and your share links become https://yourdomain.com/r/<program>."
+          title="Пользовательских доменов пока нет"
+          hint="Направьте свой домен на роутер Syntolk — партнёрские ссылки будут иметь вид https://yourdomain.com/r/<program>."
           icon={<Globe size={28} strokeWidth={1.25} />}
         />
       ) : (
@@ -74,13 +74,13 @@ function AddDomainCard({ onClose, onAdded }: { onClose: () => void; onAdded: () 
 
   return (
     <Card style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Add a domain</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Добавить домен</div>
       <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 14 }}>
-        Use a subdomain like <code>share.yourbrand.com</code> &mdash; bare domains can&rsquo;t CNAME at most DNS providers.
+        Используйте поддомен, например <code>share.yourbrand.com</code> — большинство DNS-провайдеров не поддерживают CNAME для корневых доменов.
       </div>
       <ErrorBanner error={mut.error} />
       <div style={{ marginBottom: 14 }}>
-        <Label>Domain</Label>
+        <Label>Домен</Label>
         <Input
           value={domain}
           onChange={(e) => setDomain(e.target.value)}
@@ -90,9 +90,9 @@ function AddDomainCard({ onClose, onAdded }: { onClose: () => void; onAdded: () 
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={() => mut.mutate()} disabled={!domain.trim() || mut.isPending}>
-          {mut.isPending ? 'Adding…' : 'Add domain'}
+          {mut.isPending ? 'Добавляем…' : 'Добавить домен'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Card>
   );
@@ -122,13 +122,13 @@ function DomainCard({ domain }: { domain: Domain }) {
       </div>
       {domain.status === 'verified' ? (
         <p style={{ color: theme.textMuted, fontSize: 13, margin: '4px 0 0' }}>
-          Verified. Share links to your programs are live at{' '}
+          Подтверждён. Ссылки на ваши программы доступны по адресу{' '}
           <code>https://{domain.domain}/r/&lt;program&gt;</code>.
         </p>
       ) : (
         <>
           <p style={{ color: theme.textMuted, fontSize: 13, margin: '4px 0 14px' }}>
-            Add these two records at your DNS provider, then click Verify.
+            Добавьте эти две записи у DNS-провайдера, затем нажмите «Проверить».
           </p>
           {domain.instructions && <DnsBlock instructions={domain.instructions} />}
           {verifyError && <VerifyErrorBox error={verifyError} />}
@@ -137,19 +137,19 @@ function DomainCard({ domain }: { domain: Domain }) {
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         {domain.status !== 'verified' && (
           <Button onClick={() => verify.mutate()} disabled={verify.isPending}>
-            {verify.isPending ? 'Verifying…' : 'Verify'}
+            {verify.isPending ? 'Проверяем…' : 'Проверить'}
           </Button>
         )}
         <Button
           variant="danger"
           onClick={() => {
-            if (confirm(`Remove ${domain.domain}? Existing share links on this domain will stop working immediately.`)) {
+            if (confirm(`Удалить ${domain.domain}? Существующие ссылки на этом домене сразу перестанут работать.`)) {
               remove.mutate();
             }
           }}
           disabled={remove.isPending}
         >
-          Remove
+          Удалить
         </Button>
       </div>
     </Card>
@@ -174,9 +174,9 @@ function VerifyErrorBox({ error }: { error: ApiError }) {
 
 function StatusChip({ status }: { status: DomainStatus }) {
   const palette: Record<DomainStatus, { bg: string; fg: string; label: string }> = {
-    pending: { bg: `${theme.accentA15}`, fg: theme.accent, label: 'Pending verification' },
-    verified: { bg: theme.successSoft, fg: theme.success, label: 'Verified' },
-    failed: { bg: `${theme.danger}15`, fg: theme.danger, label: 'Failed' },
+    pending: { bg: `${theme.accentA15}`, fg: theme.accent, label: 'Ожидает проверки' },
+    verified: { bg: theme.successSoft, fg: theme.success, label: 'Подтверждён' },
+    failed: { bg: `${theme.danger}15`, fg: theme.danger, label: 'Ошибка' },
   };
   const p = palette[status];
   return (
@@ -192,9 +192,9 @@ function DnsBlock({ instructions }: { instructions: Instructions }) {
       <DnsRow label="TXT" name={instructions.txt.name} value={instructions.txt.value} />
       <DnsRow label="CNAME" name={instructions.cname.name} value={instructions.cname.value} />
       <p style={{ color: theme.textDim, fontSize: 12, margin: 0 }}>
-        Most DNS providers don&rsquo;t allow CNAME on bare domains &mdash; use a subdomain
-        (<code>share.yourbrand.com</code>), or your provider&rsquo;s ALIAS / ANAME equivalent. While the
-        cert is provisioning, sit Cloudflare&rsquo;s flexible SSL in front (free) or accept HTTP for testing.
+        Большинство DNS-провайдеров не разрешают CNAME для корневых доменов — используйте поддомен
+        (<code>share.yourbrand.com</code>) или эквивалент ALIAS / ANAME. Пока выпускается сертификат,
+        можно включить гибкий SSL Cloudflare или использовать HTTP для тестирования.
       </p>
     </div>
   );
@@ -204,7 +204,7 @@ function DnsRow({ label, name, value }: { label: string; name: string; value: st
   return (
     <div style={{ background: theme.surface2, border: `1px solid ${theme.borderSubtle}`, borderRadius: theme.radiusSm, padding: 10 }}>
       <div style={{ fontSize: 11, color: theme.textDim, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-        {label} record
+        Запись {label}
       </div>
       <div style={{ fontFamily: theme.fontMono, fontSize: 13, wordBreak: 'break-all' }}>
         <span style={{ color: theme.textMuted }}>{name}</span>

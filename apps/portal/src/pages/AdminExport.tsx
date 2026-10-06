@@ -22,7 +22,26 @@ const TABLES = [
   'Payout',
   'PortalCustomDomain',
   'CommissionAdjustment',
+  'PartnerTermsAcceptance',
 ];
+
+const TABLE_LABELS: Record<string, string> = {
+  Partner: 'Партнёр',
+  Program: 'Программа',
+  PartnerProgram: 'Связь партнёра с программой',
+  PartnerCommission: 'Ставка комиссии партнёра',
+  Coupon: 'Промокод',
+  Link: 'Партнёрская ссылка',
+  Click: 'Клик',
+  Identity: 'Идентификатор',
+  Event: 'Событие',
+  Attribution: 'Атрибуция',
+  Commission: 'Начисление комиссии',
+  Payout: 'Выплата',
+  PortalCustomDomain: 'Пользовательский домен кабинета',
+  CommissionAdjustment: 'Корректировка комиссии',
+  PartnerTermsAcceptance: 'Принятие условий партнёром',
+};
 
 export function AdminExport() {
   const key = getApiKey() ?? '';
@@ -43,16 +62,16 @@ export function AdminExport() {
   }
 
   return (
-    <Page title="Export / import" subtitle="Your data stays yours. Download your partners, programs, attribution and ledger any time.">
+    <Page title="Экспорт / импорт" subtitle="Ваши данные принадлежат вам. В любой момент скачайте партнёров, программы, атрибуцию и реестр операций.">
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <Archive size={22} color={theme.accent} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 500 }}>Full bundle</div>
+            <div style={{ fontSize: 15, fontWeight: 500 }}>Полный архив</div>
             <div style={{ color: theme.textMuted, fontSize: 13 }}>
-              Every exportable table in one file. JSON round-trips into a self-hosted instance via{' '}
-              <code>POST /import</code>; the SQL dump restores directly with{' '}
-              <code>psql -v tenant_id=&lt;destination tenant id&gt; -f openpartner-export.sql</code>.
+              Все экспортируемые таблицы в одном файле. JSON можно восстановить в локальной установке через{' '}
+              <code>POST /import</code>; SQL-дамп восстанавливается напрямую через{' '}
+              <code>psql -v tenant_id=&lt;ID целевой компании&gt; -f syntolk-export.sql</code>.
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -66,7 +85,7 @@ export function AdminExport() {
         </div>
       </Card>
 
-      <SectionHeading>Per-table</SectionHeading>
+      <SectionHeading>По отдельным таблицам</SectionHeading>
       <Card padded={false}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
@@ -86,7 +105,7 @@ export function AdminExport() {
                     background: theme.surface2,
                   }}
                 >
-                  {h}
+              {h === 'Table' ? 'Таблица' : h}
                 </th>
               ))}
             </tr>
@@ -100,7 +119,7 @@ export function AdminExport() {
                 }}
               >
                 <td style={{ padding: '12px 18px' }}>
-                  <code style={{ color: theme.text }}>{t}</code>
+                  <span style={{ color: theme.text }}>{TABLE_LABELS[t] ?? t}</span>
                 </td>
                 <td style={{ padding: '8px 18px' }}>
                   <Button size="sm" variant="ghost" icon={<FileJson size={14} />} onClick={() => download(`/export/${t}.json`)}>
@@ -123,7 +142,7 @@ export function AdminExport() {
         </table>
       </Card>
 
-      <SectionHeading>Import partners from CSV</SectionHeading>
+      <SectionHeading>Импорт партнёров из CSV</SectionHeading>
       <PartnersCsvImporter />
     </Page>
   );
@@ -160,7 +179,7 @@ function PartnersCsvImporter() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(typeof json.detail === 'string' ? json.detail : json.error ?? 'failed');
+        setError(typeof json.detail === 'string' ? json.detail : json.error ?? 'Не удалось выполнить импорт');
         setResult(null);
       } else {
         setResult(json as ImportResult);
@@ -181,12 +200,13 @@ function PartnersCsvImporter() {
   return (
     <Card>
       <p style={{ fontSize: 13, color: theme.textMuted, margin: '0 0 12px' }}>
-        Migrate from Impact, Rewardful, Refersion, etc. — adapt your export to the canonical
-        format below and upload. Re-runnable: existing emails are skipped, not duplicated.
+        Перенесите данные из Impact, Rewardful, Refersion и других систем — приведите экспорт
+        к каноническому формату ниже и загрузите его. Операцию можно повторять: существующие
+        email будут пропущены, а не продублированы.
       </p>
       <details style={{ marginBottom: 12 }}>
         <summary style={{ fontSize: 13, color: theme.accent, cursor: 'pointer' }}>
-          Canonical CSV format
+          Канонический формат CSV
         </summary>
         <pre style={{ background: theme.surface2, border: `1px solid ${theme.borderSubtle}`, borderRadius: theme.radiusSm, padding: 10, marginTop: 8, fontSize: 12, overflowX: 'auto' }}>
 {`email,name,activatedAt,metadata
@@ -195,22 +215,29 @@ grace@example.com,Grace Hopper,,
 `}
         </pre>
         <p style={{ fontSize: 12, color: theme.textMuted, margin: '8px 0 0' }}>
-          <code>email</code> + <code>name</code> required. <code>activatedAt</code> defaults to
-          now (existing partners come in already-activated). <code>metadata</code> is optional
-          JSON merged into Partner.metadata. New partners get access to all current campaigns.
+          <code>email</code> + <code>name</code> обязательны. <code>activatedAt</code> по умолчанию
+          устанавливается в текущий момент (существующие партнёры импортируются активными).
+          <code>metadata</code> — необязательный JSON, объединяемый с Partner.metadata. Новые
+          партнёры получают доступ ко всем текущим кампаниям.
         </p>
       </details>
-      <input
-        type="file"
-        accept=".csv,text/csv"
-        onChange={onFile}
-        style={{ marginBottom: 8, fontSize: 13, color: theme.text }}
-      />
+      <label style={{ display: 'inline-block', marginBottom: 8, cursor: 'pointer' }}>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onFile}
+          style={{ display: 'none' }}
+          aria-label="Выбрать CSV-файл"
+        />
+        <span style={{ display: 'inline-block', padding: '7px 12px', border: `1px solid ${theme.border}`, borderRadius: theme.radiusSm, color: theme.text, fontSize: 13 }}>
+          Выбрать CSV-файл
+        </span>
+      </label>
       <textarea
         value={csv}
         onChange={(e) => setCsv(e.target.value)}
         rows={6}
-        placeholder="…or paste CSV here"
+        placeholder="…или вставьте CSV сюда"
         style={{
           width: '100%',
           padding: '10px 12px',
@@ -227,27 +254,33 @@ grace@example.com,Grace Hopper,,
       {error && <div style={{ color: theme.danger, fontSize: 13, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <Button onClick={() => run(true)} disabled={!csv.trim() || busy} variant="secondary">
-          {busy ? 'Working…' : 'Preview (dry-run)'}
+          {busy ? 'Выполняем…' : 'Предпросмотр (без записи)'}
         </Button>
         <Button onClick={() => run(false)} disabled={!csv.trim() || busy} icon={<Upload size={14} />}>
-          {busy ? 'Importing…' : 'Import'}
+          {busy ? 'Импортируем…' : 'Импортировать'}
         </Button>
       </div>
       {result && (
         <div style={{ background: theme.surface2, border: `1px solid ${theme.borderSubtle}`, borderRadius: theme.radiusSm, padding: 12, fontSize: 13 }}>
           <div style={{ marginBottom: 8 }}>
-            <strong>{result.dryRun ? 'Preview' : 'Import done'}</strong> · {result.summary.total} rows ·
-            <span style={{ color: theme.success, marginLeft: 8 }}>{result.summary.created} created</span>
-            <span style={{ color: theme.textMuted, marginLeft: 8 }}>{result.summary.skipped} skipped</span>
-            {result.summary.invalid > 0 && <span style={{ color: theme.danger, marginLeft: 8 }}>{result.summary.invalid} invalid</span>}
+            <strong>{result.dryRun ? 'Предпросмотр' : 'Импорт завершён'}</strong> · строк: {result.summary.total} ·
+            <span style={{ color: theme.success, marginLeft: 8 }}>{result.summary.created} создано</span>
+            <span style={{ color: theme.textMuted, marginLeft: 8 }}>{result.summary.skipped} пропущено</span>
+            {result.summary.invalid > 0 && <span style={{ color: theme.danger, marginLeft: 8 }}>{result.summary.invalid} ошибочных</span>}
           </div>
           {result.report.filter((r) => r.status !== 'created').slice(0, 50).map((r) => (
             <div key={r.row} style={{ fontSize: 12, color: r.status === 'invalid' ? theme.danger : theme.textMuted }}>
-              row {r.row} ({r.email}): {r.status}{r.reason ? ` — ${r.reason}` : ''}
+              строка {r.row} ({r.email}): {importStatus(r.status)}{r.reason ? ` — ${r.reason}` : ''}
             </div>
           ))}
         </div>
       )}
     </Card>
   );
+}
+
+function importStatus(status: ImportReportRow['status']): string {
+  if (status === 'created') return 'создано';
+  if (status === 'skipped_email_taken') return 'пропущено: email уже занят';
+  return 'ошибка';
 }

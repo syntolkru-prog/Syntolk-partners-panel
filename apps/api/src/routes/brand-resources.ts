@@ -31,6 +31,7 @@ import {
 } from '@openpartner/db';
 import { grantScope, requireAdmin, requireAuth } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
+import { resolveBrandName } from '../brand-name.js';
 import {
   MAX_UPLOAD_BYTES,
   UploadError,
@@ -77,6 +78,7 @@ brandResourcesRouter.get(
     const tenant = await db<TenantRow>(TABLES.Tenant)
       .where({ id: tenantId })
       .first(['displayName', 'logoUrl', 'brandColor', 'programTermsUrl']);
+    const displayName = await resolveBrandName(db, tenantId);
 
     // supportEmail lives on Config under the same program_settings blob
     // the Settings page writes to. Pull it inline so callers get one
@@ -93,7 +95,9 @@ brandResourcesRouter.get(
 
     res.json({
       brand: {
-        displayName: tenant?.displayName ?? null,
+        // Settings.programName is the customer-facing brand name. Tenant's
+        // signup displayName can remain the internal default tenant label.
+        displayName,
         logoUrl: tenant?.logoUrl ?? null,
         brandColor: tenant?.brandColor ?? null,
         programTermsUrl: tenant?.programTermsUrl ?? null,

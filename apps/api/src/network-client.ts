@@ -810,11 +810,17 @@ export async function reportNetworkPayoutsToNetwork(
   }
 
   const { CONFIG_KEYS, getConfig, setConfig } = await import('./config.js');
-  const { aggregateNetworkOriginatedPayouts } = await import('./usage-billing.js');
 
   const lastIso = await getConfig<string>(db, tenantId, CONFIG_KEYS.LastNetworkPayoutsReportedAt);
   const rangeStart = lastIso ? new Date(lastIso) : null;
-  const amountUsd = await aggregateNetworkOriginatedPayouts(db, rangeStart, rangeEnd);
+  const payoutQuery = db(TABLES.Payout)
+    .join(TABLES.Partner, `${TABLES.Partner}.id`, `${TABLES.Payout}.partnerId`)
+    .where(`${TABLES.Payout}.status`, 'paid')
+    .andWhere(`${TABLES.Payout}.completedAt`, '<=', rangeEnd)
+    .andWhereRaw(`"${TABLES.Partner}"."metadata"->'network'->>'creatorId' is not null`);
+  if (rangeStart) payoutQuery.andWhere(`${TABLES.Payout}.completedAt`, '>', rangeStart);
+  const payoutRows = (await payoutQuery.sum({ total: `${TABLES.Payout}.amount` })) as Array<{ total: string | null }>;
+  const amountUsd = Number(payoutRows[0]?.total ?? 0);
 
   if (amountUsd <= 0) {
     // Advance the high-water mark anyway so we don't re-scan the

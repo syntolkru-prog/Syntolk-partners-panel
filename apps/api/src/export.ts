@@ -71,6 +71,7 @@ export const EXPORT_TABLES = [
   // Core compensating-entry ledger (clawbacks/corrections against paid
   // commissions). Ordered after Commission for FK-safe import.
   { table: TABLES.CommissionAdjustment, primaryKey: 'id' },
+  { table: TABLES.PartnerTermsAcceptance, primaryKey: 'id' },
 ] as const satisfies readonly ExportTableSpec[];
 
 export type ExportableTable = (typeof EXPORT_TABLES)[number]['table'];

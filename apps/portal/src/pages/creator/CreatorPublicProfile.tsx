@@ -219,7 +219,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div style={{ minHeight: '100vh', background: theme.bg, padding: '40px 20px' }}>
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <div style={{ marginBottom: 24, fontSize: 13 }}>
-          <Link to="/" style={{ color: theme.textMuted, textDecoration: 'none' }}>← OpenPartner</Link>
+          <Link to="/" style={{ color: theme.textMuted, textDecoration: 'none' }}>← Syntolk</Link>
         </div>
         {children}
       </div>

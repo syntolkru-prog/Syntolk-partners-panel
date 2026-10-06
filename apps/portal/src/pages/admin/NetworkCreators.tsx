@@ -109,7 +109,7 @@ export function AdminNetworkCreators() {
   return (
     <Page
       title="Discover creators"
-      subtitle="Browse the OpenPartner Network for creators who match your audience. Filter by category, platform, audience size, and past performance."
+      subtitle="Ищите в сети Syntolk авторов, подходящих вашей аудитории. Фильтруйте по категории, площадке, размеру аудитории и прошлым результатам."
     >
       <ErrorBanner error={list.error} />
       <Card>

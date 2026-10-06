@@ -37,10 +37,9 @@ import type { Knex } from 'knex';
 import { TABLES, type PayoutCadence, type TenantRow } from '@openpartner/db';
 import { db } from './db.js';
 import { withTenantTransaction } from './tenancy.js';
-import { reportUsageToStripe } from './usage-billing.js';
 import { runPayouts } from './payouts.js';
 import { drainOutbox, reportNetworkPayoutsToNetwork, sendHeartbeat } from './network-client.js';
-import { getMode } from './stripe.js';
+import { getMode } from './deployment.js';
 import { sweepCampaignEndNotifications } from './campaign-end-notifications.js';
 import { autoApproveMatureCommissions } from './commission-auto-approve.js';
 import { reverifyPortalDomains, sweepWhiteLabelEntitlement } from './portal-domains.js';
@@ -76,15 +75,6 @@ async function forEachActiveTenant<T>(
 
 const JOBS: ScheduledJob[] = [
   {
-    name: 'usage-report',
-    cronExpr: '15 3 * * *',
-    description: 'Per tenant: aggregate attributed GMV and report to Stripe meters (daily 03:15 UTC)',
-    handler: async () => {
-      if (getMode() === 'selfhost') return { skipped: 'selfhost' };
-      return forEachActiveTenant((trx, tenantId) => reportUsageToStripe(trx, tenantId));
-    },
-  },
-  {
     name: 'payouts',
     cronExpr: '0 9 * * 1',
     description: 'Per tenant: plan payouts — write Connect transfer intents + manual-rail rows for approved commissions (Monday 09:00 UTC; cadence-gated per tenant)',
@@ -100,29 +90,7 @@ const JOBS: ScheduledJob[] = [
         }
         return runPayouts(trx, tenantId);
       });
-      // Every planning transaction is committed by now, so the intents are
-      // durable and their transfers can be posted (audit #10). Doing it
-      // here rather than waiting for the 15-minute executor tick keeps the
-      // weekly run a single visible operation.
-      const { executePayoutTransfers } = await import('./payout-transfers.js');
-      const transfers = await executePayoutTransfers(db);
-      return { planned, transfers };
-    },
-  },
-  {
-    name: 'payout-transfers',
-    cronExpr: '*/15 * * * *',
-    description:
-      'Apply pending operator-recovery requests for the direct-Connect rail, then post Stripe transfers for committed payout intents: frozen idempotency key per intent, reconcile-by-transfer_group past the 24h key window, release claims on definite failure (every 15 minutes)',
-    handler: async () => {
-      // Recovery FIRST (decision B): an intent an operator just released
-      // is executed by the same tick that released it, instead of waiting
-      // for the next one.
-      const { applyRecoveryRequests } = await import('./operator-recovery.js');
-      const recovery = await applyRecoveryRequests(db, { rail: 'direct_connect' });
-      const { executePayoutTransfers } = await import('./payout-transfers.js');
-      const transfers = await executePayoutTransfers(db);
-      return { recovery, transfers };
+      return { planned };
     },
   },
   {
@@ -159,54 +127,6 @@ const JOBS: ScheduledJob[] = [
     cronExpr: '0 9 * * *',
     description: 'Email brand admins + participating partners ~7 days before a campaign ends (daily 09:00 UTC)',
     handler: async () => sweepCampaignEndNotifications(),
-  },
-  {
-    name: 'funding-collector',
-    cronExpr: '*/5 * * * *',
-    description:
-      'Apply pending operator-recovery requests for the hosted funding rail, then advance hosted funding batches: create/retry funding PaymentIntents, poll as webhook-loss backstop, release timed-out batches (every 5 minutes; the collector is a no-op unless HOSTED_FUNDING_ENABLED=1)',
-    handler: async () => {
-      // Recovery first (decision B), and NOT behind the funding flag: a
-      // force-release of a stuck batch is exactly what an operator does
-      // after HOSTED_FUNDING_ENABLED was pulled mid-incident, and
-      // forceReleaseBatch carries its own verification either way.
-      const { applyRecoveryRequests } = await import('./operator-recovery.js');
-      const recovery = await applyRecoveryRequests(db, { rail: 'hosted_funding' });
-      const { runFundingCollector } = await import('./funding/collect.js');
-      const collected = await runFundingCollector(db);
-      return { recovery, collected };
-    },
-  },
-  {
-    name: 'funding-executor',
-    cronExpr: '*/5 * * * *',
-    description:
-      'Execute partner transfers for funded batches: intent rows with frozen idempotency keys, source_transaction-linked transfers, Payout + commission.paid on confirm, reconcile-by-listing for ambiguous posts (every 5 minutes)',
-    handler: async () => {
-      const { runTransferExecutor } = await import('./funding/executor.js');
-      return runTransferExecutor(db);
-    },
-  },
-  {
-    name: 'funding-reconcile',
-    cronExpr: '30 5 * * *',
-    description:
-      'Daily funding ledger audit: allocation/principal invariants, stuck batches past the transfer deadline, reconcile_required intents, residuals awaiting disposition, Stripe fee telemetry backfill (daily 05:30 UTC; verifies + alerts, never moves money)',
-    handler: async () => {
-      const { runFundingReconciliation } = await import('./funding/reconcile.js');
-      return runFundingReconciliation(db);
-    },
-  },
-  {
-    name: 'billing-subscription-reconcile',
-    cronExpr: '25 4 * * *',
-    description:
-      'Poll Stripe for every tenant plan subscription and heal state a missed webhook left behind: clear ended subscriptions (revoking white-label + custom-domain routing), refresh the status mirror, and alert ops on newly scheduled cancellations (daily 04:25 UTC)',
-    handler: async () => {
-      if (getMode() === 'selfhost') return { skipped: 'selfhost' };
-      const { reconcileTenantSubscriptions } = await import('./billing-lifecycle.js');
-      return reconcileTenantSubscriptions(db);
-    },
   },
   {
     name: 'portal-domain-reverify',

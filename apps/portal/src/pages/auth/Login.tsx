@@ -11,13 +11,13 @@ type Tab = 'email' | 'key';
 export function LoginPage() {
   const [tab, setTab] = useState<Tab>('email');
   return (
-    <AuthFrame title="Sign in" subtitle="Choose how you want to sign in.">
+    <AuthFrame title="Вход" subtitle="Выберите способ входа.">
       <div style={{ display: 'flex', gap: 4, background: theme.bg, padding: 4, borderRadius: theme.radiusSm, marginBottom: 20 }}>
         <TabButton active={tab === 'email'} onClick={() => setTab('email')} icon={<Mail size={14} />}>
           Email
         </TabButton>
         <TabButton active={tab === 'key'} onClick={() => setTab('key')} icon={<KeyRound size={14} />}>
-          Admin / partner key
+          Ключ администратора / партнёра
         </TabButton>
       </div>
       {tab === 'email' ? <EmailTab /> : <KeyTab />}
@@ -75,9 +75,9 @@ function EmailTab() {
   if (sent) {
     return (
       <div style={{ background: theme.successSoft, border: `1px solid ${theme.success}55`, padding: 14, borderRadius: theme.radiusSm, fontSize: 13, color: theme.success }}>
-        <div style={{ fontWeight: 500, marginBottom: 4 }}>Check your inbox</div>
+        <div style={{ fontWeight: 500, marginBottom: 4 }}>Проверьте входящие</div>
         <div style={{ color: `${theme.success}cc` }}>
-          If an account exists for <strong>{email}</strong>, we sent a sign-in link. It's good for 15 minutes.
+          Если аккаунт для адреса <strong>{email}</strong> существует, мы отправили ссылку для входа. Она действует 15 минут.
         </div>
       </div>
     );
@@ -101,7 +101,7 @@ function EmailTab() {
       </div>
       {err && <div style={{ color: theme.danger, fontSize: 13, marginTop: 8 }}>{err}</div>}
       <button type="submit" disabled={busy || !email} style={primaryBtnStyle(busy || !email)}>
-        {busy ? 'Sending…' : 'Email me a sign-in link'}
+        {busy ? 'Отправляем…' : 'Отправить ссылку для входа'}
       </button>
     </form>
   );
@@ -130,19 +130,19 @@ function KeyTab() {
       clearApiKey();
       if (e instanceof ApiError) {
         if (e.status === 401) {
-          setErr("That key didn't work.");
+          setErr('Этот ключ не подошёл.');
         } else if (e.status === 403 && typeof e.message === 'string' && e.message.includes('scoped_key_not_for_portal')) {
           // Common confusion: pasting a scoped integration key
           // (CRM / Zapier / federation) into the portal sign-in.
           // Tell them what kind of key actually works here.
           setErr(
-            "That's a scoped integration key — they can't sign into the portal. Use your admin magic link (Email tab) or an admin API key.",
+            'Это ключ интеграции с ограниченной областью — он не подходит для входа в кабинет. Используйте ссылку администратора (вкладка Email) или API-ключ администратора.',
           );
         } else {
-          setErr(e.message || 'Could not reach the API.');
+          setErr(e.message || 'Не удалось связаться с API.');
         }
       } else {
-        setErr('Could not reach the API.');
+        setErr('Не удалось связаться с API.');
       }
       setBusy(false);
     }
@@ -165,15 +165,15 @@ function KeyTab() {
       </div>
       {err && <div style={{ color: theme.danger, fontSize: 13, marginTop: 8 }}>{err}</div>}
       <button type="submit" disabled={busy || !token} style={primaryBtnStyle(busy || !token)}>
-        {busy ? 'Checking…' : 'Sign in'}
+        {busy ? 'Проверяем…' : 'Войти'}
       </button>
       <div style={{ marginTop: 12, fontSize: 12, color: theme.textDim, lineHeight: 1.6 }}>
-        Admin keys come from <code style={{ color: theme.textMuted }}>ADMIN_API_KEY</code>.
-        Partner keys are issued from the Partners admin view.
+        Ключи администратора задаются через <code style={{ color: theme.textMuted }}>ADMIN_API_KEY</code>.
+        Ключи партнёров создаются в разделе администрирования партнёров.
         <br />
-        <strong style={{ color: theme.textMuted }}>Not for integration keys</strong> — scoped
-        keys minted under Admin → CRM integration are server-to-server credentials and can&rsquo;t
-        sign into the portal.
+        <strong style={{ color: theme.textMuted }}>Не используйте ключ интеграции</strong> — ключи,
+        созданные в разделе «Администрирование → Интеграция с CRM», предназначены для обмена между серверами
+        и не подходят для входа в кабинет.
       </div>
     </form>
   );

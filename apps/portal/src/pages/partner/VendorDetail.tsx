@@ -25,17 +25,17 @@ export function VendorDetailPage() {
   });
 
   return (
-    <Page title={data?.displayName ?? 'Vendor'} subtitle="Network member">
+    <Page title={data?.displayName ?? 'Компания'} subtitle="Участник сети">
       <ErrorBanner error={error} />
-      {isLoading && <Card>Loading…</Card>}
+      {isLoading && <Card>Загрузка…</Card>}
       {data && (
         <Card>
-          <div style={{ color: theme.textMuted, fontSize: 13 }}>{data.partnerCount} partner{data.partnerCount === 1 ? '' : 's'}</div>
+          <div style={{ color: theme.textMuted, fontSize: 13 }}>{data.partnerCount} {data.partnerCount === 1 ? 'партнёр' : 'партнёров'}</div>
           {data.description && <p style={{ marginTop: 12 }}>{data.description}</p>}
           {data.websiteUrl && (
             <p style={{ marginTop: 12 }}>
               <a href={data.websiteUrl} target="_blank" rel="noopener noreferrer">
-                Visit website →
+                Открыть сайт →
               </a>
             </p>
           )}

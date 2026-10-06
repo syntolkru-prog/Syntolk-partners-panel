@@ -116,7 +116,7 @@ export function Stat({
 export function Table({
   columns,
   rows,
-  empty = 'No rows yet.',
+  empty = 'Пока нет данных.',
 }: {
   columns: (string | { label: string; align?: 'left' | 'right' })[];
   rows: ReactNode[][];
@@ -410,11 +410,29 @@ export function StatusPill({ status }: { status: string }) {
     pending: { bg: theme.surface2, fg: theme.textMuted },
     failed: { bg: theme.dangerSoft, fg: theme.danger },
     connected: { bg: theme.successSoft, fg: theme.success },
+    not_connected: { bg: theme.surface2, fg: theme.textMuted },
+    error: { bg: theme.dangerSoft, fg: theme.danger },
     invited: { bg: theme.warnSoft, fg: theme.warn },
     active: { bg: theme.successSoft, fg: theme.success },
+    paused: { bg: theme.warnSoft, fg: theme.warn },
     revoked: { bg: theme.dangerSoft, fg: theme.danger },
   };
   const c = palette[status] ?? { bg: theme.surface2, fg: theme.textMuted };
+  const labels: Record<string, string> = {
+    accrued: 'ожидает подтверждения',
+    approved: 'доступно',
+    paid: 'выплачено',
+    reversed: 'отменено',
+    pending: 'ожидает',
+    failed: 'ошибка',
+    connected: 'подключён',
+    not_connected: 'не подключён',
+    error: 'ошибка',
+    invited: 'приглашён',
+    active: 'активен',
+    paused: 'на паузе',
+    revoked: 'заблокирован',
+  };
   return (
     <span
       style={{
@@ -430,7 +448,7 @@ export function StatusPill({ status }: { status: string }) {
         letterSpacing: '0.02em',
       }}
     >
-      {status}
+      {labels[status] ?? status}
     </span>
   );
 }
@@ -506,9 +524,23 @@ export function EmptyState({ title, hint, icon }: { title: string; hint?: string
 
 // ---------------- Formatters ----------------
 
-export function money(amount: number | string | null, currency: string = 'USD'): string {
+// Syntolk's local billing and CloudPayments flow are denominated in rubles.
+// Individual ledger rows still pass their stored currency explicitly; this
+// default covers aggregate dashboard fields that do not carry a currency.
+export function money(amount: number | string | null, currency: string = 'RUB'): string {
   const n = typeof amount === 'number' ? amount : amount == null ? 0 : Number(amount);
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(n);
+  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency }).format(n);
+}
+
+export function eventLabel(eventType: string | null | undefined): string {
+  if (!eventType) return '—';
+  const labels: Record<string, string> = {
+    invoice_paid: 'Счёт оплачен',
+    subscription_created: 'Подписка создана',
+    trial_started: 'Пробный период начат',
+    signup: 'Регистрация',
+  };
+  return labels[eventType] ?? eventType.replace(/_/g, ' ');
 }
 
 export function formatDate(d: string | Date | null, opts: { relative?: boolean } = {}): string {
@@ -517,12 +549,12 @@ export function formatDate(d: string | Date | null, opts: { relative?: boolean }
   if (opts.relative) {
     const diff = Date.now() - date.getTime();
     const min = 60_000;
-    if (diff < min) return 'just now';
-    if (diff < 60 * min) return `${Math.floor(diff / min)}m ago`;
-    if (diff < 24 * 60 * min) return `${Math.floor(diff / (60 * min))}h ago`;
-    if (diff < 30 * 24 * 60 * min) return `${Math.floor(diff / (24 * 60 * min))}d ago`;
+    if (diff < min) return 'только что';
+    if (diff < 60 * min) return `${Math.floor(diff / min)} мин назад`;
+    if (diff < 24 * 60 * min) return `${Math.floor(diff / (60 * min))} ч назад`;
+    if (diff < 30 * 24 * 60 * min) return `${Math.floor(diff / (24 * 60 * min))} дн. назад`;
   }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString('ru-RU', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function shortId(id: string, chars: number = 8): string {

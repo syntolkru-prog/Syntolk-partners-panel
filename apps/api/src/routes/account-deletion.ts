@@ -11,9 +11,8 @@
  *     can call /account/restore to clear pendingDeletionAt and recover.
  *
  * NOT yet handled (TODOs that should land before public launch):
- *   - Stripe subscription cancellation. Today the brand keeps getting
- *     billed inside the grace window. Should at least set the sub to
- *     cancel-at-period-end at delete-time.
+ *   - External payment-account cancellation is owned by the merchant
+ *     payment setup and is not called from the local partner panel.
  *   - Network-side vendor row revoke (the Network keeps thinking we're
  *     federated). Needs a /vendors/me/delete on the Network.
  *   - Any pending payouts / unpaid commissions guard — right now we
@@ -27,7 +26,6 @@ import { TABLES, type TenantRow } from '@openpartner/db';
 import { db } from '../db.js';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
-import { stripe } from '../stripe.js';
 import { adminRestoreVendor, getNetworkMembership, networkProxy, saveNetworkMembership, NetworkProxyError } from '../network-client.js';
 
 export const accountDeletionRouter = Router();
@@ -98,24 +96,6 @@ accountDeletionRouter.post('/account/delete', requireAuth, requireAdmin, async (
       detail: obligations,
       hint: 'Settle these or pass forceDespiteObligations=true to delete anyway.',
     });
-  }
-
-  // Stripe: cancel-at-period-end (not immediate) so the brand isn't
-  // charged again at renewal. They keep access for the rest of the
-  // current billing period — which is fine, because soft-delete
-  // immediately locks them out of the app anyway. The Stripe sub
-  // closing on its own is the cleanest thing for refunds + accounting.
-  if (tenant.stripeSubscriptionId && stripe) {
-    try {
-      await stripe.subscriptions.update(tenant.stripeSubscriptionId, {
-        cancel_at_period_end: true,
-        metadata: { openpartner_deletion_reason: body.data.reason ?? '' },
-      });
-    } catch (err) {
-      console.error('[account-deletion] stripe cancel failed', { tenantId, err });
-      // Don't block deletion on Stripe errors — operator can clean up
-      // billing manually if needed. Log loudly.
-    }
   }
 
   // Network: tell the federation hub this brand is going away. The
@@ -190,17 +170,6 @@ accountDeletionRouter.post('/account/restore', requireAuth, requireAdmin, async 
     deletionReason: null,
     updatedAt: new Date(),
   });
-
-  // Stripe: clear cancel_at_period_end so the brand keeps billing.
-  if (tenant.stripeSubscriptionId && stripe) {
-    try {
-      await stripe.subscriptions.update(tenant.stripeSubscriptionId, {
-        cancel_at_period_end: false,
-      });
-    } catch (err) {
-      console.error('[account-deletion] stripe uncancel failed', { tenantId, err });
-    }
-  }
 
   res.json({ ok: true });
 });

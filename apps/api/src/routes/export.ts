@@ -14,7 +14,7 @@ import {
   isExportable,
   rowsToCsv,
 } from '../export.js';
-import { getMode } from '../stripe.js';
+import { getMode } from '../deployment.js';
 import { tenantOf } from '../tenancy.js';
 
 export const exportRouter = Router();

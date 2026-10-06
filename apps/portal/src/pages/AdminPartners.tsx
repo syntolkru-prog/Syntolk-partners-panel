@@ -10,10 +10,10 @@ interface Partner {
   id: string;
   email: string;
   name: string;
-  stripeConnectAccountId: string | null;
   createdAt: string;
   activatedAt: string | null;
   revokedAt: string | null;
+  cloudPaymentsStatus: 'not_connected' | 'connected' | 'error';
 }
 
 export function AdminPartners() {
@@ -25,11 +25,11 @@ export function AdminPartners() {
 
   return (
     <Page
-      title="Partners"
-      subtitle="Invite partners — they set up their own dashboard via an emailed magic link."
+      title="Партнёры"
+      subtitle="Приглашайте партнёров — они активируют свой кабинет по ссылке из письма."
       actions={
         <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
-          Invite partner
+          Пригласить партнёра
         </Button>
       }
     >
@@ -56,12 +56,12 @@ export function AdminPartners() {
       )}
 
       {partners.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : (partners.data?.partners ?? []).length === 0 ? (
-        <EmptyState title="No partners yet" hint="Invite one to start tracking attributed revenue." icon={<Users size={28} strokeWidth={1.25} />} />
+        <EmptyState title="Партнёров пока нет" hint="Пригласите первого, чтобы начать отслеживать атрибуцированную выручку." icon={<Users size={28} strokeWidth={1.25} />} />
       ) : (
         <Table
-          columns={['Partner', 'Email', 'Status', 'Stripe', 'Created', 'Actions']}
+          columns={['Партнёр', 'Email', 'Статус', 'CloudPayments', 'Создан', 'Действия']}
           rows={(partners.data?.partners ?? []).map((p) => [
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Avatar name={p.name} size={28} />
@@ -75,18 +75,20 @@ export function AdminPartners() {
               : p.activatedAt
                 ? <StatusPill status="active" />
                 : <StatusPill status="invited" />,
-            p.stripeConnectAccountId ? <StatusPill status="connected" /> : <span style={{ color: theme.textDim }}>—</span>,
+            <StatusPill status={p.cloudPaymentsStatus === 'connected' ? 'connected' : p.cloudPaymentsStatus === 'error' ? 'error' : 'not_connected'} />,
             <span style={{ color: theme.textMuted }}>{formatDate(p.createdAt, { relative: true })}</span>,
             <div style={{ display: 'flex', gap: 6 }}>
-              <TenantLink to={`/links?partnerId=${p.id}`} style={{ color: theme.accent, fontSize: 13 }}>Links</TenantLink>
+              <TenantLink to={`/admin/partners/${p.id}`} style={{ color: theme.accent, fontSize: 13 }}>Карточка</TenantLink>
               <span style={{ color: theme.border }}>·</span>
-              <TenantLink to={`/admin/partners/${p.id}/programs`} style={{ color: theme.accent, fontSize: 13 }}>Programs</TenantLink>
+              <TenantLink to={`/links?partnerId=${p.id}`} style={{ color: theme.accent, fontSize: 13 }}>Ссылки</TenantLink>
               <span style={{ color: theme.border }}>·</span>
-              <TenantLink to={`/admin/partners/${p.id}/coupons`} style={{ color: theme.accent, fontSize: 13 }}>Coupons</TenantLink>
+              <TenantLink to={`/admin/partners/${p.id}/programs`} style={{ color: theme.accent, fontSize: 13 }}>Программы</TenantLink>
               <span style={{ color: theme.border }}>·</span>
-              <TenantLink to={`/admin/partners/${p.id}/commission`} style={{ color: theme.accent, fontSize: 13 }}>Commission</TenantLink>
+              <TenantLink to={`/admin/partners/${p.id}/coupons`} style={{ color: theme.accent, fontSize: 13 }}>Купоны</TenantLink>
               <span style={{ color: theme.border }}>·</span>
-              <TenantLink to={`/payouts?partnerId=${p.id}`} style={{ color: theme.accent, fontSize: 13 }}>Payouts</TenantLink>
+              <TenantLink to={`/admin/partners/${p.id}/commission`} style={{ color: theme.accent, fontSize: 13 }}>Комиссия</TenantLink>
+              <span style={{ color: theme.border }}>·</span>
+              <TenantLink to={`/payouts?partnerId=${p.id}`} style={{ color: theme.accent, fontSize: 13 }}>Выплаты</TenantLink>
               {!p.activatedAt && !p.revokedAt && (
                 <>
                   <span style={{ color: theme.border }}>·</span>
@@ -112,6 +114,7 @@ interface CreateProgramOption {
 function CreatePartner({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [grantAll, setGrantAll] = useState(true);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
@@ -127,6 +130,7 @@ function CreatePartner({ onClose, onCreated }: { onClose: () => void; onCreated:
         body: {
           name,
           email,
+          phone: phone || undefined,
           // Only send programIds when admin scoped explicitly. Omitting
           // it preserves the legacy "grant all current campaigns"
           // default the backend already implements.
@@ -147,33 +151,37 @@ function CreatePartner({ onClose, onCreated }: { onClose: () => void; onCreated:
 
   return (
     <Card style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Invite a partner</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Пригласить партнёра</div>
       <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 14 }}>
-        They'll get an email with a one-time link to set up their dashboard.
+        Партнёр получит письмо с одноразовой ссылкой для настройки кабинета.
       </div>
       <ErrorBanner error={mut.error} />
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
         <div>
-          <Label>Name</Label>
+          <Label>Имя</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ada Lovelace" />
         </div>
         <div>
-          <Label>Email</Label>
+          <Label>Электронная почта</Label>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ada@example.com" />
+        </div>
+        <div>
+          <Label>Телефон</Label>
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7 900 000-00-00" />
         </div>
       </div>
       <div style={{ marginBottom: 14 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.text, marginBottom: 8 }}>
           <input type="checkbox" checked={grantAll} onChange={(e) => setGrantAll(e.target.checked)} />
-          Grant access to all current campaigns (default)
+          Дать доступ ко всем текущим кампаниям (по умолчанию)
         </label>
         {!grantAll && (
           <div style={{ marginTop: 8, padding: 12, background: theme.surface2, border: `1px solid ${theme.borderSubtle}`, borderRadius: theme.radiusSm }}>
             <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 8 }}>
-              Pick the programs this partner can create share-links for. You can change this later from the partner&rsquo;s row.
+              Выберите кампании, для которых партнёр сможет создавать ссылки. Позже это можно изменить в строке партнёра.
             </div>
             {(campaigns.data?.programs ?? []).length === 0 ? (
-              <div style={{ fontSize: 13, color: theme.textDim }}>No campaigns yet — create one in Campaigns first.</div>
+              <div style={{ fontSize: 13, color: theme.textDim }}>Кампаний пока нет — сначала создайте кампанию в разделе «Программы».</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {(campaigns.data?.programs ?? []).map((c) => (
@@ -192,9 +200,9 @@ function CreatePartner({ onClose, onCreated }: { onClose: () => void; onCreated:
           onClick={() => mut.mutate()}
           disabled={!name || !email || mut.isPending || (!grantAll && picked.size === 0)}
         >
-          {mut.isPending ? 'Sending…' : 'Send invite'}
+          {mut.isPending ? 'Отправляем…' : 'Отправить приглашение'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Card>
   );
@@ -226,7 +234,7 @@ function RevokeAction({ partner, openDialog }: { partner: Partner; openDialog: (
         cursor: 'pointer',
       }}
     >
-      {reinstate.isPending ? '…' : isRevoked ? 'Reinstate' : 'Revoke'}
+      {reinstate.isPending ? '…' : isRevoked ? 'Восстановить доступ' : 'Отозвать доступ'}
     </button>
   );
 }
@@ -254,31 +262,31 @@ function RevokeDialog({
   return (
     <Card style={{ marginBottom: 14, borderColor: `${theme.danger}44` }}>
       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6, color: theme.danger }}>
-        Revoke {partner.name}?
+        Отозвать доступ у {partner.name}?
       </div>
       <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 14 }}>
-        They're signed out immediately and new clicks on their links stop accruing commission.
-        Historical commissions are kept. You can reinstate at any time.
+        Пользователь будет сразу выведен из системы, а новые клики по его ссылкам перестанут приносить комиссию.
+        Исторические комиссии сохранятся. Доступ можно восстановить в любой момент.
       </div>
       <ErrorBanner error={mut.error} />
       <div style={{ marginBottom: 14 }}>
-        <Label>Reason (optional, included in their email)</Label>
+        <Label>Причина (необязательно, будет указана в письме)</Label>
         <Input
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="e.g. Ending partnership — no longer active"
+          placeholder="Например: партнёрство завершено"
           maxLength={500}
         />
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
         <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
-        Email the partner about the suspension
+        Отправить партнёру письмо о приостановке
       </label>
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
-          {mut.isPending ? 'Revoking…' : 'Revoke partner'}
+          {mut.isPending ? 'Отзываем…' : 'Отозвать доступ'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Card>
   );
@@ -299,7 +307,7 @@ function ResendInvite({ partnerId }: { partnerId: string }) {
       disabled={mut.isPending}
       style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: theme.accent, cursor: 'pointer' }}
     >
-      {sent ? 'Sent' : mut.isPending ? 'Sending…' : 'Resend invite'}
+      {sent ? 'Отправлено' : mut.isPending ? 'Отправляем…' : 'Отправить повторно'}
     </button>
   );
 }

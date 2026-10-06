@@ -26,9 +26,9 @@ interface Snapshot {
 }
 
 const SOURCE_LABEL: Record<CommissionSource, string> = {
-  approval: 'Stamped at PartnershipRequest approval',
-  backfill: 'Backfilled from current  Program rule',
-  amendment: 'Admin override',
+  approval: 'Зафиксировано при одобрении заявки',
+  backfill: 'Восстановлено из текущего правила программы',
+  amendment: 'Ручное изменение администратора',
 };
 
 export function AdminPartnerCommission() {
@@ -52,17 +52,17 @@ export function AdminPartnerCommission() {
 
   return (
     <Page
-      title={`Commission · ${partnerName}`}
-      subtitle="Override this partner's commission rate or holdback. Useful for VIP creators on a higher cut than the campaign default."
+      title={`Комиссия · ${partnerName}`}
+      subtitle="Измените ставку комиссии или отсрочку для этого партнёра. Подходит для VIP-партнёров с повышенным процентом."
     >
       <div style={{ marginBottom: 14 }}>
         <TenantLink to="/admin/partners" style={{ color: theme.textMuted, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <ArrowLeft size={14} /> Back to Partners
+          <ArrowLeft size={14} /> К партнёрам
         </TenantLink>
       </div>
       <ErrorBanner error={partner.error ?? snapshot.error} />
       {snapshot.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : (
         <>
           <CurrentSnapshotCard snapshot={snapshot.data?.snapshot ?? null} />
@@ -84,34 +84,33 @@ function CurrentSnapshotCard({ snapshot }: { snapshot: Snapshot | null }) {
   if (!snapshot) {
     return (
       <Card>
-        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No snapshot</div>
+        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Индивидуальная ставка не задана</div>
         <p style={{ fontSize: 13, color: theme.textMuted, margin: 0, lineHeight: 1.5 }}>
-          This partner has no <code>PartnerCommission</code> row, so commissions accrue at
-          their bound campaign&rsquo;s live rate. Editing the campaign post-conversion would
-          re-price their accruals — set an override below to grandfather their current rate
-          and protect them from future campaign edits.
+          Для партнёра нет записи <code>PartnerCommission</code>, поэтому комиссии начисляются
+          по текущему правилу связанной программы. Установите индивидуальную ставку ниже,
+          чтобы сохранить текущие условия и защитить будущие начисления от изменений программы.
         </p>
       </Card>
     );
   }
   return (
     <Card>
-      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Current snapshot</div>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Текущая ставка</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
         <Stat
-          label="Rate"
+          label="Ставка"
           value={
             snapshot.commissionType === 'percent'
               ? `${Number(snapshot.commissionValue)}%`
-              : `$${Number(snapshot.commissionValue).toFixed(2)} fixed`
+              : `${Number(snapshot.commissionValue).toFixed(2)} ₽ фиксировано`
           }
         />
-        <Stat label="Recurring" value={snapshot.recurring ? 'Yes' : 'No'} />
-        <Stat label="Holdback" value={snapshot.holdbackDays != null ? `${snapshot.holdbackDays} days` : '—'} />
-        <Stat label="Source" value={SOURCE_LABEL[snapshot.source]} muted />
+        <Stat label="Регулярно" value={snapshot.recurring ? 'Да' : 'Нет'} />
+        <Stat label="Отсрочка" value={snapshot.holdbackDays != null ? `${snapshot.holdbackDays} дн.` : '—'} />
+        <Stat label="Источник" value={SOURCE_LABEL[snapshot.source]} muted />
       </div>
       <div style={{ marginTop: 12, fontSize: 12, color: theme.textDim }}>
-        Snapshotted {new Date(snapshot.snapshottedAt).toLocaleString()}
+        Зафиксировано: {new Date(snapshot.snapshottedAt).toLocaleString('ru-RU')}
       </div>
     </Card>
   );
@@ -179,34 +178,34 @@ function EditCard({
   return (
     <Card>
       <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-        {current ? 'Edit override' : 'Set override'}
+        {current ? 'Изменить ставку' : 'Задать ставку'}
       </div>
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 14px', lineHeight: 1.5 }}>
-        Stamps a <code>PartnerCommission</code> row with{' '}
-        <code>source = &lsquo;amendment&rsquo;</code>. From the next conversion onward, this
-        partner&rsquo;s commissions accrue at the rate below regardless of the campaign rule.
-        Past commissions aren&rsquo;t recomputed — only future events.
+        Создаёт запись <code>PartnerCommission</code> с источником{' '}
+        <code>source = &lsquo;amendment&rsquo;</code>. Начиная со следующей конверсии, комиссии
+        этого партнёра будут начисляться по ставке ниже независимо от правила программы.
+        Прошлые начисления не пересчитываются — изменятся только будущие события.
       </p>
       <ErrorBanner error={save.error ?? clear.error} />
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: 12, marginBottom: 14, alignItems: 'end' }}>
         <div>
-          <Label>Rate type</Label>
+          <Label>Тип ставки</Label>
           <Select value={type} onChange={(e) => setType(e.target.value as 'percent' | 'fixed')}>
-            <option value="percent">Percent</option>
-            <option value="fixed">Fixed</option>
+            <option value="percent">Процент</option>
+            <option value="fixed">Фиксированная сумма</option>
           </Select>
         </div>
         <div>
-          <Label>Value</Label>
+          <Label>Значение</Label>
           <Input type="number" value={value} onChange={(e) => setValue(e.target.value)} />
         </div>
         <label style={{ fontSize: 13, display: 'flex', gap: 8, alignItems: 'center', paddingBottom: 10, color: theme.textMuted }}>
           <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
-          Recurring
+          Регулярное начисление
         </label>
       </div>
       <div style={{ marginBottom: 14, maxWidth: 220 }}>
-        <Label>Holdback (days, blank = none)</Label>
+        <Label>Отсрочка (дни, пусто — без отсрочки)</Label>
         <Input
           type="number"
           value={holdback}
@@ -216,13 +215,13 @@ function EditCard({
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={() => save.mutate()} disabled={save.isPending || !value}>
-          {save.isPending ? 'Saving…' : current ? 'Update override' : 'Set override'}
+          {save.isPending ? 'Сохраняем…' : current ? 'Обновить ставку' : 'Задать ставку'}
         </Button>
         {current && (
           <button
             type="button"
             onClick={() => {
-              if (confirm('Clear this partner’s override? They’ll fall back to the live campaign rule.')) {
+              if (confirm('Удалить индивидуальную ставку? Партнёр вернётся к текущему правилу программы.')) {
                 clear.mutate();
               }
             }}
@@ -237,7 +236,7 @@ function EditCard({
               cursor: 'pointer',
             }}
           >
-            {clear.isPending ? 'Clearing…' : 'Clear override'}
+            {clear.isPending ? 'Удаляем…' : 'Удалить ставку'}
           </button>
         )}
       </div>

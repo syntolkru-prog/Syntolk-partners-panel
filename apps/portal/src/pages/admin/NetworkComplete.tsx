@@ -31,7 +31,7 @@ export function AdminNetworkComplete() {
     fired.current = true;
     if (!ntoken) {
       setState('error');
-      setError('Missing ntoken in URL.');
+      setError('В URL отсутствует ntoken.');
       return;
     }
     api('/config/network/complete-connect', { method: 'POST', body: { ntoken } })
@@ -42,25 +42,25 @@ export function AdminNetworkComplete() {
       })
       .catch((err) => {
         setState('error');
-        setError(err instanceof ApiError ? err.message : 'Verification failed.');
+        setError(err instanceof ApiError ? err.message : 'Не удалось подтвердить подключение.');
       });
   }, [ntoken, navigate, qc]);
 
   return (
-    <Page title="Connecting to Network">
+    <Page title="Подключение к сети">
       <Card>
-        {state === 'pending' && <p>Finishing connection…</p>}
+        {state === 'pending' && <p>Завершаем подключение…</p>}
         {state === 'ok' && (
           <p style={{ color: '#1a6b1a' }}>
-            Connected. Redirecting back to Network settings…
+            Подключение выполнено. Возвращаемся к настройкам сети…
           </p>
         )}
         {state === 'error' && (
           <>
             <ErrorBanner error={error} />
             <p>
-              Magic links expire after 24 hours. Open Settings → Network and click "Connect to Network"
-              again to receive a fresh link.
+              Ссылки для входа действуют 24 часа. Откройте «Настройки → Сеть» и снова нажмите «Подключиться к сети»,
+              чтобы получить новую ссылку.
             </p>
           </>
         )}

@@ -45,7 +45,11 @@ async function handleSlugKey(c: Context): Promise<Response> {
 }
 
 async function handleKeyOnly(c: Context): Promise<Response> {
-  const linkKey = c.req.param('linkKey');
+  return resolveKeyOnly(c, c.req.param('linkKey'));
+}
+
+async function resolveKeyOnly(c: Context, linkKey: string | undefined): Promise<Response> {
+  if (!linkKey) return c.text('Link key is required', 400);
   // White-label custom domain: the Host header names the tenant, so scope
   // the lookup — two tenants may use the same key. Falls through to the
   // global lookup for single-tenant installs (and any host we don't know).
@@ -67,6 +71,12 @@ async function handleKeyOnly(c: Context): Promise<Response> {
 
 app.get('/r/:slug/:linkKey', handleSlugKey);
 app.get('/r/:linkKey', handleKeyOnly);
+// Public Syntolk format: https://syntolk.ru/?ref=abc123. UTM parameters
+// remain on the inbound URL and are recorded by resolveLink before redirect.
+app.get('/', async (c) => {
+  const ref = c.req.query('ref');
+  return ref ? resolveKeyOnly(c, ref) : c.json({ ok: true, service: 'router' });
+});
 // Prefix-stripped variants (DO ingress). Registered after /health, and
 // Hono prefers static routes over params, so /health stays unaffected.
 app.get('/:slug/:linkKey', handleSlugKey);

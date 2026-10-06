@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   MousePointerClick,
@@ -7,7 +8,6 @@ import {
   Users,
   UserCheck,
   CreditCard,
-  AlertCircle,
   Link2,
   CheckCircle2,
   Circle,
@@ -27,8 +27,19 @@ interface PartnerDashboard {
   since: string;
   clicks: number;
   attributedEvents: number;
+  registrations: number;
+  payingClients: number;
+  conversionRate: number;
   attributedRevenue: number;
   commissionByStatus: Record<string, number>;
+  balances: { accrued: number; available: number; paid: number; total: number };
+  links?: Array<{ linkKey: string; clicks: number; attributedEvents: number; attributedRevenue: number }>;
+}
+
+interface PartnerProfile {
+  termsAcceptedAt: string | null;
+  termsVersion: string | null;
+  cloudPaymentsStatus: 'not_connected' | 'connected' | 'error';
 }
 
 export function Dashboard({ principal }: { principal: Principal }) {
@@ -45,79 +56,114 @@ interface Funnel {
   revenue: number;
 }
 
-interface ConnectStatus {
-  connected: boolean;
-  payoutsEnabled?: boolean;
-}
-
 function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string }) {
+  const { programTermsUrl } = useBrand();
+  const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'all'>('30d');
+  const since = period === 'today'
+    ? new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+    : period === '7d'
+      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+      : period === 'all' ? '2000-01-01T00:00:00.000Z' : undefined;
   const { data, error, isLoading } = useQuery({
-    queryKey: ['dashboard', partnerId],
-    queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard`),
+    queryKey: ['dashboard', partnerId, period],
+    queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard${since ? `?since=${encodeURIComponent(since)}&includeLinks=true` : '?includeLinks=true'}`),
   });
   const funnel = useQuery({
     queryKey: ['funnel', partnerId],
     queryFn: () => api<Funnel>(`/partners/${partnerId}/funnel`),
   });
-  // Non-critical — render the rest of the dashboard even if this 503s
-  // (Stripe not configured on a selfhost instance, for instance).
-  const connect = useQuery({
-    queryKey: ['connect-status', partnerId],
-    queryFn: () => api<ConnectStatus>(`/partners/${partnerId}/connect/status`),
-    retry: false,
-  });
   const links = useQuery({
     queryKey: ['links', partnerId],
     queryFn: () => api<{ links: unknown[] }>(`/partners/${partnerId}/links`),
   });
+  const profile = useQuery({
+    queryKey: ['partner-profile', partnerId],
+    queryFn: () => api<PartnerProfile>(`/partners/${partnerId}`),
+  });
+  const acceptTerms = useMutation({
+    mutationFn: () => api(`/partners/${partnerId}/terms`, {
+      method: 'POST',
+      body: { accepted: true, version: 'syntolk-v1' },
+    }),
+    onSuccess: () => profile.refetch(),
+  });
 
   const linkCount = links.data?.links.length ?? 0;
   const hasLink = linkCount > 0;
-  const hasActiveConnect = !!connect.data?.connected && !!connect.data?.payoutsEnabled;
-
-  const owedAmount = (data?.commissionByStatus.approved ?? 0) + (data?.commissionByStatus.accrued ?? 0);
-  const needsConnect =
-    !!data &&
-    owedAmount > 0 &&
-    connect.data != null &&
-    (!connect.data.connected || !connect.data.payoutsEnabled);
-
-  // Getting-started card shows while EITHER onboarding task is outstanding.
-  // We only render it once we know the state of both (connect + links),
-  // otherwise the card can flash during initial load.
-  const showGettingStarted =
-    !links.isLoading && !connect.isLoading && (!hasLink || !hasActiveConnect);
+  const showGettingStarted = !links.isLoading && !hasLink;
 
   return (
     <Page
-      title={`Hi ${name.split(' ')[0] || 'there'}`}
-      subtitle="Last 30 days"
+      title={`Здравствуйте, ${name.split(' ')[0] || 'партнёр'}`}
+      subtitle="Партнёрская статистика Syntolk"
+      actions={
+        <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ padding: '8px 10px', borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text }}>
+          <option value="today">Сегодня</option>
+          <option value="7d">7 дней</option>
+          <option value="30d">30 дней</option>
+          <option value="all">За всё время</option>
+        </select>
+      }
     >
       <ErrorBanner error={error} />
-      {showGettingStarted && (
-        <GettingStarted hasLink={hasLink} connectReady={hasActiveConnect} />
+      {!profile.isLoading && profile.data && !profile.data.termsAcceptedAt && (
+        <Card style={{ marginBottom: 14, borderColor: `${theme.warn}66`, background: theme.warnSoft }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 5 }}>Подтвердите условия партнёрской программы</div>
+          <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.5, marginBottom: 12 }}>
+            Перед началом работы подтвердите условия Syntolk. Это сохранится в истории кабинета вместе с версией документа.
+            {programTermsUrl && (
+              <> {' '}<a href={programTermsUrl} target="_blank" rel="noreferrer" style={{ color: theme.accent }}>Открыть условия</a></>
+            )}
+          </div>
+          <ErrorBanner error={acceptTerms.error} />
+          <Button onClick={() => acceptTerms.mutate()} disabled={acceptTerms.isPending}>
+            {acceptTerms.isPending ? 'Сохраняем…' : 'Принять условия'}
+          </Button>
+        </Card>
       )}
-      {needsConnect && !showGettingStarted && (
-        <ConnectNudge owed={owedAmount} connected={connect.data!.connected} />
+      {showGettingStarted && (
+        <GettingStarted hasLink={hasLink} />
       )}
       {isLoading || !data ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <Stat label="Clicks" value={data.clicks} icon={<MousePointerClick size={16} />} />
-            <Stat label="Attributed events" value={data.attributedEvents} icon={<Receipt size={16} />} />
-            <Stat label="Attributed revenue" value={money(data.attributedRevenue)} icon={<Wallet size={16} />} />
-            <Stat label="Earned (paid)" value={money(data.commissionByStatus.paid ?? 0)} icon={<Wallet size={16} />} />
+            <Stat label="Переходы" value={data.clicks} icon={<MousePointerClick size={16} />} />
+            <Stat label="Регистрации и события" value={data.attributedEvents} icon={<Receipt size={16} />} />
+            <Stat label="Платящие клиенты" value={data.payingClients} icon={<CreditCard size={16} />} />
+            <Stat label="Конверсия" value={`${(data.conversionRate * 100).toFixed(1)}%`} icon={<CreditCard size={16} />} />
+            <Stat label="Доход от клиентов" value={money(data.attributedRevenue)} icon={<Wallet size={16} />} />
+            <Stat label="Начислено всего" value={money(data.balances.total)} icon={<Wallet size={16} />} />
+            <Stat label="Доступно к выплате" value={money(data.balances.available)} icon={<Wallet size={16} />} />
+            <Stat label="Выплачено" value={money(data.balances.paid)} icon={<Wallet size={16} />} />
           </div>
 
           {funnel.data && <FunnelChart funnel={funnel.data} />}
 
-          <SectionHeading>Commissions</SectionHeading>
+          {(data.links ?? []).length > 0 && (
+            <>
+              <SectionHeading>Эффективность ссылок</SectionHeading>
+              <Card>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {data.links!.map((link) => (
+                    <div key={link.linkKey} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 80px 100px 130px', gap: 10, alignItems: 'center', fontSize: 13 }}>
+                      <code style={{ color: theme.accent }}>{link.linkKey}</code>
+                      <span style={{ color: theme.textMuted }}>{link.clicks} переходов</span>
+                      <span style={{ color: theme.textMuted }}>{link.attributedEvents} событий</span>
+                      <span style={{ fontWeight: 500 }}>{money(link.attributedRevenue)}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </>
+          )}
+
+          <SectionHeading>Начисления</SectionHeading>
           <Card>
             {Object.keys(data.commissionByStatus).length === 0 ? (
               <div style={{ color: theme.textMuted, fontSize: 14 }}>
-                You'll see commission activity here once events start attributing.
+                Здесь появятся начисления после регистрации и оплаты клиентов.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -142,29 +188,21 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
   );
 }
 
-function GettingStarted({ hasLink, connectReady }: { hasLink: boolean; connectReady: boolean }) {
+function GettingStarted({ hasLink }: { hasLink: boolean }) {
   return (
     <Card>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Getting started</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Начало работы</div>
       <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
-        Two quick steps and you're earning. This card goes away once both are done.
+        Два простых шага — и вы сможете зарабатывать. Карточка исчезнет после выполнения обоих.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <ChecklistRow
           done={hasLink}
           icon={<Link2 size={16} />}
-          title="Create your first share link"
-          hint="Pick a short slug; anyone who clicks it gets attributed back to you."
-          cta="Create link"
+           title="Создайте первую партнёрскую ссылку"
+           hint="Выберите короткий идентификатор — каждый клик по ссылке будет учтён за вами."
+           cta="Создать ссылку"
           to="/links"
-        />
-        <ChecklistRow
-          done={connectReady}
-          icon={<CreditCard size={16} />}
-          title="Connect Stripe to get paid"
-          hint="Commissions you earn land directly in your Stripe balance."
-          cta={connectReady ? 'Manage' : 'Connect Stripe'}
-          to="/connect"
         />
       </div>
     </Card>
@@ -217,42 +255,19 @@ function ChecklistRow({
   );
 }
 
-function ConnectNudge({ owed, connected }: { owed: number; connected: boolean }) {
-  return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ color: theme.warn, marginTop: 2 }}>
-          <AlertCircle size={18} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-            {connected ? 'Finish Stripe onboarding to receive payouts' : 'Connect Stripe to receive payouts'}
-          </div>
-          <div style={{ fontSize: 13, color: theme.textMuted }}>
-            You have {money(owed)} in commissions {connected ? 'waiting — complete onboarding to get paid.' : 'that can’t be paid out yet.'}
-          </div>
-        </div>
-        <TenantLink to="/connect" style={{ textDecoration: 'none' }}>
-          <Button icon={<CreditCard size={14} />}>{connected ? 'Finish onboarding' : 'Connect Stripe'}</Button>
-        </TenantLink>
-      </div>
-    </Card>
-  );
-}
-
 function FunnelChart({ funnel }: { funnel: Funnel }) {
   const stages = [
-    { key: 'clicks', label: 'Clicks', value: funnel.stages.clicks, icon: <MousePointerClick size={14} />, rate: null },
-    { key: 'identities', label: 'Stitched', value: funnel.stages.identities, icon: <UserCheck size={14} />, rate: funnel.rates.stitchRate },
-    { key: 'signups', label: 'Signups', value: funnel.stages.signups, icon: <Receipt size={14} />, rate: funnel.rates.signupRate },
-    { key: 'paid', label: 'Paid', value: funnel.stages.paid, icon: <CreditCard size={14} />, rate: funnel.rates.paidRate },
+    { key: 'clicks', label: 'Переходы', value: funnel.stages.clicks, icon: <MousePointerClick size={14} />, rate: null },
+    { key: 'identities', label: 'Связанные', value: funnel.stages.identities, icon: <UserCheck size={14} />, rate: funnel.rates.stitchRate },
+    { key: 'signups', label: 'Регистрации', value: funnel.stages.signups, icon: <Receipt size={14} />, rate: funnel.rates.signupRate },
+    { key: 'paid', label: 'Оплачено', value: funnel.stages.paid, icon: <CreditCard size={14} />, rate: funnel.rates.paidRate },
   ];
   const max = Math.max(1, ...stages.map((s) => s.value));
   const pct = (n: number | null | undefined) => (n == null ? '' : `${Math.round(n * 100)}%`);
 
   return (
     <>
-      <SectionHeading>Funnel</SectionHeading>
+       <SectionHeading>Воронка</SectionHeading>
       <Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {stages.map((s, i) => {
@@ -279,7 +294,7 @@ function FunnelChart({ funnel }: { funnel: Funnel }) {
                 <div style={{ fontSize: 12, color: theme.textMuted, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {i > 0 && (
                     <>
-                      <span style={{ color: theme.textDim }}>from prev</span>{' '}
+                       <span style={{ color: theme.textDim }}>от предыдущего этапа</span>{' '}
                       <span style={{ color: theme.text, fontWeight: 500 }}>{pct(s.rate)}</span>
                     </>
                   )}
@@ -289,7 +304,7 @@ function FunnelChart({ funnel }: { funnel: Funnel }) {
           })}
         </div>
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.borderSubtle}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, color: theme.textMuted }}>Click → paid</span>
+           <span style={{ fontSize: 13, color: theme.textMuted }}>Переход → оплата</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: theme.accent, fontVariantNumeric: 'tabular-nums' }}>
             {pct(funnel.rates.overall)}
           </span>
@@ -311,16 +326,17 @@ interface AdminOverview {
     commissionAccrued: number;
     commissionApproved: number;
     commissionPaid: number;
+    netRevenue: number;
   };
   partners: Array<{
     id: string;
     name: string;
     email: string;
-    stripeConnected: boolean;
     clicks: number;
     revenue: number;
     events: number;
     commission: Record<string, number>;
+    netRevenue: number;
   }>;
 }
 
@@ -331,31 +347,31 @@ function AdminDashboard() {
   });
 
   return (
-    <Page title="Partner Program" subtitle="Overview of every partner driving attributed revenue.">
+    <Page title="Партнёрская программа" subtitle="Обзор всех партнёров и привлечённой ими атрибуцированной выручки.">
       <ErrorBanner error={error} />
-      <PendingApprovalsBanner />
       <BrandOnboarding />
       {isLoading || !data ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <Stat label="Partners" value={data.totals.partners} icon={<Users size={16} />} />
-            <Stat label="Clicks (30d)" value={data.totals.clicks} icon={<MousePointerClick size={16} />} />
-            <Stat label="Attributed revenue" value={money(data.totals.attributedRevenue)} icon={<Wallet size={16} />} />
+            <Stat label="Партнёры" value={data.totals.partners} icon={<Users size={16} />} />
+            <Stat label="Переходы (30 дн.)" value={data.totals.clicks} icon={<MousePointerClick size={16} />} />
+            <Stat label="Выручка от партнёров" value={money(data.totals.attributedRevenue)} icon={<Wallet size={16} />} />
+            <Stat label="Осталось Syntolk" value={money(data.totals.netRevenue)} icon={<Wallet size={16} />} />
             <Stat
-              label="Awaiting approval"
+              label="Ожидает подтверждения"
               value={money(data.totals.commissionAccrued)}
-              hint={`${money(data.totals.commissionApproved)} approved, ${money(data.totals.commissionPaid)} paid`}
+              hint={`${money(data.totals.commissionApproved)} подтверждено, ${money(data.totals.commissionPaid)} выплачено`}
               icon={<Receipt size={16} />}
             />
           </div>
 
-          <SectionHeading>Partners</SectionHeading>
+          <SectionHeading>Партнёры</SectionHeading>
           {data.partners.length === 0 ? (
             <EmptyState
-              title="No partners yet"
-              hint="Create one from Admin → Partners to get started."
+              title="Партнёров пока нет"
+              hint="Добавьте партнёра через раздел «Администрирование → Партнёры»."
               icon={<Users size={28} strokeWidth={1.25} />}
             />
           ) : (
@@ -388,16 +404,16 @@ function PartnerCard({
             {partner.email}
           </div>
         </div>
-        {partner.stripeConnected && <StatusPill status="connected" />}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <MiniStat label="Revenue" value={money(partner.revenue)} />
+        <MiniStat label="Выручка" value={money(partner.revenue)} />
+        <MiniStat label="Осталось Syntolk" value={money(partner.netRevenue)} />
         <MiniStat
-          label="Payouts"
+          label="Выплаты"
           value={money((partner.commission.paid ?? 0) + (partner.commission.approved ?? 0))}
         />
-        <MiniStat label="Clicks" value={String(partner.clicks)} />
-        <MiniStat label="Events" value={String(partner.events)} />
+        <MiniStat label="Переходы" value={String(partner.clicks)} />
+        <MiniStat label="События" value={String(partner.events)} />
       </div>
     </Card>
   );
@@ -418,71 +434,16 @@ interface BrandOnboardingStatus {
   brandInfoComplete: boolean;
   campaignCount: number;
   networkConnected: boolean;
+  networkOptional: boolean;
   offeringPublishedCount: number;
   partnerCount: number;
   pendingPartnershipRequests: number;
-  billingReady: boolean;
-  trialEndsAt: string | null;
-  trialDaysRemaining: number | null;
   complete: boolean;
-}
-
-/** Shown above the dashboard when creators have applied via the Network
- *  but the brand hasn't subscribed yet — they can't approve until they
- *  do (trial-gate enforces). Stays present even after the Getting
- *  Started checklist is done; goes away once billing is set up. */
-function PendingApprovalsBanner() {
-  const tenantBase = useTenantBase();
-  const { data } = useQuery({
-    queryKey: ['admin-onboarding-status'],
-    queryFn: () => api<BrandOnboardingStatus>('/admin/onboarding-status'),
-    staleTime: 30_000,
-    retry: false,
-  });
-  if (!data || data.billingReady || data.pendingPartnershipRequests <= 0) return null;
-  const expired = data.trialDaysRemaining != null && data.trialDaysRemaining <= 0;
-  const tone = expired ? 'danger' : 'warning';
-  const palette = tone === 'danger'
-    ? { bg: theme.dangerSoft, border: `${theme.danger}55`, fg: theme.danger }
-    : { bg: theme.warnSoft, border: `${theme.warn}55`, fg: theme.warn };
-  const count = data.pendingPartnershipRequests;
-  const noun = count === 1 ? 'partner is' : 'partners are';
-  const headline = expired
-    ? `${count} ${noun} waiting — subscribe to approve them`
-    : `${count} ${noun} waiting for your approval`;
-  const body = expired
-    ? 'Your evaluation period has ended. Subscribe to start approving creator applications again.'
-    : 'Subscribe before your evaluation period ends so you can keep approving creators without interruption.';
-  return (
-    <div
-      style={{
-        background: palette.bg,
-        border: `1px solid ${palette.border}`,
-        borderRadius: theme.radiusSm,
-        padding: '14px 16px',
-        marginBottom: 18,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-      }}
-    >
-      <AlertCircle size={20} color={palette.fg} style={{ flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: palette.fg, marginBottom: 2 }}>
-          {headline}
-        </div>
-        <div style={{ fontSize: 13, color: theme.textMuted }}>{body}</div>
-      </div>
-      <TenantLink to={`${tenantBase}/admin/billing`} style={{ textDecoration: 'none' }}>
-        <Button size="sm" variant="primary">Set up billing</Button>
-      </TenantLink>
-    </div>
-  );
 }
 
 function BrandOnboarding() {
   const tenantBase = useTenantBase();
-  const { programName, whiteLabel } = useBrand();
+  const { whiteLabel } = useBrand();
   const { data } = useQuery({
     queryKey: ['admin-onboarding-status'],
     queryFn: () => api<BrandOnboardingStatus>('/admin/onboarding-status'),
@@ -490,56 +451,60 @@ function BrandOnboarding() {
     retry: false,
   });
   if (!data || data.complete) return null;
+  const networkRequired = !whiteLabel && !data.networkOptional;
   const items = [
-    { done: true, label: 'Brand account created', href: null as string | null },
+     { done: true, label: 'Аккаунт компании создан', href: null as string | null },
     {
       done: data.brandInfoComplete,
-      label: 'Set your brand name and support email',
+       label: 'Укажите название компании и email поддержки',
       href: `${tenantBase}/admin/settings`,
     },
     {
       done: data.campaignCount > 0,
-      label: 'Create your first program (Campaign)',
-      hint: 'Set the destination URL and commission terms.',
+       label: 'Создайте первую программу (кампанию)',
+       hint: 'Укажите URL назначения и условия комиссии.',
       href: `${tenantBase}/admin/programs`,
     },
     // The Network is the shared cross-tenant marketplace — white-label
     // tenants are isolated from it, so drop the listing step entirely.
-    ...(whiteLabel
-      ? []
-      : [
+    ...(networkRequired
+      ? [
           {
             done: data.networkConnected,
-            label: 'List your brand on the OpenPartner Network',
-            hint: 'Lets creators across the federation discover and apply.',
+            label: 'Разместить компанию в сети Syntolk',
+            hint: 'Авторы из всей сети смогут найти вас и подать заявку.',
             href: `${tenantBase}/admin/network`,
           },
-        ]),
-    {
-      done: data.offeringPublishedCount > 0,
-      label: 'Create your first program',
-      hint:
-        data.networkConnected && !whiteLabel
-          ? 'Auto-listed on the OpenPartner Network when shareOnNetwork is on.'
-          : 'Defines your commission rule + destination URL.',
-      href: `${tenantBase}/admin/programs`,
-    },
+        ]
+      : []),
+    ...(networkRequired
+      ? [
+          {
+            done: data.offeringPublishedCount > 0,
+            label: 'Опубликуйте программу',
+            hint:
+              data.networkConnected
+                ? 'Компания автоматически размещается в сети Syntolk при включённой публикации.'
+                : 'Подключите сеть авторов, чтобы опубликовать программу.',
+            href: `${tenantBase}/admin/programs`,
+          },
+        ]
+      : []),
     {
       done: data.partnerCount > 0,
-      label: whiteLabel ? 'Invite a partner' : 'Invite a partner — or wait for Network applications',
+       label: whiteLabel ? 'Пригласите партнёра' : 'Пригласите партнёра или дождитесь заявок из сети',
       href: `${tenantBase}/admin/partners`,
     },
-    buildBillingStep(data, `${tenantBase}/admin/billing`, programName),
   ];
   return (
     <Card style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Getting started</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Начало работы</div>
       <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 14 }}>
-        A few one-clicks to get your brand fully set up. The card disappears when you&rsquo;re done.
+        Несколько простых шагов — и компания будет полностью настроена. Карточка исчезнет после завершения.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map((it, i) => (
-          <BrandStep key={i} done={it.done} label={it.label} hint={it.hint} href={it.href} tone={it.tone} />
+          <BrandStep key={i} done={it.done} label={it.label} hint={it.hint} href={it.href} />
         ))}
       </div>
     </Card>
@@ -554,47 +519,6 @@ interface OnboardingStep {
   hint?: string;
   href: string | null;
   tone?: StepTone;
-}
-
-/** The billing step doubles as the trial-deadline pressure. Once
- *  billingReady, it just shows checked. Otherwise the label is
- *  "Subscribe by <date>" and the tone shifts to warning then danger as
- *  the evaluation window closes. */
-function buildBillingStep(data: BrandOnboardingStatus, href: string, programName: string): OnboardingStep {
-  if (data.billingReady) {
-    return { done: true, label: 'Set up billing', href };
-  }
-  const days = data.trialDaysRemaining;
-  if (days == null) {
-    return { done: false, label: 'Set up billing', href };
-  }
-  if (days <= 0) {
-    return {
-      done: false,
-      label: `Subscribe to keep using ${programName}`,
-      hint: 'Your 14-day evaluation period has ended.',
-      href,
-      tone: 'danger',
-    };
-  }
-  const date = data.trialEndsAt ? formatTrialDate(data.trialEndsAt) : '';
-  return {
-    done: false,
-    label: date ? `Subscribe by ${date}` : 'Subscribe before your evaluation ends',
-    hint: `${days} day${days === 1 ? '' : 's'} left in your evaluation period.`,
-    href,
-    tone: days <= 3 ? 'danger' : days <= 7 ? 'warning' : 'default',
-  };
-}
-
-function formatTrialDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const now = new Date();
-  const sameYear = d.getUTCFullYear() === now.getUTCFullYear();
-  return d.toLocaleDateString(undefined, sameYear
-    ? { month: 'short', day: 'numeric' }
-    : { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function BrandStep({ done, label, hint, href, tone = 'default' }: OnboardingStep) {

@@ -27,6 +27,8 @@ export function PartnerJoinPage() {
   const brand = usePublicBrand();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
@@ -38,7 +40,13 @@ export function PartnerJoinPage() {
     try {
       const r = await api<{ ok: boolean; status: string }>('/partner-signup', {
         method: 'POST',
-        body: { name: name.trim(), email: email.trim().toLowerCase() },
+        body: {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim() || undefined,
+          termsAccepted,
+          termsVersion: 'syntolk-v1',
+        },
       });
       setPhase({ kind: 'sent', review: r.status === 'pending_review' });
     } catch (e) {
@@ -48,7 +56,7 @@ export function PartnerJoinPage() {
         // the partner-facing message is the same.
         setPhase({ kind: 'closed' });
       } else {
-        setErr('Something went wrong — try again in a minute.');
+        setErr('Произошла ошибка — повторите попытку через минуту.');
       }
     } finally {
       setBusy(false);
@@ -59,12 +67,12 @@ export function PartnerJoinPage() {
 
   if (phase.kind === 'closed') {
     return (
-      <AuthFrame title="Signups are closed" subtitle={`${program} isn't accepting new partner applications right now.`}>
+      <AuthFrame title="Регистрация закрыта" subtitle={`${program} сейчас не принимает новые заявки партнёров.`}>
         <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.6 }}>
-          If you were invited directly, use the link from your invitation email
+          Если вас пригласили напрямую, используйте ссылку из письма-приглашения
           {brand.supportEmail ? (
             <>
-              {' '}or contact <a href={`mailto:${brand.supportEmail}`} style={{ color: theme.accent }}>{brand.supportEmail}</a>
+              {' '}или напишите на <a href={`mailto:${brand.supportEmail}`} style={{ color: theme.accent }}>{brand.supportEmail}</a>
             </>
           ) : null}
           .
@@ -76,17 +84,17 @@ export function PartnerJoinPage() {
   if (phase.kind === 'sent') {
     return (
       <AuthFrame
-        title={phase.review ? 'Application received' : 'Check your inbox'}
+        title={phase.review ? 'Заявка получена' : 'Проверьте почту'}
         subtitle={
           phase.review
-            ? `${program} reviews applications by hand — you'll get an email once you're approved.`
-            : `If this email isn't already registered, we sent a sign-in link to ${email}. It's good for 15 minutes.`
+            ? `${program} проверяет заявки вручную — после одобрения вы получите письмо.`
+            : `Если этот адрес ещё не зарегистрирован, мы отправили ссылку для входа на ${email}. Она действительна 15 минут.`
         }
       >
         <div style={{ background: theme.successSoft, border: `1px solid ${theme.success}55`, padding: 14, borderRadius: theme.radiusSm, fontSize: 13, color: theme.success }}>
           {phase.review
-            ? 'We also emailed you a link to confirm your address — clicking it speeds up review.'
-            : 'Click the link to set up your partner dashboard.'}
+            ? 'Мы также отправили ссылку для подтверждения адреса — переход по ней ускорит проверку.'
+            : 'Перейдите по ссылке, чтобы настроить кабинет партнёра.'}
         </div>
       </AuthFrame>
     );
@@ -94,8 +102,8 @@ export function PartnerJoinPage() {
 
   return (
     <AuthFrame
-      title={`Become a ${program ? `${program} ` : ''}partner`}
-      subtitle="Apply to join the partner program. We'll email you a sign-in link."
+      title={`Стать партнёром${program ? ` ${program}` : ''}`}
+      subtitle="Подайте заявку в партнёрскую программу — мы отправим ссылку для входа на вашу почту."
     >
       <form onSubmit={submit}>
         <div style={{ position: 'relative', marginBottom: 10 }}>
@@ -103,7 +111,7 @@ export function PartnerJoinPage() {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
+            placeholder="Ваше имя"
             autoComplete="name"
             required
             autoFocus
@@ -122,10 +130,29 @@ export function PartnerJoinPage() {
             style={inputStyle}
           />
         </div>
+        <div style={{ marginTop: 10 }}>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Телефон (необязательно)"
+            autoComplete="tel"
+            style={{ ...inputStyle, paddingLeft: 12 }}
+          />
+        </div>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', color: theme.textMuted, fontSize: 12, lineHeight: 1.45, marginTop: 12 }}>
+          <input type="checkbox" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} required style={{ marginTop: 2 }} />
+          <span>
+            Принимаю условия партнёрской программы
+            {brand.programTermsUrl ? (
+              <> (<a href={brand.programTermsUrl} target="_blank" rel="noreferrer" style={{ color: theme.accent }}>прочитать</a>)</>
+            ) : null}
+            .
+          </span>
+        </label>
         {err && <div style={{ color: theme.danger, fontSize: 13, marginTop: 8 }}>{err}</div>}
         <button
           type="submit"
-          disabled={busy || !name.trim() || !email.trim()}
+          disabled={busy || !name.trim() || !email.trim() || !termsAccepted}
           style={{
             marginTop: 14,
             width: '100%',
@@ -137,10 +164,10 @@ export function PartnerJoinPage() {
             fontSize: 14,
             fontWeight: 600,
             cursor: busy ? 'wait' : 'pointer',
-            opacity: busy || !name.trim() || !email.trim() ? 0.5 : 1,
+            opacity: busy || !name.trim() || !email.trim() || !termsAccepted ? 0.5 : 1,
           }}
         >
-          {busy ? 'Submitting…' : 'Apply to join'}
+          {busy ? 'Отправляем…' : 'Подать заявку'}
         </button>
       </form>
     </AuthFrame>

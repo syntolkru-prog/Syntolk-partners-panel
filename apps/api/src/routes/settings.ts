@@ -48,6 +48,27 @@ import { isWhiteLabelEntitled, getWhiteLabelState } from '../white-label.js';
 
 export const settingsRouter = Router();
 
+/**
+ * The self-hosted portal keeps the white-label page as a useful explanation
+ * of local branding, but self-host installs do not mount hosted billing
+ * routes. Provide the read-only status that page needs without reintroducing
+ * Stripe checkout or subscription mutations into the local application.
+ */
+settingsRouter.get('/billing/white-label', requireAuth, requireAdmin, async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  const state = await getTenantBillingState(db, tenantId);
+  if (state.mode !== 'selfhost') return res.status(404).json({ error: 'billing_route_unavailable' });
+  const wl = await getWhiteLabelState(db, tenantId);
+  res.json({
+    provisioned: wl.provisioned,
+    effective: wl.effective,
+    plan: state.plan,
+    mode: state.mode,
+    subscribed: false,
+    priceConfigured: false,
+  });
+});
+
 const CONFIG_KEY = 'program_settings';
 
 const settingsSchema = z.object({
@@ -363,7 +384,7 @@ interface PayoutSettings {
 
 const payoutSettingsSchema = z.object({
   rail: z.enum(PAYOUT_RAIL_PREFERENCES as readonly [PayoutRailPreference, ...PayoutRailPreference[]]).optional(),
-  // UI sends cents to match the column unit. Cap at $1,000 — anything above
+  // UI sends kopecks to match the column unit. Cap at 1 000 ₽ — anything above
   // is a misconfiguration, and matches the DB CHECK constraint.
   thresholdCents: z.number().int().min(0).max(100_000).optional(),
   cadence: z.enum(PAYOUT_CADENCES as readonly [PayoutCadence, ...PayoutCadence[]]).optional(),
@@ -537,7 +558,7 @@ settingsRouter.post('/config/network/start-connect', requireAuth, requireAdmin, 
       networkUrl,
       instanceUrl: body.data.instanceUrl ?? inferredInstanceUrl,
       scopedKey: scoped.plaintext,
-      displayName: body.data.displayName ?? (tenantSlug ? tenantSlug : 'OpenPartner instance'),
+      displayName: body.data.displayName ?? (tenantSlug ? tenantSlug : 'Syntolk instance'),
       contactEmail: body.data.contactEmail ?? '',
       contactName: body.data.contactName,
       tier: process.env.OPENPARTNER_TENANCY === 'multi' ? 'hosted' : 'self_hosted',

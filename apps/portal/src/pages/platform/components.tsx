@@ -41,7 +41,7 @@ export function PlatformFrame({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <Logo />
-          <div style={{ fontSize: 16, fontWeight: 600 }}>OpenPartner</div>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>Syntolk</div>
         </div>
         <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', marginBottom: 4 }}>{title}</div>
         {subtitle && <div style={{ color: theme.textMuted, fontSize: 13, marginBottom: 20 }}>{subtitle}</div>}
@@ -56,7 +56,7 @@ export function PlatformFrame({
             textAlign: 'center',
           }}
         >
-          Platform operations console — OpenPartner staff only.
+          Операционная консоль Syntolk — только для сотрудников.
         </div>
       </div>
     </div>

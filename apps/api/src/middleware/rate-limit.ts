@@ -33,6 +33,10 @@ export function ipRateLimit({
   const buckets = new Map<string, Bucket>();
 
   return (req, res, next) => {
+    // Local self-host demos often resend magic links while the UI is being
+    // configured. Keep the production guardrails intact, but allow an
+    // explicit opt-out for a developer's own machine.
+    if (process.env.OPENPARTNER_DISABLE_RATE_LIMITS === '1') return next();
     // Tests share a single process and fire dozens of requests through
     // these endpoints back-to-back — bypass under NODE_ENV=test so the
     // suite isn't fighting the limiter. Vitest sets NODE_ENV=test by

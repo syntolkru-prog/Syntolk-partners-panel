@@ -97,6 +97,6 @@ export interface Principal {
   role: 'admin' | 'partner';
   source?: string;
   partnerId?: string;
-  partner?: { id: string; name: string; email: string; stripeConnected: boolean };
+  partner?: { id: string; name: string; email: string };
   admin?: { id: string; name: string; email: string };
 }

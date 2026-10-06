@@ -64,21 +64,21 @@ export function InstallPage() {
 
   if (mut.isSuccess) {
     return (
-      <AuthFrame title="Check your email" subtitle={`We sent a sign-in link to ${adminEmail}.`} brand={programName}>
+      <AuthFrame title="Проверьте почту" subtitle={`Ссылка для входа отправлена на ${adminEmail}.`} brand={programName}>
         <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.6 }}>
-          Click the link to activate your admin account. The link is good for 15 minutes.
+          Перейдите по ссылке, чтобы активировать учётную запись администратора. Ссылка действует 15 минут.
           <br />
           <br />
           <span style={{ color: theme.textDim }}>
-            Didn't get it? Check your spam folder, or confirm the mail provider you just configured
-            can deliver to <strong>{adminEmail}</strong>.
+            Письмо не пришло? Проверьте папку «Спам» или убедитесь, что настроенный почтовый провайдер
+            может доставить письмо на адрес <strong>{adminEmail}</strong>.
           </span>
         </div>
       </AuthFrame>
     );
   }
 
-  const steps = ['You', 'Program', 'Email delivery'];
+  const steps = ['Администратор', 'Программа', 'Доставка почты'];
   const stepValid =
     (step === 0 && adminName && adminEmail) ||
     (step === 1 && programName) ||
@@ -95,20 +95,20 @@ export function InstallPage() {
   }
 
   return (
-    <AuthFrame title="Install OpenPartner" subtitle="First-run setup.">
+    <AuthFrame title="Установка Syntolk" subtitle="Первоначальная настройка.">
       <Stepper steps={steps} current={step} />
 
       {step === 0 && (
         <>
-          <WelcomeLine>Welcome — let's get you set up.</WelcomeLine>
+          <WelcomeLine>Добро пожаловать — начнём настройку.</WelcomeLine>
           <div style={{ marginBottom: 12 }}>
-            <Label>Your name</Label>
+            <Label>Ваше имя</Label>
             <Input value={adminName} onChange={(e) => setAdminName(e.target.value)} placeholder="Ada Lovelace" autoFocus />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <Label>Your email</Label>
+            <Label>Ваш email</Label>
             <Input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="ada@example.com" />
-            <Hint>We'll send your activation link here.</Hint>
+            <Hint>Сюда будет отправлена ссылка для активации.</Hint>
           </div>
         </>
       )}
@@ -116,14 +116,14 @@ export function InstallPage() {
       {step === 1 && (
         <>
           <div style={{ marginBottom: 12 }}>
-            <Label>Program name</Label>
+            <Label>Название программы</Label>
             <Input value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="e.g. Acme Partners" autoFocus />
-            <Hint>How partners see your program in the dashboard.</Hint>
+            <Hint>Так партнёры будут видеть программу в своём кабинете.</Hint>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <Label>Support email (optional)</Label>
+            <Label>Email поддержки (необязательно)</Label>
             <Input type="email" value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} placeholder="support@yourdomain.com" />
-            <Hint>Partners see this in their portal footer for questions.</Hint>
+            <Hint>Партнёры увидят этот адрес в подвале кабинета для связи.</Hint>
           </div>
         </>
       )}
@@ -131,62 +131,62 @@ export function InstallPage() {
       {step === 2 && (
         <>
           <div style={{ marginBottom: 12 }}>
-            <Label>Provider</Label>
+            <Label>Провайдер</Label>
             <Select value={mailKind} onChange={(e) => setMailKind(e.target.value as MailKind)}>
               <option value="smtp">SMTP (Gmail, SES, Mailgun, SendGrid, Postfix, …)</option>
               <option value="postmark">Postmark HTTP API</option>
-              <option value="none">None — print to server console (dev only)</option>
+              <option value="none">Не отправлять — выводить ссылку в консоль сервера (только для разработки)</option>
             </Select>
           </div>
           {mailKind !== 'none' && (
             <div style={{ marginBottom: 12 }}>
-              <Label>"From" address</Label>
+              <Label>Адрес отправителя</Label>
               <Input type="email" value={mailFrom} onChange={(e) => setMailFrom(e.target.value)} placeholder='"Acme Partners" <partners@acme.com>' />
-              <Hint>Sender identity on every email. Must be verified with your provider.</Hint>
+              <Hint>Отображается во всех письмах. Адрес должен быть подтверждён у провайдера.</Hint>
             </div>
           )}
           {mailKind === 'smtp' && (
             <>
               <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
-                  <Label>SMTP host</Label>
+                  <Label>SMTP-сервер</Label>
                   <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.example.com" />
                 </div>
                 <div>
-                  <Label>Port</Label>
+                  <Label>Порт</Label>
                   <Input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} placeholder="587" />
                 </div>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <Label>Username (optional)</Label>
+                <Label>Имя пользователя (необязательно)</Label>
                 <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="apikey or username" />
               </div>
               <div style={{ marginBottom: 12 }}>
-                <Label>Password</Label>
+                <Label>Пароль</Label>
                 <Input type="password" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder="••••••••" />
-                <Hint>Stored encrypted at rest.</Hint>
+                <Hint>Хранится в зашифрованном виде.</Hint>
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.textMuted, marginBottom: 12 }}>
                 <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} />
-                Use implicit TLS (port 465). Leave unchecked for STARTTLS on 587.
+                Использовать неявный TLS (порт 465). Для STARTTLS на порту 587 оставьте флажок снятым.
               </label>
             </>
           )}
           {mailKind === 'postmark' && (
             <>
               <div style={{ marginBottom: 12 }}>
-                <Label>Postmark server token</Label>
+                <Label>Токен сервера Postmark</Label>
                 <Input type="password" value={pmToken} onChange={(e) => setPmToken(e.target.value)} placeholder="••••••••" />
-                <Hint>Stored encrypted at rest.</Hint>
+                <Hint>Хранится в зашифрованном виде.</Hint>
               </div>
               <div style={{ marginBottom: 12 }}>
-                <Label>Message stream</Label>
-                <Input value={pmStream} onChange={(e) => setPmStream(e.target.value)} placeholder="outbound" />
+                <Label>Поток сообщений</Label>
+                <Input value={pmStream} onChange={(e) => setPmStream(e.target.value)} placeholder="исходящие" />
               </div>
             </>
           )}
           {mailKind === 'none' && (
-            <Hint>The magic-link URL will print to the server stdout. Dev / console-only use.</Hint>
+            <Hint>Ссылка для входа будет выведена в стандартный поток сервера. Для разработки и консольного режима.</Hint>
           )}
         </>
       )}
@@ -196,7 +196,7 @@ export function InstallPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, gap: 8 }}>
         {step > 0 ? (
           <Button variant="secondary" icon={<ArrowLeft size={14} />} onClick={() => setStep(step - 1)}>
-            Back
+            Назад
           </Button>
         ) : (
           <div />
@@ -206,7 +206,7 @@ export function InstallPage() {
           disabled={!stepValid || mut.isPending}
           icon={isLast ? <Check size={14} /> : <ArrowRight size={14} />}
         >
-          {isLast ? (mut.isPending ? 'Sending…' : 'Send my setup link') : 'Continue'}
+          {isLast ? (mut.isPending ? 'Отправка…' : 'Отправить ссылку для настройки') : 'Продолжить'}
         </Button>
       </div>
     </AuthFrame>

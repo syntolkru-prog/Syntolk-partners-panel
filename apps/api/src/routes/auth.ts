@@ -47,7 +47,7 @@ authRouter.get('/auth/whoami', requireAuth, async (req, res) => {
       role: 'partner',
       partnerId: p.partnerId,
       partner: partner
-        ? { id: partner.id, name: partner.name, email: partner.email, stripeConnected: !!partner.stripeConnectAccountId }
+        ? { id: partner.id, name: partner.name, email: partner.email }
         : null,
     });
   }

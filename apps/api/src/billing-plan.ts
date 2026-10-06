@@ -23,7 +23,7 @@
 
 import type { Knex } from 'knex';
 import { TABLES, type BillingPlan, type TenantRow } from '@openpartner/db';
-import { getMode, type OpenPartnerMode } from './stripe.js';
+import { getMode, type OpenPartnerMode } from './deployment.js';
 
 export const TRIAL_DAYS = 14;
 

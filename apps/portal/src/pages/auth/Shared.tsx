@@ -62,7 +62,7 @@ export function Logo({ size = 26 }: { size?: number } = {}) {
   return (
     <img
       src="/logo-mark-green.svg"
-      alt="OpenPartner"
+      alt="Syntolk"
       width={size}
       height={size}
       style={{ display: 'block' }}

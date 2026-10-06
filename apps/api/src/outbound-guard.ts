@@ -24,7 +24,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { Agent, fetch as undiciFetch } from 'undici';
 import ipaddr from 'ipaddr.js';
-import { getMode } from './stripe.js';
+import { getMode } from './deployment.js';
 import { getTenancyMode } from './tenancy.js';
 
 /** Thrown when a destination is refused by policy — before any socket is

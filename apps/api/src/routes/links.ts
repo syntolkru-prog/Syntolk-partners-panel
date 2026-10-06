@@ -17,6 +17,8 @@ const createSchema = z.object({
    *  matches one of those domains. Otherwise rejected with
    *  destination_override_not_allowed. */
   destinationUrl: z.string().url().optional(),
+  label: z.string().trim().max(120).optional(),
+  channel: z.string().trim().max(40).optional(),
 });
 
 export const linksRouter = Router();
@@ -95,6 +97,8 @@ linksRouter.post('/partners/:id/links', requireAuth, grantScope('links:write'), 
         partnerId: req.params.id,
         programId: body.data.programId,
         destinationUrl: destinationOverride,
+        label: body.data.label || null,
+        channel: body.data.channel || null,
       })
       .returning('*');
     res.status(201).json(link);

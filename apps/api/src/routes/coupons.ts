@@ -342,7 +342,9 @@ couponsRouter.post('/coupons/redeem', requireAuth, grantScope('events:write'), r
   const coupon = await db<CouponRow>(TABLES.Coupon)
     .whereRaw('lower("code") = ?', [body.data.code.toLowerCase()])
     .first();
-  if (!coupon) return res.status(404).json({ error: 'coupon_not_found' });
+  // Deactivated codes remain in the database for historical attribution
+  // and reporting, but must never accept a new checkout redemption.
+  if (!coupon || coupon.deactivatedAt) return res.status(404).json({ error: 'coupon_not_found' });
 
   // Idempotency: same externalEventId already processed → 200 + replayed flag.
   const existingEvent = await db<EventRow>(TABLES.Event)
@@ -388,7 +390,8 @@ couponsRouter.post('/coupons/redeem', requireAuth, grantScope('events:write'), r
  * Lookup a Coupon by code (case-insensitive) within the current tenant.
  * Used by both the /coupons/redeem route and the Stripe webhook auto-
  * redemption path. Returns null when the code doesn't match anything in
- * this tenant — letting the caller no-op rather than 404.
+ * this tenant or has been deactivated — letting the caller no-op rather
+ * than 404.
  */
 export async function findCouponByCode(
   db: import('knex').Knex,
@@ -397,7 +400,7 @@ export async function findCouponByCode(
   const row = await db<CouponRow>(TABLES.Coupon)
     .whereRaw('lower("code") = ?', [code.toLowerCase()])
     .first();
-  return row ?? null;
+  return row && !row.deactivatedAt ? row : null;
 }
 
 /**

@@ -5,7 +5,7 @@ import { api, ApiError } from '../../api.js';
 import { theme } from '../../theme.js';
 import { Button, Card, ErrorBanner, Input, Label, Page, Select } from '../../ui.js';
 
-type PayoutRail = 'auto' | 'stripe_connect' | 'manual';
+type PayoutRail = 'auto' | 'manual';
 type PayoutCadence = 'weekly' | 'biweekly' | 'monthly' | 'manual';
 
 interface PayoutSettings {
@@ -49,7 +49,7 @@ interface PublicMailSettings {
 
 export function AdminSettings() {
   return (
-    <Page title="Settings" subtitle="How the partner portal identifies your brand, sends mail, and pays partners.">
+    <Page title="Настройки" subtitle="Как кабинет партнёров определяет вашу компанию, отправляет письма и выплачивает вознаграждения.">
       <ProgramSection />
       <div style={{ height: 18 }} />
       <BrandResourcesSection />
@@ -101,22 +101,22 @@ function PartnerSignupSection() {
   // the current URL keeps it correct in both cases.
   const joinUrl = `${window.location.origin}${window.location.pathname.match(/^\/t\/[^/]+/)?.[0] ?? ''}/join`;
 
-  if (isLoading) return <Card>Loading…</Card>;
+  if (isLoading) return <Card>Загрузка…</Card>;
   const settings = data ?? { policy: 'auto_approve' as const, disabled: false };
 
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <UserPlus size={18} color={theme.accent} />
-        <div style={{ fontSize: 15, fontWeight: 500 }}>Partner signups</div>
+        <div style={{ fontSize: 15, fontWeight: 500 }}>Регистрация партнёров</div>
       </div>
       <ErrorBanner error={error ?? mut.error} />
       <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.6, marginBottom: 12 }}>
-        Your public application page is{' '}
+        Публичная страница заявки: {' '}
         <a href={joinUrl} target="_blank" rel="noreferrer" style={{ color: theme.accent }}>
           {joinUrl}
         </a>
-        . Direct invites always work, whatever you choose here.
+        . Прямые приглашения работают независимо от выбранной настройки.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 560 }}>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, cursor: 'pointer' }}>
@@ -127,26 +127,26 @@ function PartnerSignupSection() {
             style={{ marginTop: 2 }}
           />
           <span>
-            <strong>Accept public applications</strong>
+            <strong>Принимать публичные заявки</strong>
             <span style={{ color: theme.textMuted, display: 'block' }}>
-              Unchecked = the page shows &ldquo;signups closed&rdquo; and only invited partners can join —
-              a fully curated roster.
+              Если выключено, страница показывает «регистрация закрыта», и присоединиться могут
+              только приглашённые партнёры — список полностью контролируется вручную.
             </span>
           </span>
         </label>
         <div>
-          <Label>When someone applies</Label>
+          <Label>После подачи заявки</Label>
           <Select
             value={settings.policy}
             onChange={(e) => mut.mutate({ policy: e.target.value as PartnerSignupSettings['policy'] })}
             disabled={settings.disabled}
             style={{ maxWidth: 360 }}
           >
-            <option value="auto_approve">Approve automatically — they can sign in right away</option>
-            <option value="require_review">Hold for review — an admin approves each application</option>
+            <option value="auto_approve">Одобрять автоматически — вход доступен сразу</option>
+            <option value="require_review">Оставлять на проверку — каждую заявку одобряет администратор</option>
           </Select>
         </div>
-        {saved && <div style={{ color: theme.success, fontSize: 13 }}>Saved.</div>}
+        {saved && <div style={{ color: theme.success, fontSize: 13 }}>Сохранено.</div>}
       </div>
     </Card>
   );
@@ -188,52 +188,52 @@ function ProgramSection() {
     },
   });
 
-  if (isLoading) return <Card>Loading…</Card>;
+  if (isLoading) return <Card>Загрузка…</Card>;
 
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <SettingsIcon size={18} color={theme.accent} />
-        <div style={{ fontSize: 15, fontWeight: 500 }}>Brand info</div>
+        <div style={{ fontSize: 15, fontWeight: 500 }}>Информация о компании</div>
       </div>
       <ErrorBanner error={error ?? mut.error} />
       <BrandImageUploader
         endpoint="/uploads/logo"
         currentUrl={data?.logoUrl ?? null}
         brandName={data?.programName ?? null}
-        label="Brand logo"
-        hint="PNG, JPEG, or WebP. Max 2 MB. Square images render best in the sidebar (we display ~28×28)."
+        label="Логотип компании"
+        hint="PNG, JPEG или WebP. Максимум 2 МБ. Квадратные изображения лучше всего выглядят в меню (примерно 28×28)."
       />
       <BrandImageUploader
         endpoint="/uploads/favicon"
         currentUrl={data?.faviconUrl ?? null}
         brandName={data?.programName ?? null}
-        label="Favicon (browser-tab icon)"
-        hint="A square simplified mark — usually not your full logo. PNG/WebP, 64×64 or larger. Falls back to your logo when unset."
+        label="Favicon (значок вкладки браузера)"
+        hint="Упрощённый квадратный знак — обычно не полный логотип. PNG/WebP, размер от 64×64. Если не указан, используется логотип."
         previewSize={32}
       />
       <div style={{ marginBottom: 16 }}>
-        <Label>Brand name</Label>
-        <Input value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="e.g. Acme" maxLength={120} />
+        <Label>Название компании</Label>
+        <Input value={programName} onChange={(e) => setProgramName(e.target.value)} placeholder="например, Syntolk" maxLength={120} />
         <Hint>
-          Shown to partners in the portal.
-          {data?.whiteLabel ? ' Leave blank to fall back to your workspace name.' : ' Leave blank to fall back to "OpenPartner".'}
+          Партнёры увидят это внизу своего кабинета.
+          {data?.whiteLabel ? ' Оставьте пустым, чтобы использовать название рабочего пространства.' : ' Оставьте пустым, чтобы использовать «Syntolk».'}
         </Hint>
       </div>
       <div style={{ marginBottom: 16 }}>
-        <Label>Support email</Label>
+        <Label>Email поддержки</Label>
         <Input
           type="email"
           value={supportEmail}
           onChange={(e) => setSupportEmail(e.target.value)}
-          placeholder="support@yourdomain.com"
+          placeholder="support@syntolk.ru"
           maxLength={254}
         />
-        <Hint>Partners see this in their portal footer.</Hint>
+        <Hint>Партнёры увидят этот адрес внизу своего кабинета.</Hint>
       </div>
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
         <div>
-          <Label>Brand color</Label>
+          <Label>Цвет компании</Label>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
               type="color"
@@ -257,25 +257,25 @@ function ProgramSection() {
               style={{ fontFamily: theme.fontMono }}
             />
           </div>
-          <Hint>Hex code. {data?.whiteLabel ? 'Blank uses the default green.' : "Blank = OpenPartner's default green."}</Hint>
+          <Hint>HEX-код. {data?.whiteLabel ? 'Пустое значение использует стандартный зелёный цвет.' : 'Пустое значение — стандартный зелёный цвет Syntolk.'}</Hint>
         </div>
         <div>
-          <Label>Program terms URL</Label>
+          <Label>URL условий программы</Label>
           <Input
             type="url"
             value={programTermsUrl}
             onChange={(e) => setProgramTermsUrl(e.target.value)}
-            placeholder="https://yourdomain.com/partner-terms"
+            placeholder="https://syntolk.ru/partner-terms"
             maxLength={2048}
           />
-          <Hint>Linked from the partner portal footer. Blank = no terms link shown.</Hint>
+          <Hint>Ссылка внизу кабинета партнёра. Пусто — ссылка не показывается.</Hint>
         </div>
       </div>
       <Row>
         <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
-          {mut.isPending ? 'Saving…' : 'Save program info'}
+          {mut.isPending ? 'Сохраняем…' : 'Сохранить информацию о программе'}
         </Button>
-        {saved && <span style={{ color: theme.success, fontSize: 13 }}>Saved.</span>}
+        {saved && <span style={{ color: theme.success, fontSize: 13 }}>Сохранено.</span>}
       </Row>
     </Card>
   );
@@ -300,7 +300,7 @@ function BrandResourcesSection() {
       }>('/brand-resources'),
   });
 
-  if (isLoading) return <Card>Loading…</Card>;
+  if (isLoading) return <Card>Загрузка…</Card>;
 
   const assets = data?.assets ?? [];
 
@@ -308,18 +308,18 @@ function BrandResourcesSection() {
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <Palette size={18} color={theme.accent} />
-        <div style={{ fontSize: 15, fontWeight: 500 }}>Brand resources</div>
+        <div style={{ fontSize: 15, fontWeight: 500 }}>Материалы компании</div>
       </div>
       <ErrorBanner error={error} />
       <Hint>
-        Logos, hero images, and copy snippets partners can pull into their content.
-        Visible to every active partner in the portal under Resources.
+        Логотипы, главные изображения и тексты, которые партнёры могут использовать
+        в материалах. Доступны активным партнёрам в разделе «Материалы».
       </Hint>
 
       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {assets.length === 0 ? (
           <div style={{ fontSize: 13, color: theme.textMuted, padding: '14px 0' }}>
-            No resources yet. Upload an image or add a copy snippet below.
+            Материалов пока нет. Загрузите изображение или добавьте текстовый фрагмент ниже.
           </div>
         ) : (
           assets.map((a) => (
@@ -429,11 +429,11 @@ function AssetRow({ asset, onChange }: { asset: BrandAsset; onChange: () => void
             padding: 0,
           }}
         >
-          {editing ? 'Cancel' : 'Edit'}
+          {editing ? 'Отмена' : 'Изменить'}
         </button>
         <button
           onClick={() => {
-            if (window.confirm(`Delete "${asset.label}"?`)) del.mutate();
+            if (window.confirm(`Удалить «${asset.label}»?`)) del.mutate();
           }}
           style={{
             display: 'flex',
@@ -457,11 +457,11 @@ function AssetRow({ asset, onChange }: { asset: BrandAsset; onChange: () => void
       )}
       {editing && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label" maxLength={200} />
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Название" maxLength={200} />
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (optional)"
+            placeholder="Описание (необязательно)"
             maxLength={1000}
           />
           {asset.kind === 'snippet' && (
@@ -485,7 +485,7 @@ function AssetRow({ asset, onChange }: { asset: BrandAsset; onChange: () => void
           <ErrorBanner error={save.error} />
           <Row>
             <Button onClick={() => save.mutate()} disabled={save.isPending || !label.trim()}>
-              {save.isPending ? 'Saving…' : 'Save'}
+              {save.isPending ? 'Сохраняем…' : 'Сохранить'}
             </Button>
           </Row>
         </div>
@@ -505,11 +505,11 @@ function AddImageForm({ onAdded }: { onAdded: () => void }) {
     e.target.value = '';
     if (!file) return;
     if (!label.trim()) {
-      setError('Add a label first so partners know what the image is for.');
+      setError('Сначала укажите название, чтобы партнёры понимали назначение изображения.');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setError('Image too large — max 2 MB.');
+      setError('Изображение слишком большое — максимум 2 МБ.');
       return;
     }
     setError(null);
@@ -524,7 +524,7 @@ function AddImageForm({ onAdded }: { onAdded: () => void }) {
       setDescription('');
       onAdded();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить файл');
     } finally {
       setUploading(false);
     }
@@ -532,19 +532,19 @@ function AddImageForm({ onAdded }: { onAdded: () => void }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <Label>Add image</Label>
+      <Label>Добавить изображение</Label>
       <div style={{ display: 'flex', gap: 8 }}>
         <Input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="Label (e.g. Hero banner 1200x630)"
+          placeholder="Название (например, баннер 1200×630)"
           maxLength={200}
           style={{ flex: 1 }}
         />
         <Input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Description (optional)"
+          placeholder="Описание (необязательно)"
           maxLength={1000}
           style={{ flex: 1 }}
         />
@@ -571,12 +571,12 @@ function AddImageForm({ onAdded }: { onAdded: () => void }) {
               whiteSpace: 'nowrap',
             }}
           >
-            {uploading ? 'Uploading…' : 'Upload'}
+            {uploading ? 'Загружаем…' : 'Загрузить'}
           </span>
         </label>
       </div>
       {error && <div style={{ fontSize: 12, color: theme.danger }}>{error}</div>}
-      <Hint>PNG, JPEG, or WebP. Max 2 MB.</Hint>
+      <Hint>PNG, JPEG или WebP. Максимум 2 МБ.</Hint>
     </div>
   );
 }
@@ -600,17 +600,17 @@ function AddSnippetForm({ onAdded }: { onAdded: () => void }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <Label>Add copy snippet</Label>
+      <Label>Добавить текстовый фрагмент</Label>
       <Input
         value={label}
         onChange={(e) => setLabel(e.target.value)}
-        placeholder="Label (e.g. One-liner tagline)"
+        placeholder="Название (например, короткий слоган)"
         maxLength={200}
       />
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder="The snippet text partners can copy verbatim"
+        placeholder="Текст, который партнёры смогут скопировать без изменений"
         rows={3}
         maxLength={4000}
         style={{
@@ -627,7 +627,7 @@ function AddSnippetForm({ onAdded }: { onAdded: () => void }) {
       <ErrorBanner error={mut.error} />
       <Row>
         <Button onClick={() => mut.mutate()} disabled={mut.isPending || !label.trim() || !body.trim()}>
-          {mut.isPending ? 'Adding…' : 'Add snippet'}
+        {mut.isPending ? 'Добавляем…' : 'Добавить фрагмент'}
         </Button>
       </Row>
     </div>
@@ -644,7 +644,7 @@ function PayoutSection() {
   });
 
   const [rail, setRail] = useState<PayoutRail>('auto');
-  // Stored as cents on the server; rendered as dollars in the UI.
+  // Stored as kopecks on the server; rendered as rubles in the UI.
   const [thresholdDollars, setThresholdDollars] = useState('0');
   const [cadence, setCadence] = useState<PayoutCadence>('weekly');
   const [saved, setSaved] = useState(false);
@@ -672,36 +672,35 @@ function PayoutSection() {
     },
   });
 
-  if (isLoading) return <Card>Loading…</Card>;
+  if (isLoading) return <Card>Загрузка…</Card>;
 
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <Wallet size={18} color={theme.accent} />
-        <div style={{ fontSize: 15, fontWeight: 500 }}>Payouts</div>
+        <div style={{ fontSize: 15, fontWeight: 500 }}>Выплаты</div>
       </div>
       <ErrorBanner error={error ?? mut.error} />
       <Hint>
-        How partner balances turn into transfers. Affects every program. Per-program
-        holdback (refund window) is set on each program.
+        Как балансы партнёров превращаются в переводы. Настройка действует для всех программ;
+        отсрочка выплаты по каждой программе задаётся отдельно.
       </Hint>
 
       <div style={{ marginTop: 16, marginBottom: 16 }}>
-        <Label>Payout rail</Label>
+        <Label>Канал выплат</Label>
         <Select value={rail} onChange={(e) => setRail(e.target.value as PayoutRail)}>
-          <option value="auto">Auto — Stripe Connect if partner has one, else manual</option>
-          <option value="stripe_connect">Stripe Connect only — require connected account</option>
-          <option value="manual">Manual only — operator transfers off-platform</option>
+          <option value="auto">Автоматический режим — пока учитывается как ручная выплата</option>
+          <option value="manual">Ручная выплата оператором</option>
         </Select>
         <Hint>
-          Auto is the default. Forcing Stripe Connect surfaces unconnected partners as
-          failed payouts with a "complete onboarding" message — useful when you want
-          every partner to self-serve their payouts.
+          До подключения официального CloudPayments API выплаты фиксируются в кабинете
+          как начисленные и переводятся оператором вручную. После активации CloudPayments
+          «Мультирасчёты» этот режим можно заменить на автоматический.
         </Hint>
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <Label>Minimum payout (USD)</Label>
+        <Label>Минимальная выплата (RUB)</Label>
         <Input
           type="number"
           min="0"
@@ -712,31 +711,31 @@ function PayoutSection() {
           style={{ maxWidth: 160 }}
         />
         <Hint>
-          Balances below this stay in "approved" status and roll into the next payout
-          run. 0 = no minimum. Common values: $25, $50, $100. Anything above $1000 is
-          probably a misconfiguration and won't save.
+          Баланс ниже этого значения остаётся в статусе «доступно» и переносится в следующий
+          расчёт. 0 = без минимума. Частые значения: 250, 500, 1 000 ₽. Значение выше 1 000 ₽
+          скорее всего является ошибкой и не сохранится.
         </Hint>
       </div>
 
       <div style={{ marginBottom: 18 }}>
-        <Label>Payout cadence</Label>
+        <Label>Периодичность выплат</Label>
         <Select value={cadence} onChange={(e) => setCadence(e.target.value as PayoutCadence)}>
-          <option value="weekly">Weekly — every Monday 09:00 UTC</option>
-          <option value="biweekly">Biweekly — every other Monday (even ISO weeks)</option>
-          <option value="monthly">Monthly — first Monday of the month</option>
-          <option value="manual">Manual — never automatic, you trigger from the Payouts page</option>
+          <option value="weekly">Еженедельно — каждый понедельник в 09:00 UTC</option>
+          <option value="biweekly">Раз в две недели — каждый второй понедельник</option>
+          <option value="monthly">Ежемесячно — первый понедельник месяца</option>
+          <option value="manual">Вручную — запускать со страницы «Выплаты»</option>
         </Select>
         <Hint>
-          Weekly is the default. Manual is for brands that audit every run before paying;
-          set to manual and trigger from the Payouts page when you're ready.
+          Еженедельный режим используется по умолчанию. Ручной режим подходит компаниям,
+          которые проверяют каждый транш перед выплатой.
         </Hint>
       </div>
 
       <Row>
         <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
-          {mut.isPending ? 'Saving…' : 'Save payout settings'}
+          {mut.isPending ? 'Сохраняем…' : 'Сохранить настройки выплат'}
         </Button>
-        {saved && <span style={{ color: theme.success, fontSize: 13 }}>Saved.</span>}
+        {saved && <span style={{ color: theme.success, fontSize: 13 }}>Сохранено.</span>}
       </Row>
     </Card>
   );
@@ -814,15 +813,15 @@ function MailSection() {
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
   const test = useMutation({
     mutationFn: () => api<{ ok: boolean; to: string; transport: string }>('/config/mail/test', { method: 'POST' }),
-    onSuccess: (r) => setTestResult({ ok: true, text: `Sent to ${r.to} via ${r.transport} — check your inbox (and spam).` }),
+    onSuccess: (r) => setTestResult({ ok: true, text: `Отправлено на ${r.to} через ${r.transport}. Проверьте входящие и папку «Спам».` }),
     onError: (err) =>
       setTestResult({
         ok: false,
-        text: err instanceof ApiError ? String(err.message) : 'Test failed — could not reach the API.',
+        text: err instanceof ApiError ? String(err.message) : 'Тест не пройден — API недоступен.',
       }),
   });
 
-  if (isLoading) return <Card>Loading…</Card>;
+  if (isLoading) return <Card>Загрузка…</Card>;
 
   const hasStoredSmtpPassword = data?.smtp?.hasPassword ?? false;
   const hasStoredPmToken = data?.postmark?.hasToken ?? false;
@@ -831,7 +830,7 @@ function MailSection() {
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <Mail size={18} color={theme.accent} />
-        <div style={{ fontSize: 15, fontWeight: 500 }}>Email delivery</div>
+        <div style={{ fontSize: 15, fontWeight: 500 }}>Доставка email</div>
       </div>
       <ErrorBanner error={error ?? mut.error} />
       <div
@@ -844,65 +843,65 @@ function MailSection() {
         }}
       >
         <div style={{ fontSize: 14, fontWeight: 500, color: theme.success, marginBottom: 4 }}>
-          Email is set up by default
+          Email настроен по умолчанию
         </div>
         <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.55 }}>
-          Partner invites, sign-in links, and notifications send through OpenPartner&rsquo;s
-          email infrastructure as <code>&ldquo;Your brand via OpenPartner&rdquo; &lt;noreply@openpartner.dev&gt;</code>.
-          Replies go to your support email if you&rsquo;ve set one. This section is optional —
-          configure your own SMTP or Postmark only if you want emails to come from your
-          own domain.
+          Приглашения партнёров, ссылки для входа и уведомления отправляются через почтовую инфраструктуру Syntolk
+          в формате <code>&ldquo;Ваш бренд через Syntolk&rdquo; &lt;noreply@syntolk.ru&gt;</code>.
+          Ответы будут приходить на указанный email поддержки. Этот раздел необязателен —
+          настройте собственный SMTP или Postmark, только если хотите отправлять письма
+          со своего домена.
         </div>
       </div>
 
       <div style={{ marginTop: 14, marginBottom: 12 }}>
-        <Label>Provider</Label>
+        <Label>Провайдер</Label>
         <Select value={kind} onChange={(e) => setKind(e.target.value as MailKind)}>
           <option value="smtp">SMTP (Gmail, SES, Mailgun, SendGrid, Postfix, …)</option>
           <option value="postmark">Postmark HTTP API</option>
-          <option value="none">None — fall through to env / console</option>
+          <option value="none">Нет — использовать env / консоль</option>
         </Select>
       </div>
 
       {kind !== 'none' && (
         <div style={{ marginBottom: 12 }}>
-          <Label>"From" address</Label>
-          <Input type="email" value={from} onChange={(e) => setFrom(e.target.value)} placeholder='"Acme Partners" <partners@acme.com>' />
+          <Label>Адрес отправителя</Label>
+          <Input type="email" value={from} onChange={(e) => setFrom(e.target.value)} placeholder='"Syntolk" <partners@syntolk.ru>' />
         </div>
       )}
       {kind === 'smtp' && (
         <>
           <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
-              <Label>SMTP host</Label>
+              <Label>SMTP-сервер</Label>
               <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.example.com" />
             </div>
             <div>
-              <Label>Port</Label>
+              <Label>Порт</Label>
               <Input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} placeholder="587" />
             </div>
           </div>
           <div style={{ marginBottom: 12 }}>
-            <Label>Username (optional)</Label>
-            <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="apikey or username" />
+            <Label>Имя пользователя (необязательно)</Label>
+            <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="API-ключ или имя пользователя" />
           </div>
           <div style={{ marginBottom: 12 }}>
             <Label>
-              Password{' '}
+              Пароль{' '}
               {hasStoredSmtpPassword && (
-                <span style={{ color: theme.textDim, fontWeight: 400, fontSize: 12 }}>— saved ✓ (enter to rotate)</span>
+                <span style={{ color: theme.textDim, fontWeight: 400, fontSize: 12 }}>— сохранён ✓ (введите новый для замены)</span>
               )}
             </Label>
             <Input
               type="password"
               value={smtpPass}
               onChange={(e) => setSmtpPass(e.target.value)}
-              placeholder={hasStoredSmtpPassword ? 'Saved — leave blank to keep, type to replace' : ''}
+              placeholder={hasStoredSmtpPassword ? 'Сохранён — оставьте пустым или введите новый' : ''}
             />
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
             <input type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} />
-            Use implicit TLS (port 465). Leave unchecked for STARTTLS on 587.
+            Использовать неявный TLS (порт 465). Для STARTTLS на порту 587 оставьте выключенным.
           </label>
         </>
       )}
@@ -910,28 +909,28 @@ function MailSection() {
         <>
           <div style={{ marginBottom: 12 }}>
             <Label>
-              Server token{' '}
+              Токен сервера{' '}
               {hasStoredPmToken && (
-                <span style={{ color: theme.textDim, fontWeight: 400, fontSize: 12 }}>— saved ✓ (enter to rotate)</span>
+                <span style={{ color: theme.textDim, fontWeight: 400, fontSize: 12 }}>— сохранён ✓ (введите новый для замены)</span>
               )}
             </Label>
             <Input
               type="password"
               value={pmToken}
               onChange={(e) => setPmToken(e.target.value)}
-              placeholder={hasStoredPmToken ? 'Saved — leave blank to keep, type to replace' : ''}
+              placeholder={hasStoredPmToken ? 'Сохранён — оставьте пустым или введите новый' : ''}
             />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <Label>Message stream</Label>
-            <Input value={pmStream} onChange={(e) => setPmStream(e.target.value)} placeholder="outbound" />
+            <Label>Поток сообщений</Label>
+          <Input value={pmStream} onChange={(e) => setPmStream(e.target.value)} placeholder="исходящие сообщения" />
           </div>
         </>
       )}
 
       <Row>
         <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
-          {mut.isPending ? 'Saving…' : 'Save mail settings'}
+          {mut.isPending ? 'Сохраняем…' : 'Сохранить настройки почты'}
         </Button>
         <Button
           variant="secondary"
@@ -941,15 +940,15 @@ function MailSection() {
           }}
           disabled={test.isPending || mut.isPending}
         >
-          {test.isPending ? 'Sending…' : 'Send test email'}
+          {test.isPending ? 'Отправляем…' : 'Отправить тестовое письмо'}
         </Button>
-        {saved && <span style={{ color: theme.success, fontSize: 13 }}>Saved.</span>}
+        {saved && <span style={{ color: theme.success, fontSize: 13 }}>Сохранено.</span>}
       </Row>
       {testResult && (
         <div style={{ color: testResult.ok ? theme.success : theme.danger, fontSize: 13, marginTop: 10 }}>
           {testResult.text}
           {!testResult.ok &&
-            ' — check the host/port/credentials above (a connection timeout usually means a wrong hostname or filtered port). The test uses the last SAVED settings, so save any edits before retrying.'}
+            ' — проверьте сервер, порт и учётные данные выше. Тест использует последние СОХРАНЁННЫЕ настройки, поэтому перед повтором сохраните изменения.'}
         </div>
       )}
     </Card>
@@ -989,7 +988,7 @@ function BrandImageUploader({
       qc.invalidateQueries({ queryKey: ['public-branding'] });
       qc.invalidateQueries({ queryKey: ['session-home'] });
     },
-    onError: (err) => setError(err instanceof Error ? err.message : 'upload failed'),
+    onError: (err) => setError(err instanceof Error ? err.message : 'не удалось загрузить файл'),
   });
 
   const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -997,7 +996,7 @@ function BrandImageUploader({
     e.target.value = '';
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      setError('Image too large — max 2 MB.');
+      setError('Изображение слишком большое — максимум 2 МБ.');
       return;
     }
     upload.mutate(file);
@@ -1051,7 +1050,7 @@ function BrandImageUploader({
                 opacity: upload.isPending ? 0.6 : 1,
               }}
             >
-              {upload.isPending ? 'Uploading…' : currentUrl ? 'Replace image' : 'Upload image'}
+              {upload.isPending ? 'Загружаем…' : currentUrl ? 'Заменить изображение' : 'Загрузить изображение'}
             </span>
           </label>
         </div>
@@ -1104,38 +1103,38 @@ function DangerZone() {
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <div style={{ fontSize: 15, fontWeight: 500, color: theme.danger }}>Danger zone</div>
+        <div style={{ fontSize: 15, fontWeight: 500, color: theme.danger }}>Опасная зона</div>
       </div>
 
       {pending ? (
         <>
           <div style={{ background: `${theme.danger}15`, border: `1px solid ${theme.danger}55`, padding: 14, borderRadius: 6, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 500, color: theme.danger }}>
-              Account scheduled for deletion
+              Аккаунт запланирован к удалению
             </div>
             <div style={{ fontSize: 13, color: theme.textMuted, marginTop: 6 }}>
-              All data will be permanently deleted on{' '}
+              Все данные будут удалены навсегда {' '}
               <strong>{data?.hardDeleteAt ? new Date(data.hardDeleteAt).toLocaleDateString() : '—'}</strong>.
-              You can recover any time before then.
+              До этой даты аккаунт можно восстановить.
             </div>
             {data?.deletionReason && (
               <div style={{ fontSize: 12, color: theme.textDim, marginTop: 8 }}>
-                Reason on file: {data.deletionReason}
+                Причина: {data.deletionReason}
               </div>
             )}
           </div>
           <ErrorBanner error={restore.error} />
           <Button onClick={() => restore.mutate()} disabled={restore.isPending}>
-            {restore.isPending ? 'Restoring…' : 'Recover account'}
+            {restore.isPending ? 'Восстанавливаем…' : 'Восстановить аккаунт'}
           </Button>
         </>
       ) : !showForm ? (
         <>
           <Hint>
-            Deleting permanently removes your brand workspace, partners, links, commissions,
-            and payouts after a 30-day grace period. You&rsquo;ll be locked out immediately;
-            inside the grace window you can recover. Stripe billing cancels at the end of
-            the current period.
+            Удаление навсегда удалит рабочее пространство компании, партнёров, ссылки,
+            комиссии и выплаты после 30-дневного льготного периода. Доступ будет закрыт сразу;
+            в течение льготного периода аккаунт можно восстановить. Платёжные настройки
+            действуют до конца текущего периода.
           </Hint>
           <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
             <a
@@ -1152,28 +1151,28 @@ function DangerZone() {
                 alignItems: 'center',
               }}
             >
-              Download workspace data
+              Скачать данные рабочего пространства
             </a>
-            <Button variant="secondary" onClick={() => setShowForm(true)}>Delete this account</Button>
+            <Button variant="secondary" onClick={() => setShowForm(true)}>Удалить этот аккаунт</Button>
           </div>
         </>
       ) : (
         <>
-          <Hint>Type your URL slug to confirm. This locks you out immediately.</Hint>
+          <Hint>Введите slug URL для подтверждения. Доступ будет закрыт сразу.</Hint>
           <div style={{ marginTop: 12, marginBottom: 12 }}>
-            <Label>Confirm slug</Label>
-            <Input value={confirmSlug} onChange={(e) => setConfirmSlug(e.target.value)} placeholder="your-slug" />
+            <Label>Подтвердите slug</Label>
+          <Input value={confirmSlug} onChange={(e) => setConfirmSlug(e.target.value)} placeholder="ваш-slug" />
           </div>
           <div style={{ marginBottom: 14 }}>
-            <Label>Reason (optional, helps us improve)</Label>
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Switching platforms, project ended, …" />
+            <Label>Причина (необязательно, поможет улучшить сервис)</Label>
+          <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Например: переходим на другую платформу" />
           </div>
           <ErrorBanner error={del.error} />
           <Row>
             <Button onClick={() => del.mutate()} disabled={del.isPending || !confirmSlug}>
-              {del.isPending ? 'Deleting…' : 'Permanently delete'}
+              {del.isPending ? 'Удаляем…' : 'Удалить навсегда'}
             </Button>
-            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Отмена</Button>
           </Row>
         </>
       )}

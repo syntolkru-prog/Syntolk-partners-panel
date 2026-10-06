@@ -67,7 +67,7 @@ export function CreatorShareLinksPage() {
       subtitle={
         customDomain
           ? `Branded with your domain ${customDomain}. Edit the slug per program below.`
-          : 'Default openpartner.dev URLs. Add a custom domain in Domains to brand them.'
+          : 'Стандартные ссылки Syntolk. Добавьте свой домен в разделе «Домены», чтобы использовать собственный адрес.'
       }
     >
       <ErrorBanner error={list.error} />
@@ -556,7 +556,7 @@ function CouponHelp({ coupons }: { coupons: Coupon[] }) {
     return (
       <p style={{ fontSize: 11, color: theme.textMuted, margin: '6px 0 0' }}>
         No redemptions yet. If you&rsquo;ve been sharing codes, the brand may not have wired up
-        the OpenPartner integration on their checkout. Reach out to confirm.
+        интеграцию Syntolk на странице оплаты. Свяжитесь с компанией и уточните это.
       </p>
     );
   }

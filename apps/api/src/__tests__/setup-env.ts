@@ -26,6 +26,22 @@ process.env.OPENPARTNER_MODE = 'selfhost';
 // Load .env first — DATABASE_URL comes from dotenv, which the test files
 // only trigger via their own db.js import (after this setup runs).
 await import('../env.js');
+
+// Never let an integration run truncate the developer's working database.
+// The local .env intentionally points the running app at `openpartner`; that
+// database may contain the demo tenant a human is inspecting in the portal.
+// Integration tests must use a separate database (for example
+// `openpartner_test`) and opt in explicitly with INTEGRATION=run.
+const configuredDbUrl = process.env.DATABASE_URL ?? '';
+const isWorkingDatabase = /:\/\/[^/]+\/openpartner(?:\?|$)/i.test(configuredDbUrl);
+if (isWorkingDatabase && process.env.INTEGRATION !== 'run') {
+  process.env.INTEGRATION = 'skip';
+  console.warn('[test-setup] integration tests skipped: DATABASE_URL points to the working openpartner database; use openpartner_test with INTEGRATION=run');
+}
+if (isWorkingDatabase && process.env.INTEGRATION === 'run') {
+  throw new Error('Refusing to run destructive integration tests against the working openpartner database. Use a separate *_test database.');
+}
+
 if (process.env.DATABASE_URL && process.env.INTEGRATION !== 'skip') {
   try {
     const { DEFAULT_TENANT_ID, TABLES } = await import('@openpartner/db');

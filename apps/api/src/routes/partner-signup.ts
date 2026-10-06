@@ -41,6 +41,9 @@ const signupLimit = ipRateLimit({ name: 'partner-signup', max: 10, windowMs: 60_
 const schema = z.object({
   email: z.string().trim().email().max(254),
   name: z.string().trim().min(1).max(120),
+  phone: z.string().trim().max(40).optional(),
+  termsAccepted: z.boolean().optional(),
+  termsVersion: z.string().trim().max(80).optional(),
   profile: z.record(z.unknown()).optional(),
 });
 
@@ -98,6 +101,9 @@ partnerSignupRouter.post('/partner-signup', signupLimit, async (req, res) => {
         tenantId,
         email,
         name: body.data.name,
+        phone: body.data.phone || null,
+        termsAcceptedAt: body.data.termsAccepted ? now : null,
+        termsVersion: body.data.termsAccepted ? body.data.termsVersion ?? 'syntolk-v1' : null,
         metadata: body.data.profile ?? {},
         activatedAt,
       })
@@ -114,6 +120,16 @@ partnerSignupRouter.post('/partner-signup', signupLimit, async (req, res) => {
       return res.json({ ok: true, status: 'already_registered' });
     }
     throw err;
+  }
+
+  if (body.data.termsAccepted) {
+    await db(TABLES.PartnerTermsAcceptance).insert({
+      id: ulid(),
+      tenantId,
+      partnerId: partner.id,
+      version: body.data.termsVersion ?? 'syntolk-v1',
+      acceptedAt: now,
+    });
   }
 
   // Push to Network if configured + autoEnroll. Fire-and-forget on the

@@ -136,10 +136,9 @@ export interface PortalCustomDomainRow {
 export type BillingPlan = 'flex' | 'revshare' | 'enterprise';
 export const BILLING_PLANS: readonly BillingPlan[] = ['flex', 'revshare', 'enterprise'];
 
-export type PayoutRailPreference = 'auto' | 'stripe_connect' | 'manual';
+export type PayoutRailPreference = 'auto' | 'manual';
 export const PAYOUT_RAIL_PREFERENCES: readonly PayoutRailPreference[] = [
   'auto',
-  'stripe_connect',
   'manual',
 ];
 
@@ -261,6 +260,13 @@ export interface PartnerRow {
   // Admin-supplied free-text reason surfaced in the revoke notification
   // email and shown if the partner later tries to sign in.
   revokeReason: string | null;
+  phone: string | null;
+  termsAcceptedAt: Date | null;
+  termsVersion: string | null;
+  cloudPaymentsStatus: 'not_connected' | 'connected' | 'error';
+  cloudPaymentsAccountId: string | null;
+  cloudPaymentsError: string | null;
+  tier: 'standard' | 'pro' | 'top';
 }
 
 export type CommissionType = 'percent' | 'fixed';
@@ -531,6 +537,9 @@ export interface LinkRow {
    *  the Campaign allows deep-linking and the partner picked a custom
    *  destination on an allowed host. */
   destinationUrl: string | null;
+  /** Human label and acquisition channel (TikTok, Telegram, YouTube, site). */
+  label: string | null;
+  channel: string | null;
   createdAt: Date;
 }
 
@@ -699,6 +708,16 @@ export interface PayoutRow {
   metadata: Record<string, unknown>;
   createdAt: Date;
   completedAt: Date | null;
+  providerOperationId: string | null;
+  providerStatus: string | null;
+}
+
+export interface PartnerTermsAcceptanceRow {
+  id: string;
+  tenantId: string;
+  partnerId: string;
+  version: string;
+  acceptedAt: Date;
 }
 
 // ---- Partner postbacks ----

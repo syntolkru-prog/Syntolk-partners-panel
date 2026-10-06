@@ -11,7 +11,7 @@ import { Logo } from './auth/Shared.js';
  *   - REQUIRES a plan choice — each brand is its own independently-billed
  *     tenant, and partner onboarding stays locked until checkout completes;
  *   - drops the user straight into the new brand's Billing page to finish
- *     Stripe Checkout.
+ *     payment provider checkout.
  */
 
 type Plan = 'flex' | 'revshare';
@@ -20,15 +20,15 @@ const PLANS: Array<{ key: Plan; name: string; tagline: string; detail: string }>
   {
     key: 'flex',
     name: 'Flex',
-    tagline: '$49/mo + 1.5% of attributed GMV',
-    detail: 'Predictable monthly base. 14-day free trial, then checkout required.',
+    tagline: '$49/мес. + 1,5% атрибуцированной выручки',
+    detail: 'Фиксированная ежемесячная плата. Пробный период 14 дней, затем потребуется оплата.',
   },
   {
     key: 'revshare',
     name: 'RevShare',
-    tagline: '3% of attributed GMV · no monthly fee',
+    tagline: '3% атрибуцированной выручки · без ежемесячной платы',
     detail:
-      'A $0/mo metered subscription — you still check out, and pay 3% of this brand’s attributed revenue as it earns.',
+      'Тариф с оплатой по факту — оформление оплаты всё равно потребуется, а затем вы платите 3% от атрибуцированной выручки компании.',
   },
 ];
 
@@ -71,7 +71,8 @@ export function AddBrandPage() {
       }
       if (!res.ok || !data.ok || !data.tenant) throw new Error(data.error ?? `${res.status}`);
       // Enter the new workspace with the existing platform session, then
-      // land on Billing so checkout happens while intent is hot.
+      // land on the local settings page; platform billing is not part of
+      // the Syntolk self-hosted build.
       const enter = await fetch('/api/workspaces/enter', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -80,7 +81,7 @@ export function AddBrandPage() {
       });
       const entered = (await enter.json()) as { ok?: boolean; home?: string; error?: string };
       if (!enter.ok || !entered.ok || !entered.home) throw new Error(entered.error ?? `${enter.status}`);
-      nav(`${entered.home}admin/billing`, { replace: true });
+      nav(`${entered.home}admin/settings`, { replace: true });
     } catch (e) {
       setErr(friendlyError(e instanceof Error ? e.message : 'unknown_error'));
       setBusy(false);
@@ -92,25 +93,25 @@ export function AddBrandPage() {
       <div style={{ maxWidth: 460, width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
           <Logo />
-          <div style={{ fontSize: 16, fontWeight: 600 }}>OpenPartner</div>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>Syntolk</div>
         </div>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', letterSpacing: '-0.01em' }}>Create a new brand</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', letterSpacing: '-0.01em' }}>Создать новую компанию</h1>
         <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 0, marginBottom: 20, lineHeight: 1.5 }}>
-          Each brand is a fully isolated program with its <strong>own plan, billed separately</strong>.
-          It shares your sign-in and shows up in the brand switcher.
+          Каждая компания — полностью изолированная программа со <strong>собственным тарифом и оплатой</strong>.
+          Для входа используется тот же аккаунт, а компания появится в переключателе.
         </p>
         {err && <div style={{ color: theme.danger, fontSize: 13, marginBottom: 12 }}>{err}</div>}
         <form onSubmit={submit}>
-          <label style={labelStyle}>Brand name</label>
+          <label style={labelStyle}>Название компании</label>
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Acme Coffee"
+            placeholder="Например, Syntolk"
             required
             autoFocus
             style={inputStyle}
           />
-          <label style={labelStyle}>Workspace URL</label>
+          <label style={labelStyle}>Адрес рабочего пространства</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: theme.textDim, fontSize: 13, fontFamily: theme.fontMono }}>/t/</span>
             <input
@@ -119,13 +120,13 @@ export function AddBrandPage() {
                 setSlugTouched(true);
                 setSlug(slugify(e.target.value));
               }}
-              placeholder="acme-coffee"
+              placeholder="syntolk"
               required
               minLength={3}
               style={{ ...inputStyle, fontFamily: theme.fontMono, marginBottom: 0, flex: 1 }}
             />
           </div>
-          <label style={{ ...labelStyle, marginTop: 18 }}>Plan for this brand</label>
+          <label style={{ ...labelStyle, marginTop: 18 }}>Тариф компании</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {PLANS.map((p) => {
               const active = plan === p.key;
@@ -170,7 +171,7 @@ export function AddBrandPage() {
               opacity: busy || !plan || !displayName.trim() || effectiveSlug.length < 3 ? 0.5 : 1,
             }}
           >
-            {busy ? 'Creating…' : 'Create brand & continue to billing'}
+            {busy ? 'Создаём…' : 'Создать компанию и перейти к оплате'}
           </button>
         </form>
       </div>
@@ -182,12 +183,12 @@ function friendlyError(code: string): string {
   switch (code) {
     case 'slug_taken':
     case 'slug_reserved':
-      return 'That workspace URL is taken — pick another.';
+      return 'Этот адрес уже занят — выберите другой.';
     case 'no_platform_session':
     case 'invalid_or_expired_session':
-      return 'Your session expired. Sign in again, then retry.';
+      return 'Сессия истекла. Войдите снова и повторите попытку.';
     default:
-      return `Could not create the brand (${code}).`;
+      return `Не удалось создать компанию (${code}).`;
   }
 }
 

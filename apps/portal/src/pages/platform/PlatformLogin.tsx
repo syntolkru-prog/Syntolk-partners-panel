@@ -46,7 +46,7 @@ export function PlatformLoginPage() {
             color: theme.success,
           }}
         >
-          Only OpenPartner operator accounts receive a link. It’s good for a short while — request another
+          Ссылку получают только операторы Syntolk. Она действует недолго — если срок истёк, запросите новую
           from this page if it expires.
         </div>
       </PlatformFrame>
@@ -54,7 +54,7 @@ export function PlatformLoginPage() {
   }
 
   return (
-    <PlatformFrame title="Operator sign-in" subtitle="Enter your OpenPartner staff email — we’ll send a sign-in link.">
+    <PlatformFrame title="Вход оператора" subtitle="Введите рабочий email Syntolk — мы отправим ссылку для входа.">
       <form onSubmit={submit}>
         <div style={{ marginBottom: 12 }}>
           <Label>Email</Label>
@@ -64,7 +64,7 @@ export function PlatformLoginPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@openpartner.dev"
+            placeholder="you@syntolk.ru"
             required
             autoFocus
           />

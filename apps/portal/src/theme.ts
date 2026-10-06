@@ -22,7 +22,7 @@ export const theme = {
   textMuted: '#8b929c',
   textDim: '#5a6370',
 
-  // Accent — soft teal by default. Distinct from Dub's pink and Stripe's
+  // Accent — soft teal by default for the Syntolk interface.
   // violet; reads as "attribution/trust" without being finance-default blue.
   //
   // Every accent token is a CSS custom property with the teal as fallback:

@@ -1,12 +1,38 @@
 import { Router } from 'express';
 import { TABLES, type PayoutRow } from '@openpartner/db';
 import { requireAdmin, requireAuth, requirePartnerOrAdmin } from '../auth.js';
-import { db as privilegedDb } from '../db.js';
+import { z } from 'zod';
 import { runPayouts } from '../payouts.js';
-import { executePayoutTransfers } from '../payout-transfers.js';
 import { tenantOf, withTenantTransaction } from '../tenancy.js';
 
 export const payoutsRouter = Router();
+
+const providerStatusSchema = z.object({
+  providerOperationId: z.string().trim().min(1).max(160),
+  providerStatus: z.string().trim().min(1).max(40),
+});
+
+/** Admin-wide payout ledger. Partner accounts remain scoped to their own
+ * history below; the admin view needs one source of truth for reconciliation
+ * and manual confirmations. */
+payoutsRouter.get('/payouts', requireAuth, requireAdmin, async (req, res) => {
+  const { db } = tenantOf(req);
+  const partnerId = typeof req.query.partnerId === 'string' ? req.query.partnerId : undefined;
+  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+  const limitRaw = Number(req.query.limit ?? 200);
+  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 500) : 200;
+
+  const query = db<PayoutRow>(TABLES.Payout)
+    .leftJoin(TABLES.Partner, `${TABLES.Partner}.id`, `${TABLES.Payout}.partnerId`)
+    .select(`${TABLES.Payout}.*`, `${TABLES.Partner}.name as partnerName`, `${TABLES.Partner}.email as partnerEmail`)
+    .orderBy(`${TABLES.Payout}.createdAt`, 'desc')
+    .limit(limit);
+  if (partnerId) query.where(`${TABLES.Payout}.partnerId`, partnerId);
+  if (status) query.andWhere(`${TABLES.Payout}.status`, status);
+
+  const payouts = await query;
+  res.json({ payouts });
+});
 
 /**
  * Admin "run payouts". Deliberately does NOT use `req.db`: the request
@@ -21,30 +47,7 @@ export const payoutsRouter = Router();
 payoutsRouter.post('/payouts/run', requireAuth, requireAdmin, async (req, res) => {
   const { tenantId } = tenantOf(req);
   const result = await withTenantTransaction(tenantId, (trx) => runPayouts(trx, tenantId));
-  // Intents are committed now. Post their transfers on the privileged
-  // pool (no transaction can span a Stripe call), scoped to this tenant
-  // so an admin's click can't advance another tenant's payouts.
-  const transfers = await executePayoutTransfers(privilegedDb, { tenantId });
-  // Fold the executor's verdict back into the planner's rows so the
-  // response still answers "what happened to each payout".
-  for (const p of result.payouts) {
-    if (transfers.confirmed.some((c) => c.payoutId === p.payoutId)) {
-      p.status = 'paid';
-      continue;
-    }
-    const failed = transfers.failed.find((f) => f.payoutId === p.payoutId);
-    if (failed) {
-      p.status = 'failed';
-      p.error = failed.error;
-      continue;
-    }
-    const canceled = transfers.canceled.find((c) => c.payoutId === p.payoutId);
-    if (canceled) {
-      p.status = 'failed';
-      p.error = canceled.reason;
-    }
-  }
-  res.json({ ...result, transfers });
+  res.json(result);
 });
 
 /**
@@ -72,6 +75,21 @@ payoutsRouter.post('/payouts/:id/confirm', requireAuth, requireAdmin, async (req
   // No webhook here: payout.created + commission.paid already fired when
   // runPayouts wrote the row — confirmation is bookkeeping, not a new event.
   res.json({ payout: updated[0]! });
+});
+
+/** Provider-neutral callback/update point. CloudPayments integration can call
+ * this after it has created or settled the real payout; the local ledger keeps
+ * the operation ID for reconciliation and support. */
+payoutsRouter.patch('/payouts/:id/provider', requireAuth, requireAdmin, async (req, res) => {
+  const { db } = tenantOf(req);
+  const body = providerStatusSchema.safeParse(req.body ?? {});
+  if (!body.success) return res.status(400).json({ error: 'invalid_body', detail: body.error.flatten() });
+  const updated = await db<PayoutRow>(TABLES.Payout)
+    .where({ id: req.params.id })
+    .update({ providerOperationId: body.data.providerOperationId, providerStatus: body.data.providerStatus })
+    .returning('*');
+  if (updated.length === 0) return res.status(404).json({ error: 'payout_not_found' });
+  res.json({ payout: updated[0] });
 });
 
 payoutsRouter.get(

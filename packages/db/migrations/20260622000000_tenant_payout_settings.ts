@@ -39,7 +39,7 @@ import type { Knex } from 'knex';
  * keep their current payout shape until an admin sets them.
  */
 
-const RAIL_VALUES = ['auto', 'stripe_connect', 'manual'] as const;
+const RAIL_VALUES = ['auto', 'manual'] as const;
 const CADENCE_VALUES = ['weekly', 'biweekly', 'monthly', 'manual'] as const;
 
 export async function up(knex: Knex): Promise<void> {

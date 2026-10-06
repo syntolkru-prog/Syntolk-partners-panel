@@ -38,30 +38,29 @@ export function FraudReviewPage() {
 
   return (
     <Page
-      title="Fraud review"
-      subtitle={`${rows.length} flagged click${rows.length === 1 ? '' : 's'} — attribution skips these until you un-flag.`}
+      title="Проверка мошенничества"
+      subtitle={`${rows.length} ${rows.length === 1 ? 'помеченный клик' : 'помеченных кликов'} — атрибуция пропускает их до снятия пометки.`}
     >
       <ErrorBanner error={error ?? unflag.error} />
       {unflag.data && (
         <Card style={{ marginBottom: 14, borderColor: `${theme.success}55` }}>
           <div style={{ color: theme.success, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Check size={14} />
-            Un-flagged. Re-attributed {unflag.data.reattributedEvents} event
-            {unflag.data.reattributedEvents === 1 ? '' : 's'} that landed while the click was skipped.
+            Пометка снята. Повторно атрибуцировано событий: {unflag.data.reattributedEvents}.
           </div>
         </Card>
       )}
       {isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : rows.length === 0 ? (
         <EmptyState
-          title="No flagged clicks"
-          hint="Clicks get flagged automatically when they exceed the router's velocity limits, or manually from this view."
+          title="Помеченных кликов нет"
+          hint="Клики помечаются автоматически при превышении лимитов частоты или вручную на этой странице."
           icon={<ShieldAlert size={28} strokeWidth={1.25} />}
         />
       ) : (
         <Table
-          columns={['ID', 'Partner', 'Link', 'IP hash', 'Reason', 'Clicked', 'Actions']}
+          columns={['ID', 'Партнёр', 'Ссылка', 'Хеш IP', 'Причина', 'Клик', 'Действия']}
           rows={rows.map((c) => [
             <code style={{ fontSize: 12, color: theme.textDim }}>{shortId(c.id)}</code>,
             <span>{c.partnerName ?? <code style={{ color: theme.textDim, fontSize: 12 }}>{shortId(c.partnerId)}</code>}</span>,
@@ -76,7 +75,7 @@ export function FraudReviewPage() {
               onClick={() => unflag.mutate(c.id)}
               disabled={unflag.isPending}
             >
-              Un-flag
+              Снять пометку
             </Button>,
           ])}
         />

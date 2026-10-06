@@ -162,7 +162,6 @@ partnerAuthRouter.post('/auth/magic/verify', verifyLimit, async (req, res) => {
       id: partner.id,
       name: partner.name,
       email: partner.email,
-      stripeConnected: !!partner.stripeConnectAccountId,
     },
   });
 });

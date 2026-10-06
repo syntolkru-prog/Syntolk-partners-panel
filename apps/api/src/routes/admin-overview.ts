@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { TABLES, type PartnerRow } from '@openpartner/db';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
+import { adjustmentTotalsByCommission, netCommissionAmount } from '../commission-net.js';
 
 export const adminOverviewRouter = Router();
 
@@ -34,22 +35,22 @@ adminOverviewRouter.get('/admin/overview', requireAuth, requireAdmin, async (req
       db.raw('COUNT(*) as events'),
     )) as Array<{ partnerId: string; revenue: string; events: string }>;
 
-  const commissionsByPartner = (await db(TABLES.Commission)
+  const commissionRows = (await db(TABLES.Commission)
     .where('accruedAt', '>=', since)
-    .groupBy('partnerId', 'status')
-    .select('partnerId', 'status')
-    .sum<{ partnerId: string; status: string; amount: string }[]>({ amount: 'amount' })) as Array<{
+    .select('id', 'partnerId', 'status', 'amount')) as Array<{
+    id: string;
     partnerId: string;
     status: string;
     amount: string;
   }>;
+  const adjustments = await adjustmentTotalsByCommission(db, commissionRows.map((c) => c.id));
 
   const clicks = new Map(clicksByPartner.map((r) => [r.partnerId, Number(r.count ?? 0)]));
   const rev = new Map(revenueByPartner.map((r) => [r.partnerId, { revenue: Number(r.revenue ?? 0), events: Number(r.events ?? 0) }]));
   const comm = new Map<string, Record<string, number>>();
-  for (const row of commissionsByPartner) {
+  for (const row of commissionRows) {
     const bucket = comm.get(row.partnerId) ?? {};
-    bucket[row.status] = Number(row.amount ?? 0);
+    bucket[row.status] = (bucket[row.status] ?? 0) + netCommissionAmount(row, adjustments, row.id);
     comm.set(row.partnerId, bucket);
   }
 
@@ -57,11 +58,11 @@ adminOverviewRouter.get('/admin/overview', requireAuth, requireAdmin, async (req
     id: p.id,
     name: p.name,
     email: p.email,
-    stripeConnected: !!p.stripeConnectAccountId,
     clicks: clicks.get(p.id) ?? 0,
     revenue: rev.get(p.id)?.revenue ?? 0,
     events: rev.get(p.id)?.events ?? 0,
     commission: comm.get(p.id) ?? {},
+    netRevenue: Math.round(((rev.get(p.id)?.revenue ?? 0) - Object.values(comm.get(p.id) ?? {}).reduce((a, b) => a + b, 0)) * 100) / 100,
   }));
 
   const totals = {
@@ -72,6 +73,7 @@ adminOverviewRouter.get('/admin/overview', requireAuth, requireAdmin, async (req
     commissionAccrued: partnerRows.reduce((a, p) => a + (p.commission.accrued ?? 0), 0),
     commissionApproved: partnerRows.reduce((a, p) => a + (p.commission.approved ?? 0), 0),
     commissionPaid: partnerRows.reduce((a, p) => a + (p.commission.paid ?? 0), 0),
+    netRevenue: partnerRows.reduce((a, p) => a + p.netRevenue, 0),
   };
 
   res.json({

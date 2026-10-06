@@ -10,11 +10,17 @@ import { ipRateLimit } from '../middleware/rate-limit.js';
 
 describe('ipRateLimit', () => {
   const original = process.env.NODE_ENV;
+  const originalDisable = process.env.OPENPARTNER_DISABLE_RATE_LIMITS;
   beforeEach(() => {
     process.env.NODE_ENV = 'production';
+    // The local .env intentionally disables limits for manual demo work, but
+    // these unit tests must exercise the limiter itself.
+    delete process.env.OPENPARTNER_DISABLE_RATE_LIMITS;
   });
   afterEach(() => {
     process.env.NODE_ENV = original;
+    if (originalDisable === undefined) delete process.env.OPENPARTNER_DISABLE_RATE_LIMITS;
+    else process.env.OPENPARTNER_DISABLE_RATE_LIMITS = originalDisable;
   });
 
   it('allows up to max requests then returns 429 with Retry-After', async () => {

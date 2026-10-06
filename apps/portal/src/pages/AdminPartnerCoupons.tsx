@@ -19,7 +19,7 @@ interface CouponRow {
   createdAt: string;
   redemptions90d?: number;
   revenue90d?: number;
-  /** Null = active. Non-null = retired; the Stripe PromotionCode is
+  /** Null = active. Non-null = retired; the provider promotion code is
    *  disabled so customers entering this string at checkout get an
    *  invalid-code error. Historical attribution stays attached. */
   deactivatedAt?: string | null;
@@ -90,19 +90,19 @@ export function AdminPartnerCoupons() {
 
   return (
     <Page
-      title={`Coupons · ${partnerName}`}
-      subtitle="Coupons attribute conversions when customers enter a code at checkout instead of clicking a share link. Your site calls POST /coupons/redeem with the code; same downstream commission flow as click-driven attribution."
+      title={`Купоны · ${partnerName}`}
+      subtitle="Промокоды связывают оплату с партнёром, когда клиент вводит код на оплате вместо перехода по ссылке. Ваш сайт вызывает POST /coupons/redeem с кодом — дальше работает тот же поток начисления комиссии."
     >
       <div style={{ marginBottom: 14 }}>
         <TenantLink to="/admin/partners" style={{ color: theme.textMuted, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <ArrowLeft size={14} /> Back to Partners
+          <ArrowLeft size={14} /> К партнёрам
         </TenantLink>
       </div>
       <ErrorBanner error={partner.error ?? coupons.error ?? (gateError ? null : mint.error)} />
       {gateError && (
         <div style={{ background: `${theme.danger}10`, border: `1px solid ${theme.danger}55`, borderRadius: theme.radiusSm, padding: 12, marginBottom: 12 }}>
           <div style={{ fontSize: 13, color: theme.danger, fontWeight: 500, marginBottom: 6 }}>
-            Verify your coupon integration before minting more
+            Проверьте интеграцию промокодов перед созданием новых
           </div>
           <div style={{ fontSize: 12, color: theme.text, lineHeight: 1.5 }}>
             {gateError.detail}
@@ -111,7 +111,7 @@ export function AdminPartnerCoupons() {
       )}
       <Card>
         {coupons.isLoading ? (
-          <p style={{ color: theme.textMuted, fontSize: 13 }}>Loading…</p>
+          <p style={{ color: theme.textMuted, fontSize: 13 }}>Загрузка…</p>
         ) : (
           <>
             {(coupons.data?.coupons ?? []).length > 0 && (
@@ -140,12 +140,12 @@ export function AdminPartnerCoupons() {
                       </span>
                       <span style={{ color: theme.textMuted, fontSize: 11, whiteSpace: 'nowrap' }}>
                         {(c.redemptions90d ?? 0) > 0
-                          ? `${c.redemptions90d} redemption${c.redemptions90d === 1 ? '' : 's'} (90d)`
-                          : 'unused (90d)'}
+                          ? `${c.redemptions90d} использований (90 дн.)`
+                          : 'не использован (90 дн.)'}
                       </span>
                       {isDeactivated ? (
                         <span style={{ fontSize: 11, color: theme.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                          Deactivated
+                          Отключён
                         </span>
                       ) : (
                         <button
@@ -161,7 +161,7 @@ export function AdminPartnerCoupons() {
                             cursor: 'pointer',
                           }}
                         >
-                          Deactivate
+                          Отключить
                         </button>
                       )}
                     </div>
@@ -172,34 +172,34 @@ export function AdminPartnerCoupons() {
             {availableCampaigns.length > 0 ? (
               <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'end' }}>
                 <div>
-                  <Label>Program</Label>
+                  <Label>Программа</Label>
                   <select
                     value={pickedProgram}
                     onChange={(e) => setPickedProgram(e.target.value)}
                     style={{ width: '100%', padding: '8px 10px', background: theme.surface2, border: `1px solid ${theme.border}`, borderRadius: theme.radiusSm, color: theme.text, fontSize: 13 }}
                   >
-                    <option value="">— pick a campaign —</option>
+                    <option value="">— выберите кампанию —</option>
                     {availableCampaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <Label>Code (optional)</Label>
+                  <Label>Код (необязательно)</Label>
                   <Input
                     value={customCode}
                     onChange={(e) => setCustomCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
-                    placeholder="auto-generates if blank"
+                    placeholder="сгенерируется автоматически"
                     style={{ fontFamily: theme.fontMono }}
                   />
                 </div>
                 <Button onClick={() => mint.mutate()} disabled={!pickedProgram || mint.isPending}>
-                  {mint.isPending ? 'Minting…' : 'Mint coupon'}
+                  {mint.isPending ? 'Создаём…' : 'Создать промокод'}
                 </Button>
               </div>
             ) : (
               <p style={{ color: theme.textMuted, fontSize: 13, margin: 0 }}>
                 {(coupons.data?.coupons ?? []).length === 0
-                  ? 'No campaigns available. Create one in Campaigns first.'
-                  : 'This partner has a coupon for every campaign already.'}
+                  ? 'Нет доступных кампаний. Сначала создайте кампанию в разделе «Кампании».'
+                  : 'У этого партнёра уже есть промокод для каждой кампании.'}
               </p>
             )}
           </>

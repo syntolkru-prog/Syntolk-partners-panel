@@ -28,8 +28,8 @@ interface BackfillResult {
 export function AdminNetwork() {
   return (
     <Page
-      title="Network"
-      subtitle="List your brand on the OpenPartner Network so creators can find and apply to your programs."
+      title="Сеть партнёров"
+      subtitle="Разместите компанию в сети Syntolk, чтобы авторы могли находить ваши программы и подавать заявки."
     >
       <NetworkConnection />
     </Page>
@@ -48,8 +48,8 @@ function NetworkConnection() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {error && <ErrorBanner error={"Couldn't load Network settings."} />}
-      {isLoading && <Card><p style={{ fontSize: 13, margin: 0, color: theme.textMuted }}>Loading…</p></Card>}
+      {error && <ErrorBanner error={"Не удалось загрузить настройки сети партнёров."} />}
+      {isLoading && <Card><p style={{ fontSize: 13, margin: 0, color: theme.textMuted }}>Загрузка…</p></Card>}
       {membership && (
         <>
           {!connected ? <ConnectForm membership={membership} /> : <ConnectedPanel membership={membership} />}
@@ -94,14 +94,14 @@ function ConnectForm({ membership }: { membership: NetworkMembership }) {
 
   return (
     <Card>
-      <h3 style={{ marginTop: 0, fontSize: 15, fontWeight: 500 }}>Not connected</h3>
+      <h3 style={{ marginTop: 0, fontSize: 15, fontWeight: 500 }}>Не подключено</h3>
       <p style={{ fontSize: 13, color: theme.textMuted, marginTop: 0 }}>
-        Get matched with creators on the OpenPartner Network. Once connected, your published offerings
-        show up in creator discovery and applications come into your Requests queue.
+        Находите авторов в сети Syntolk. После подключения ваши опубликованные предложения
+        появятся в каталоге авторов, а заявки будут поступать в очередь запросов.
       </p>
       {membership.networkUrl && (
         <p style={{ fontSize: 13, color: theme.textMuted, margin: '0 0 14px' }}>
-          Network: <code>{membership.networkUrl}</code>
+          Сеть: <code>{membership.networkUrl}</code>
         </p>
       )}
       {error && (
@@ -110,31 +110,31 @@ function ConnectForm({ membership }: { membership: NetworkMembership }) {
       {!showManual ? (
         <>
           <Button onClick={() => auto.mutate()} disabled={auto.isPending}>
-            {auto.isPending ? 'Connecting…' : 'List my brand on the Network'}
+            {auto.isPending ? 'Подключаем…' : 'Разместить компанию в сети'}
           </Button>
           <p style={{ marginTop: 10, fontSize: 12, color: theme.textDim }}>
-            Self-host?{' '}
+            Локальная установка?{' '}
             <button type="button" onClick={() => setShowManual(true)} style={{ background: 'transparent', border: 'none', color: theme.accent, cursor: 'pointer', padding: 0, font: 'inherit' }}>
-              Use the email-verify flow instead
+              Использовать подтверждение по email
             </button>
           </p>
         </>
       ) : (
         <>
           <div style={{ marginBottom: 12 }}>
-            <Label>Contact email (where the confirmation link goes)</Label>
-            <Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="admin@yourbrand.com" />
+            <Label>Контактный email (сюда придёт ссылка подтверждения)</Label>
+            <Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="admin@syntolk.ru" />
           </div>
           <div style={{ marginBottom: 12 }}>
-            <Label>Display name (shown to creators)</Label>
-            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your brand" />
+            <Label>Отображаемое имя (его увидят авторы)</Label>
+            <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Syntolk" />
           </div>
           <Button onClick={() => manual.mutate()} disabled={manual.isPending || !contactEmail}>
-            {manual.isPending ? 'Sending…' : 'Send verification email'}
+            {manual.isPending ? 'Отправляем…' : 'Отправить письмо подтверждения'}
           </Button>
           {manual.isSuccess && (
             <p style={{ marginTop: 12, fontSize: 13, color: theme.success }}>
-              Confirmation email sent. Click the link to finish connecting.
+              Письмо подтверждения отправлено. Перейдите по ссылке, чтобы завершить подключение.
             </p>
           )}
         </>
@@ -161,20 +161,20 @@ function ConnectedPanel({ membership }: { membership: NetworkMembership }) {
   });
   return (
     <Card>
-      <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15, fontWeight: 500, color: theme.success }}>Connected ✓</h3>
+      <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15, fontWeight: 500, color: theme.success }}>Подключено ✓</h3>
       <p style={{ fontSize: 13, color: theme.textMuted, marginTop: 0, marginBottom: 8 }}>
-        Network: <code>{membership.networkUrl}</code>
+        Сеть: <code>{membership.networkUrl}</code>
       </p>
-      {isLoading && <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}><em>Loading vendor profile…</em></p>}
+      {isLoading && <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}><em>Загрузка профиля компании…</em></p>}
       {!isLoading && self && (
         <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>
-          Listed as <strong style={{ color: theme.text }}>{self.displayName}</strong> · status: {self.status} · {self.partnerCount} active partners
+          В каталоге как <strong style={{ color: theme.text }}>{self.displayName}</strong> · статус: {self.status} · активных партнёров: {self.partnerCount}
         </p>
       )}
       {!isLoading && error && (
         <div style={{ marginTop: 6 }}>
           <div style={{ color: theme.danger, fontSize: 13 }}>
-            Couldn&rsquo;t load vendor profile from the Network: {error instanceof Error ? error.message : String(error)}
+            Не удалось загрузить профиль компании из сети: {error instanceof Error ? error.message : String(error)}
           </div>
           <button
             type="button"
@@ -191,7 +191,7 @@ function ConnectedPanel({ membership }: { membership: NetworkMembership }) {
               cursor: isRefetching ? 'wait' : 'pointer',
             }}
           >
-            {isRefetching ? 'Retrying…' : 'Retry'}
+            {isRefetching ? 'Повторяем…' : 'Повторить'}
           </button>
         </div>
       )}
@@ -210,21 +210,21 @@ function ConnectedPanel({ membership }: { membership: NetworkMembership }) {
             cursor: heartbeat.isPending ? 'wait' : 'pointer',
           }}
         >
-          {heartbeat.isPending ? 'Sending…' : 'Push update to marketplace now'}
+          {heartbeat.isPending ? 'Отправляем…' : 'Обновить карточку в каталоге'}
         </button>
         <span style={{ marginLeft: 10, fontSize: 12, color: theme.textDim }}>
-          Otherwise auto-syncs hourly. Use this after changing your logo or name.
+          В обычном режиме синхронизация выполняется каждый час. Используйте кнопку после изменения логотипа или названия.
         </span>
         {heartbeat.data && (
           <div style={{ marginTop: 8, fontSize: 12, color: heartbeat.data.sent ? theme.success : theme.danger }}>
             {heartbeat.data.sent
-              ? `Sent — marketplace will reflect changes within a minute.`
-              : `Failed: ${heartbeat.data.reason ?? 'unknown reason'}`}
+              ? 'Отправлено — изменения появятся в каталоге в течение минуты.'
+              : `Ошибка: ${heartbeat.data.reason ?? 'неизвестная причина'}`}
           </div>
         )}
         {heartbeat.error && (
           <div style={{ marginTop: 8, fontSize: 12, color: theme.danger }}>
-            Failed: {heartbeat.error instanceof Error ? heartbeat.error.message : String(heartbeat.error)}
+            Ошибка: {heartbeat.error instanceof Error ? heartbeat.error.message : String(heartbeat.error)}
           </div>
         )}
       </div>
@@ -240,11 +240,10 @@ function AutoEnrollPanel({ membership, onChange }: { membership: NetworkMembersh
   });
   return (
     <Card>
-      <h3 style={{ marginTop: 0, fontSize: 15, fontWeight: 500 }}>Auto-enroll new partners</h3>
+      <h3 style={{ marginTop: 0, fontSize: 15, fontWeight: 500 }}>Автоматически добавлять новых партнёров</h3>
       <p style={{ fontSize: 13, color: theme.textMuted, marginTop: 0 }}>
-        When ON, every partner created on this instance is automatically pushed to the Network. The Network
-        dedups creators by email — the same person joining you and another vendor gets a single Network
-        identity.
+        Если включено, каждый новый партнёр автоматически отправляется в сеть. Дубликаты объединяются по email —
+        один человек, работающий с несколькими компаниями, получает единую запись в сети.
       </p>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.text }}>
         <input
@@ -253,7 +252,7 @@ function AutoEnrollPanel({ membership, onChange }: { membership: NetworkMembersh
           disabled={m.isPending}
           onChange={(e) => m.mutate(e.target.checked)}
         />
-        <span>Auto-enroll on partner create + signup</span>
+        <span>Добавлять автоматически при создании и регистрации</span>
       </label>
     </Card>
   );
@@ -270,20 +269,20 @@ function BackfillPanel() {
   useEffect(() => { setResult(null); }, []);
   return (
     <Card>
-      <h3 style={{ marginTop: 0, fontSize: 15, fontWeight: 500 }}>Backfill existing partners</h3>
+      <h3 style={{ marginTop: 0, fontSize: 15, fontWeight: 500 }}>Добавить существующих партнёров</h3>
       <p style={{ fontSize: 13, color: theme.textMuted, marginTop: 0 }}>
-        If you turned the Network on after onboarding partners, run this once to push the existing roster
-        through email-keyed dedup. Pre-existing creators (already on the Network from another vendor) come
-        back with a flag so you can see their cross-vendor presence.
+        Если вы подключили сеть после добавления партнёров, запустите эту операцию один раз, чтобы отправить
+        существующий список и объединить записи по email. Авторы, уже добавленные другой компанией, будут
+        отмечены, чтобы вы видели их присутствие в других программах.
       </p>
       {error && <ErrorBanner error={error} />}
       <Button onClick={() => m.mutate()} disabled={m.isPending}>
-        {m.isPending ? 'Backfilling…' : 'Backfill now'}
+        {m.isPending ? 'Добавляем…' : 'Добавить сейчас'}
       </Button>
       {result && (
         <p style={{ marginTop: 12, fontSize: 13, color: theme.textMuted }}>
-          Pushed <strong style={{ color: theme.text }}>{result.pushed}</strong> of <strong style={{ color: theme.text }}>{result.total}</strong>.
-          {result.queued > 0 && <> {result.queued} queued for retry.</>}
+          Отправлено <strong style={{ color: theme.text }}>{result.pushed}</strong> из <strong style={{ color: theme.text }}>{result.total}</strong>.
+          {result.queued > 0 && <> В очереди на повтор: {result.queued}.</>}
         </p>
       )}
     </Card>

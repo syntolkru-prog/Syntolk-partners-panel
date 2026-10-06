@@ -6,5 +6,19 @@
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": [
+    "src/__tests__/**/*",
+    "src/stripe.ts",
+    "src/billing-lifecycle.ts",
+    "src/usage-billing.ts",
+    "src/payout-transfers.ts",
+    "src/operator-recovery.ts",
+    "src/funding/**/*",
+    "src/routes/billing.ts",
+    "src/routes/connect.ts",
+    "src/routes/funding.ts",
+    "src/routes/recovery.ts",
+    "src/routes/stripe-webhook.ts"
+  ]
 }

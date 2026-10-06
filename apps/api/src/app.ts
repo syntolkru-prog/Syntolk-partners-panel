@@ -8,23 +8,20 @@ import pinoHttp from 'pino-http';
 import rateLimit from 'express-rate-limit';
 import { ulid } from 'ulid';
 
-import { stripeWebhookRouter } from './routes/stripe-webhook.js';
 import { identifyRouter } from './routes/identify.js';
 import { eventsRouter } from './routes/events.js';
+import { paymentsRouter } from './routes/payments.js';
+import { cloudPaymentsWebhookRouter } from './routes/cloudpayments-webhook.js';
 import { partnersRouter } from './routes/partners.js';
 import { programsRouter } from './routes/programs.js';
 import { linksRouter } from './routes/links.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { apiKeysRouter } from './routes/api-keys.js';
-import { connectRouter } from './routes/connect.js';
 import { payoutsRouter } from './routes/payouts.js';
-import { recoveryRouter } from './routes/recovery.js';
 import { commissionsRouter } from './routes/commissions.js';
 import { exportRouter } from './routes/export.js';
 import { importPartnersRouter } from './routes/import-partners.js';
 import { couponsRouter } from './routes/coupons.js';
-import { billingRouter } from './routes/billing.js';
-import { fundingRouter } from './routes/funding.js';
 import { authRouter } from './routes/auth.js';
 import { partnerAuthRouter } from './routes/partner-auth.js';
 import { adminOverviewRouter } from './routes/admin-overview.js';
@@ -146,7 +143,7 @@ export function createApp(options: { enableLogger?: boolean } = {}) {
       legacyHeaders: false,
       // Skip endpoints we trust externally:
       //   /health, /metrics — kube-probes / Prometheus scrape, no auth, high freq
-      //   /webhooks/* — Stripe etc. retry on rejection; rate-limiting them
+      //   /webhooks/* — payment providers retry on rejection; rate-limiting them
       //     would amplify upstream backpressure into our queues
       //   /uploads/* — static handler for FS-backed image assets
       skip: (req) =>
@@ -178,16 +175,17 @@ export function createApp(options: { enableLogger?: boolean } = {}) {
     );
   }
 
-  // Stripe webhook must see the raw body for signature verification — mount it
-  // BEFORE express.json() so its own raw-body parser takes effect.
-  app.use(stripeWebhookRouter);
-
   // /import is a full-database bundle; 1 MB caps out around a few
   // hundred Click rows. Give it its own parser before the global one
   // kicks in. Everything else stays at 1 MB so a random public endpoint
   // can't tie up the process with a 500 MB JSON blob.
   app.use('/import', express.json({ limit: '256mb' }));
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({
+    limit: '1mb',
+    verify: (req, _res, buffer) => {
+      (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+    },
+  }));
 
   app.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'api', mode: MODE });
@@ -253,21 +251,19 @@ export function createApp(options: { enableLogger?: boolean } = {}) {
   app.use(webhooksRouter);
   app.use(identifyRouter);
   app.use(eventsRouter);
+  app.use(paymentsRouter);
+  app.use(cloudPaymentsWebhookRouter);
   app.use(partnersRouter);
   app.use(programsRouter);
   app.use(linksRouter);
   app.use(clicksRouter);
   app.use(dashboardRouter);
   app.use(apiKeysRouter);
-  app.use(connectRouter);
   app.use(payoutsRouter);
-  app.use(recoveryRouter);
   app.use(commissionsRouter);
   app.use(exportRouter);
   app.use(importPartnersRouter);
   app.use(couponsRouter);
-  app.use(billingRouter);
-  app.use(fundingRouter);
   app.use(adminOverviewRouter);
   app.use(networkPartnerRouter);
   app.use(accountDeletionRouter);

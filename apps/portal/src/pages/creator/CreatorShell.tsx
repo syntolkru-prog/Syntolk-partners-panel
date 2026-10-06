@@ -37,7 +37,7 @@ export function CreatorShell() {
   }, [location.pathname]);
 
   if (auth.loading) {
-    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: theme.bg, color: theme.textMuted }}>Loading…</div>;
+    return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: theme.bg, color: theme.textMuted }}>Загрузка…</div>;
   }
   if (!auth.creator) {
     return <Navigate to="/creator/login" state={{ from: location }} replace />;
@@ -91,7 +91,7 @@ function CreatorMobileTopBar({ onMenu }: { onMenu: () => void }) {
     >
       <button
         onClick={onMenu}
-        aria-label="Open menu"
+        aria-label="Открыть меню"
         style={{
           background: 'transparent',
           border: 'none',
@@ -105,7 +105,7 @@ function CreatorMobileTopBar({ onMenu }: { onMenu: () => void }) {
         <Menu size={22} />
       </button>
       <Logo size={24} />
-      <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>OpenPartner</div>
+      <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>Syntolk</div>
     </header>
   );
 }
@@ -170,21 +170,21 @@ function CreatorSidebar({ creator, variant = 'sidebar' }: { creator: NonNullable
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px', marginBottom: 20 }}>
         <Logo />
-        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>OpenPartner</div>
+        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>Syntolk</div>
       </div>
 
       <CreatorChip creator={creator} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, overflow: 'auto' }}>
-        <NavSection title="Network">
-          <CreatorNavItem to="/creator/discover" icon={<Globe size={16} />}>Discover programs</CreatorNavItem>
-          <CreatorNavItem to="/creator/affiliations" icon={<Megaphone size={16} />}>My partnerships</CreatorNavItem>
-          <CreatorNavItem to="/creator/links" icon={<Link2 size={16} />}>Share links</CreatorNavItem>
-          <CreatorNavItem to="/creator/requests" icon={<Inbox size={16} />}>My applications</CreatorNavItem>
+        <NavSection title="Сеть">
+          <CreatorNavItem to="/creator/discover" icon={<Globe size={16} />}>Найти программы</CreatorNavItem>
+          <CreatorNavItem to="/creator/affiliations" icon={<Megaphone size={16} />}>Мои партнёрства</CreatorNavItem>
+          <CreatorNavItem to="/creator/links" icon={<Link2 size={16} />}>Мои ссылки</CreatorNavItem>
+          <CreatorNavItem to="/creator/requests" icon={<Inbox size={16} />}>Мои заявки</CreatorNavItem>
         </NavSection>
-        <NavSection title="Settings">
-          <CreatorNavItem to="/creator/domains" icon={<Network size={16} />}>Custom domains</CreatorNavItem>
-          <CreatorNavItem to="/creator/profile" icon={<UserCog size={16} />}>Profile</CreatorNavItem>
+        <NavSection title="Настройки">
+          <CreatorNavItem to="/creator/domains" icon={<Network size={16} />}>Пользовательские домены</CreatorNavItem>
+          <CreatorNavItem to="/creator/profile" icon={<UserCog size={16} />}>Профиль</CreatorNavItem>
         </NavSection>
       </div>
 
@@ -213,7 +213,7 @@ function CreatorSidebar({ creator, variant = 'sidebar' }: { creator: NonNullable
         }}
       >
         <LogOut size={14} />
-        Sign out
+        Выйти
       </button>
     </aside>
   );

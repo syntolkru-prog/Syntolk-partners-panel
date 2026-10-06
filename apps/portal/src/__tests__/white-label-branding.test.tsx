@@ -54,7 +54,7 @@ const adminPrincipal: Principal = {
 const partnerPrincipal: Principal = {
   role: 'partner',
   partnerId: 'p1',
-  partner: { id: 'p1', name: 'Pat Partner', email: 'pat@example.com', stripeConnected: false },
+    partner: { id: 'p1', name: 'Pat Partner', email: 'pat@example.com' },
 };
 
 beforeEach(() => {
@@ -105,6 +105,6 @@ describe('white-label portal renders no platform branding', () => {
 describe('the assertions can fail (inverse case)', () => {
   it('a non-white-label admin sidebar DOES show the Network section', () => {
     const { container } = renderWithProviders(<Sidebar principal={adminPrincipal} />, false);
-    expect(container.textContent ?? '').toMatch(/network/i);
+    expect(container.textContent ?? '').toMatch(/сеть партнёров|network/i);
   });
 });

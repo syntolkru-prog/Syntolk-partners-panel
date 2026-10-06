@@ -66,6 +66,13 @@ async function seedEverything(): Promise<Seeded> {
     name: "O'Hara & Co", // apostrophe + ampersand: exercises SQL escaping
     metadata: { source: 'seed', note: 'has "double" quotes' },
   });
+  await db(TABLES.PartnerTermsAcceptance).insert({
+    id: ulid(),
+    tenantId: TENANT,
+    partnerId,
+    version: 'syntolk-v1',
+    acceptedAt: new Date(),
+  });
   await db(TABLES.Program).insert({
     id: programId,
     tenantId: TENANT,

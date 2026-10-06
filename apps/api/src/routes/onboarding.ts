@@ -23,6 +23,9 @@ interface BrandOnboardingStatus {
   brandInfoComplete: boolean;
   campaignCount: number;
   networkConnected: boolean;
+  /** Self-hosted installs without NETWORK_URL do not require the optional
+   * cross-tenant Network module to finish local onboarding. */
+  networkOptional: boolean;
   offeringPublishedCount: number;
   partnerCount: number;
   /** Pending creator applications waiting for brand approval on the
@@ -57,6 +60,9 @@ onboardingRouter.get('/admin/onboarding-status', requireAuth, requireAdmin, asyn
 
   const campaignRows = await db<ProgramRow>(TABLES.Program).count<Array<{ count: string }>>({ count: '*' });
   const campaignCount = Number(campaignRows[0]?.count ?? 0);
+
+  const networkOptional =
+    (process.env.OPENPARTNER_MODE ?? 'selfhost') === 'selfhost' && !(process.env.NETWORK_URL ?? '').trim();
 
   const partnerRows = await db<PartnerRow>(TABLES.Partner)
     .whereNull('revokedAt')
@@ -115,8 +121,7 @@ onboardingRouter.get('/admin/onboarding-status', requireAuth, requireAdmin, asyn
   const complete =
     brandInfoComplete &&
     campaignCount > 0 &&
-    networkConnected &&
-    offeringPublishedCount > 0 &&
+    (networkOptional || (networkConnected && offeringPublishedCount > 0)) &&
     partnerCount > 0 &&
     billingReady;
 
@@ -124,6 +129,7 @@ onboardingRouter.get('/admin/onboarding-status', requireAuth, requireAdmin, asyn
     brandInfoComplete,
     campaignCount,
     networkConnected,
+    networkOptional,
     offeringPublishedCount,
     partnerCount,
     pendingPartnershipRequests,

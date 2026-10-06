@@ -76,10 +76,10 @@ export function PartnerPostbacksPage({ principal }: { principal: Principal }) {
 
   if (!partnerId) {
     return (
-      <Page title="Postback URLs">
+      <Page title="URL постбэков">
         <EmptyState
-          title="Partners only"
-          hint="Postback URLs are a partner-side integration."
+          title="Только для партнёров"
+          hint="URL постбэков — интеграция на стороне партнёра."
           icon={<WebhookIcon size={28} strokeWidth={1.25} />}
         />
       </Page>
@@ -90,11 +90,11 @@ export function PartnerPostbacksPage({ principal }: { principal: Principal }) {
 
   return (
     <Page
-      title="Postback URLs"
-      subtitle="Forward conversion events to your tracker (Voluum, RedTrack, Bemob, or your own)."
+      title="URL постбэков"
+      subtitle="Передавайте события конверсий в свой трекер (Voluum, RedTrack, Bemob или собственный)."
       actions={
         <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
-          Add postback
+          Добавить постбэк
         </Button>
       }
     >
@@ -109,11 +109,11 @@ export function PartnerPostbacksPage({ principal }: { principal: Principal }) {
       )}
 
       {list.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : rows.length === 0 ? (
         <EmptyState
-          title="No postbacks yet"
-          hint="Add one to fire a GET to your tracker every time a commission accrues / approves / pays out."
+          title="Постбэков пока нет"
+          hint="Добавьте постбэк, чтобы отправлять GET-запрос в трекер при начислении, подтверждении или выплате комиссии."
           icon={<WebhookIcon size={28} strokeWidth={1.25} />}
         />
       ) : (
@@ -173,7 +173,7 @@ function PostbackCard({
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <Button size="sm" variant="secondary" onClick={onToggle}>
-            {row.enabled ? 'Pause' : 'Resume'}
+            {row.enabled ? 'Пауза' : 'Возобновить'}
           </Button>
           <Button size="sm" variant="danger" icon={<Trash2 size={13} />} onClick={onDelete} />
         </div>
@@ -190,12 +190,12 @@ function PostbackCard({
           color: theme.textMuted,
         }}
       >
-        <Stat label="Fired" value={String(totalFires)} />
-        <Stat label="Success" value={String(row.successCount)} />
-        <Stat label="Failed" value={String(row.failureCount)} />
-        <Stat label="Last fired" value={row.lastFiredAt ? formatDate(row.lastFiredAt) : '—'} />
+        <Stat label="Отправлено" value={String(totalFires)} />
+        <Stat label="Успешно" value={String(row.successCount)} />
+        <Stat label="Ошибок" value={String(row.failureCount)} />
+        <Stat label="Последняя отправка" value={row.lastFiredAt ? formatDate(row.lastFiredAt) : '—'} />
         <Stat
-          label="Last status"
+          label="Последний статус"
           value={
             row.lastStatus
               ? `HTTP ${row.lastStatus}`
@@ -239,15 +239,15 @@ function CreateForm({
 
   return (
     <Card style={{ marginBottom: 14, borderColor: theme.accent }}>
-      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>New postback URL</div>
-      <Label>URL with macros</Label>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 10 }}>Новый URL постбэка</div>
+      <Label>URL с макросами</Label>
       <Input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="https://tracker.example.com/postback?cid={click_id}&payout={commission_amount}"
       />
       <div style={{ marginTop: 12 }}>
-        <Label>Events to forward</Label>
+        <Label>События для отправки</Label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {POSTBACK_EVENTS.map((ev) => (
             <label
@@ -280,10 +280,10 @@ function CreateForm({
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         <Button onClick={submit} disabled={pending || !url || events.length === 0}>
-          {pending ? 'Creating…' : 'Create'}
+          {pending ? 'Создаём…' : 'Создать'}
         </Button>
         <Button variant="ghost" onClick={onCancel}>
-          Cancel
+          Отмена
         </Button>
       </div>
     </Card>
@@ -292,25 +292,25 @@ function CreateForm({
 
 function MacroReference() {
   const macros: Array<[string, string]> = [
-    ['{click_id}', 'Originating click — only present on commission.accrued'],
-    ['{partner_id}', 'Your partner ID'],
-    ['{commission_id}', 'The Commission row id'],
-    ['{commission_amount}', 'Decimal amount in major units (e.g. 12.50)'],
-    ['{currency}', '3-letter ISO currency code (USD, EUR, …)'],
-    ['{event_id}', 'The Event row that drove the commission'],
-    ['{transaction_id}', 'Alias for {event_id} — many trackers use this name'],
-    ['{event_type}', 'invoice_paid / signup / your custom event'],
-    ['{program_id}', ' Program id'],
-    ['{payout_id}', 'Only present on commission.paid'],
+    ['{click_id}', 'Исходный клик — доступен только для commission.accrued'],
+    ['{partner_id}', 'ID партнёра'],
+    ['{commission_id}', 'ID записи комиссии'],
+    ['{commission_amount}', 'Сумма в основных единицах, например 12.50'],
+    ['{currency}', 'Трёхбуквенный код валюты, например RUB'],
+    ['{event_id}', 'ID события, создавшего комиссию'],
+    ['{transaction_id}', 'Псевдоним {event_id} для трекеров'],
+    ['{event_type}', 'invoice_paid / signup / ваше событие'],
+    ['{program_id}', 'ID программы'],
+    ['{payout_id}', 'Доступен только для commission.paid'],
   ];
   return (
     <div style={{ marginTop: 28 }}>
-      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Available macros</div>
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Доступные макросы</div>
       <Card>
         <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 10 }}>
-          Macro values are URL-encoded at fire time. Unknown macros stay literal so you notice
-          typos. Postbacks are unsigned by design — if you want verification, add a shared
-          secret as a query param yourself: <code style={{ color: theme.text }}>?secret=…</code>
+          Значения макросов кодируются для URL при отправке. Неизвестные макросы остаются как есть,
+          чтобы вы заметили опечатку. Постбэки намеренно не подписываются — для проверки добавьте
+          общий секрет в параметр запроса: <code style={{ color: theme.text }}>?secret=…</code>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '6px 14px', fontSize: 12 }}>
           {macros.map(([macro, desc]) => (

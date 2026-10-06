@@ -148,7 +148,7 @@ export function friendlyPlatformError(err: unknown): string {
     case 'read_only_operator':
       return 'Your operator account is read-only — ask an admin to make this change.';
     case 'not_an_operator':
-      return 'This account isn’t an OpenPartner operator.';
+      return 'Эта учётная запись не является оператором Syntolk.';
     default:
       return raw;
   }

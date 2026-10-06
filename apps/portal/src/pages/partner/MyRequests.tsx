@@ -32,14 +32,14 @@ export function MyRequestsPage() {
   });
 
   return (
-    <Page title="My applications" subtitle="Programs you&rsquo;ve applied to across the Network.">
+    <Page title="Мои заявки" subtitle="Программы сети, на которые вы подали заявку.">
       <ErrorBanner error={error} />
       {isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : !data || data.requests.length === 0 ? (
         <EmptyState
-          title="No applications yet"
-          hint="Browse programs to apply."
+          title="Заявок пока нет"
+          hint="Найдите программу и подайте заявку."
           icon={<Inbox size={28} strokeWidth={1.25} />}
         />
       ) : (
@@ -53,18 +53,18 @@ export function MyRequestsPage() {
               <StatusPill status={r.status} />
             </div>
             <p style={{ color: theme.textMuted, fontSize: 13 }}>
-              Applied {formatDate(r.createdAt, { relative: true })}
-              {r.decidedAt && <> · decided {formatDate(r.decidedAt, { relative: true })}</>}
+              Подана {formatDate(r.createdAt, { relative: true })}
+              {r.decidedAt && <> · решение {formatDate(r.decidedAt, { relative: true })}</>}
             </p>
             {r.decisionNote && (
               <p style={{ color: theme.text, fontSize: 14, marginTop: 8 }}>
-                <strong>Vendor note:</strong> {r.decisionNote}
+                <strong>Комментарий компании:</strong> {r.decisionNote}
               </p>
             )}
             {r.status === 'pending' && (
               <div style={{ marginTop: 12 }}>
                 <Button variant="secondary" onClick={() => cancel.mutate(r.id)} disabled={cancel.isPending}>
-                  Cancel application
+                  Отменить заявку
                 </Button>
               </div>
             )}

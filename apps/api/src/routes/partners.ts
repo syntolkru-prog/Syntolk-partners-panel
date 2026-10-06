@@ -15,6 +15,9 @@ import { dispatchEvent } from '../webhook-dispatcher.js';
 const createSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),
+  phone: z.string().trim().max(40).optional(),
+  termsAccepted: z.boolean().optional(),
+  termsVersion: z.string().trim().max(80).optional(),
   metadata: z.record(z.unknown()).optional(),
   // Admin can opt out of the invite email (e.g. federation creating a
   // Partner row on behalf of an external creator network). Default is
@@ -98,6 +101,9 @@ partnersRouter.post('/partners', requireAuth, grantScope('partners:write'), requ
         tenantId,
         email,
         name: body.data.name,
+        phone: body.data.phone || null,
+        termsAcceptedAt: body.data.termsAccepted ? new Date() : null,
+        termsVersion: body.data.termsAccepted ? body.data.termsVersion ?? 'syntolk-v1' : null,
         metadata: body.data.metadata ?? {},
         // sendInvite=false means the caller is responsible for activating
         // (federation client, admin seeding, etc); skip the pending state.
@@ -489,6 +495,88 @@ partnersRouter.get('/partners/:id', requireAuth, requirePartnerOrAdmin('id'), as
   const partner = await db<PartnerRow>(TABLES.Partner).where({ id: req.params.id }).first();
   if (!partner) return res.status(404).json({ error: 'not_found' });
   res.json(partner);
+});
+
+const termsSchema = z.object({
+  accepted: z.literal(true),
+  version: z.string().trim().min(1).max(80),
+});
+
+/** The partner accepts the currently displayed Syntolk program terms. The
+ * version and timestamp are stored so later changes do not rewrite history. */
+partnersRouter.post('/partners/:id/terms', requireAuth, requirePartnerOrAdmin('id'), async (req, res) => {
+  const { db } = tenantOf(req);
+  const body = termsSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: 'terms_acceptance_required', detail: body.error.flatten() });
+  const partner = await db<PartnerRow>(TABLES.Partner).where({ id: req.params.id }).first();
+  if (!partner) return res.status(404).json({ error: 'not_found' });
+  const now = new Date();
+  const [updated] = await db<PartnerRow>(TABLES.Partner)
+    .where({ id: partner.id })
+    .update({ termsAcceptedAt: now, termsVersion: body.data.version, updatedAt: now })
+    .returning('*');
+  await db(TABLES.PartnerTermsAcceptance).insert({
+    id: ulid(),
+    tenantId: partner.tenantId,
+    partnerId: partner.id,
+    version: body.data.version,
+    acceptedAt: now,
+  });
+  res.json({ partner: updated });
+});
+
+partnersRouter.get('/partners/:id/terms-history', requireAuth, requirePartnerOrAdmin('id'), async (req, res) => {
+  const { db } = tenantOf(req);
+  const history = await db(TABLES.PartnerTermsAcceptance)
+    .where({ partnerId: req.params.id })
+    .orderBy('acceptedAt', 'desc');
+  res.json({ history });
+});
+
+const cloudPaymentsSchema = z.object({
+  status: z.enum(['not_connected', 'connected', 'error']),
+  accountId: z.string().trim().max(160).optional().nullable(),
+  error: z.string().trim().max(1000).optional().nullable(),
+});
+
+const tierSchema = z.object({
+  tier: z.enum(['standard', 'pro', 'top']),
+});
+
+/** CloudPayments is an external payout/account rail. This endpoint only
+ * stores its connection state; no card or secret is ever stored here. */
+partnersRouter.patch('/partners/:id/cloudpayments', requireAuth, grantScope('partners:write'), requireAdmin, async (req, res) => {
+  const { db } = tenantOf(req);
+  const body = cloudPaymentsSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: 'invalid_body', detail: body.error.flatten() });
+  const partner = await db<PartnerRow>(TABLES.Partner).where({ id: req.params.id }).first();
+  if (!partner) return res.status(404).json({ error: 'not_found' });
+  const [updated] = await db<PartnerRow>(TABLES.Partner)
+    .where({ id: partner.id })
+    .update({
+      cloudPaymentsStatus: body.data.status,
+      cloudPaymentsAccountId: body.data.accountId ?? null,
+      cloudPaymentsError: body.data.error ?? null,
+      updatedAt: new Date(),
+    })
+    .returning('*');
+  res.json({ partner: updated });
+});
+
+/** Partner tier is an operational label for Syntolk's partner service level.
+ * It is intentionally separate from tenant billing and does not alter money
+ * already accrued. Future automatic tier rules can use this field without a
+ * schema change. */
+partnersRouter.patch('/partners/:id/tier', requireAuth, grantScope('partners:write'), requireAdmin, async (req, res) => {
+  const { db } = tenantOf(req);
+  const body = tierSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: 'invalid_body', detail: body.error.flatten() });
+  const updated = await db<PartnerRow>(TABLES.Partner)
+    .where({ id: req.params.id })
+    .update({ tier: body.data.tier, updatedAt: new Date() })
+    .returning('*');
+  if (updated.length === 0) return res.status(404).json({ error: 'not_found' });
+  res.json({ partner: updated[0] });
 });
 
 // Per-partner commission snapshot (PartnerCommission row, if any).

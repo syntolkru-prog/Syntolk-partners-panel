@@ -60,63 +60,63 @@ export function LandingPage() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Logo />
-          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>OpenPartner</div>
+          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>Syntolk</div>
         </div>
         <div style={{ display: 'flex', gap: 18, alignItems: 'center', fontSize: 13 }}>
-          <a href="https://openpartner.dev" style={{ color: theme.textMuted }}>About</a>
-          <a href="https://openpartner.dev/pricing" style={{ color: theme.textMuted }}>Pricing</a>
-          <Link to="/signin" style={{ color: theme.textMuted }}>Sign in</Link>
+          <a href="/" style={{ color: theme.textMuted }}>О Syntolk</a>
+          <a href="/signin" style={{ color: theme.textMuted }}>Войти</a>
+          <Link to="/signin" style={{ color: theme.textMuted }}>Войти</Link>
         </div>
       </header>
 
       <main style={{ flex: 1, padding: '64px 24px 32px' }}>
         <div style={{ maxWidth: 880, margin: '0 auto', textAlign: 'center' }}>
           <div style={{ fontSize: 12, color: theme.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
-            Partner program software with a built-in network
+            Партнёрская программа со встроенной сетью
           </div>
           <h1 style={{ fontSize: 48, lineHeight: 1.1, margin: 0, letterSpacing: '-0.02em', fontWeight: 700 }}>
-            Launch a partner program.<br />Grow it with the Network.
+            Запустите партнёрскую программу.<br />Развивайте её вместе с сетью.
           </h1>
           <p style={{ marginTop: 24, fontSize: 17, color: theme.textMuted, lineHeight: 1.55, maxWidth: 720, marginInline: 'auto' }}>
-            Brands launch affiliate, referral, and creator programs with visible commission terms and
-            direct Stripe payouts. Creators browse real offers and keep what they earn.
+            Компании запускают партнёрские, реферальные и авторские программы с прозрачными условиями
+            комиссий, начислениями и выплатами по правилам программы. Авторы находят реальные предложения и получают заработанное.
           </p>
         </div>
 
         <div style={{ maxWidth: 1040, margin: '56px auto 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
           <AudienceCard
-            eyebrow="For brands"
-            title="Partner program software for brands that want more than tracking."
+            eyebrow="Для компаний"
+            title="Партнёрская программа для компаний, которым нужно больше, чем просто отслеживание."
             bullets={[
-              'Track every conversion back to the partner who drove it',
-              'Set flat, percentage, or recurring commission terms',
-              'Recruit creators from the Network when you want more reach',
-              'Pay partners directly through Stripe without a middleman cut',
+              'Связывайте каждую конверсию с партнёром, который её привёл',
+              'Настраивайте фиксированные, процентные и регулярные комиссии',
+              'Привлекайте авторов из сети, когда нужен дополнительный охват',
+              'Настройте начисления и выплаты партнёрам по правилам Syntolk',
             ]}
-            ctaLabel="Sign up as a brand"
+            ctaLabel="Зарегистрироваться как компания"
             to="/signup"
           />
           <AudienceCard
-            eyebrow="For creators"
-            title="A creator marketplace with real terms and direct payouts."
+            eyebrow="Для авторов"
+            title="Каталог партнёрских программ с понятными условиями и прямыми выплатами."
             bullets={[
-              'See commission rates before you apply to any program',
-              'Browse partner offers across affiliate, referral, and creator programs',
-              'Get paid directly by brands through Stripe',
-              'No exclusivity and no platform cut on your earnings',
+              'Видите размер комиссии до подачи заявки',
+              'Находите предложения в партнёрских, реферальных и авторских программах',
+              'Получайте выплаты от компаний по подтверждённым начислениям',
+              'Без эксклюзивности и удержаний платформы из вашего заработка',
             ]}
-            ctaLabel="Sign up as a creator"
+            ctaLabel="Зарегистрироваться как автор"
             to="/creator/signup"
           />
         </div>
 
         <div style={{ marginTop: 48, textAlign: 'center', color: theme.textDim, fontSize: 13 }}>
-          Already have an account? <Link to="/signin" style={{ color: theme.accent }}>Sign in</Link>
+          Уже есть аккаунт? <Link to="/signin" style={{ color: theme.accent }}>Войти</Link>
         </div>
       </main>
 
       <footer style={{ padding: '20px 32px', borderTop: `1px solid ${theme.borderSubtle}`, color: theme.textDim, fontSize: 12, textAlign: 'center' }}>
-        OpenPartner is open source. <a href="https://openpartner.dev" style={{ color: theme.textMuted }}>Learn more</a>
+        Syntolk — партнёрская программа для вашего бизнеса. <a href="/signin" style={{ color: theme.textMuted }}>Войти в кабинет</a>
       </footer>
     </div>
   );

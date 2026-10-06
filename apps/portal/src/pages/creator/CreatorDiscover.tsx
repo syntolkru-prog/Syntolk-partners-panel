@@ -60,10 +60,10 @@ interface OfferingListItem {
 }
 
 const MODEL_LABELS: Record<AttributionModel, string> = {
-  last_click: 'Last click',
-  first_click: 'First click',
-  linear: 'Linear',
-  position: 'Position',
+  last_click: 'Последний клик',
+  first_click: 'Первый клик',
+  linear: 'Линейная',
+  position: 'Позиционная',
 };
 
 /** Days between now and `endsAt`, rounded up. Returns null when the
@@ -93,8 +93,8 @@ function formatDuration(
   if (Number.isNaN(end.getTime())) return null;
   const days = daysRemaining(endsAt);
   if (days === null || days <= 0) return null;
-  if (days <= 14) return { label: `Ends in ${days}d`, kind: 'soon' };
-  if (days <= 60) return { label: `Ends in ${days}d`, kind: 'date' };
+  if (days <= 14) return { label: `Заканчивается через ${days} дн.`, kind: 'soon' };
+  if (days <= 60) return { label: `Заканчивается через ${days} дн.`, kind: 'date' };
   // For longer windows show the actual date — "Ends in 184d" is harder
   // to picture than "Ends Sep 12".
   const now = new Date();
@@ -103,7 +103,7 @@ function formatDuration(
     day: 'numeric',
     ...(end.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
   });
-  return { label: `Ends ${fmt}`, kind: 'date' };
+  return { label: `Заканчивается ${fmt}`, kind: 'date' };
 }
 
 export function CreatorDiscoverPage() {
@@ -211,21 +211,21 @@ export function CreatorDiscoverPage() {
   }
 
   return (
-    <Page title="Discover programs" subtitle="Partner programs across the OpenPartner Network. Apply to any.">
+    <Page title="Программы" subtitle="Партнёрские программы сети Syntolk. Выберите подходящую и подайте заявку.">
       <ErrorBanner error={error} />
       <CreatorOnboarding />
       <RecommendedStrip />
       <Card>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 240 }}>
-            <Label>Search</Label>
-            <Input placeholder="Title or description…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <Label>Поиск</Label>
+            <Input placeholder="Название или описание…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           <div style={{ minWidth: 160 }}>
-            <Label>Sort</Label>
+            <Label>Сортировка</Label>
             <Select value={sort} onChange={(e) => setSort(e.target.value as 'newest' | 'popular')}>
-              <option value="newest">Newest</option>
-              <option value="popular">Most partners</option>
+              <option value="newest">Сначала новые</option>
+              <option value="popular">Больше всего партнёров</option>
             </Select>
           </div>
           <button
@@ -243,7 +243,7 @@ export function CreatorDiscoverPage() {
               whiteSpace: 'nowrap',
             }}
           >
-            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
+            Фильтры{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
           </button>
         </div>
         {showFilters && (
@@ -259,50 +259,50 @@ export function CreatorDiscoverPage() {
           >
             <div>
               <LabelWithHelp
-                label="Attribution model"
-                hint="How the brand splits credit when a customer touches several creator links before converting. Last click pays the most recent referrer; first click pays the discoverer; linear/position split across all touches."
+                label="Модель атрибуции"
+                hint="Как компания распределяет заслугу, если клиент перед покупкой переходит по нескольким ссылкам. Последний клик получает последний источник, первый — первооткрыватель, линейная и позиционная модели делят заслугу между переходами."
               />
               <Select value={model} onChange={(e) => setModel(e.target.value as typeof model)}>
-                <option value="any">Any</option>
-                <option value="last_click">Last click</option>
-                <option value="first_click">First click</option>
-                <option value="linear">Linear</option>
-                <option value="position">Position</option>
+                <option value="any">Любая</option>
+                <option value="last_click">Последний клик</option>
+                <option value="first_click">Первый клик</option>
+                <option value="linear">Линейная</option>
+                <option value="position">Позиционная</option>
               </Select>
             </div>
             <div>
               <LabelWithHelp
-                label="Min attribution window"
-                hint="The longest gap between someone's click on your link and their eventual purchase that still pays you. Bigger window = more conversions credited to you, especially for products with long evaluation cycles."
+                label="Минимальное окно атрибуции"
+                hint="Максимальный срок между кликом по вашей ссылке и покупкой, за которую вы получите комиссию. Большое окно особенно важно для продуктов с долгим периодом выбора."
               />
               <Select value={minWindow} onChange={(e) => setMinWindow(e.target.value as typeof minWindow)}>
-                <option value="any">Any</option>
-                <option value="30">≥ 30 days</option>
-                <option value="60">≥ 60 days</option>
-                <option value="90">≥ 90 days</option>
+                <option value="any">Любое</option>
+                <option value="30">≥ 30 дней</option>
+                <option value="60">≥ 60 дней</option>
+                <option value="90">≥ 90 дней</option>
               </Select>
             </div>
             <div>
               <LabelWithHelp
-                label="Max payout holdback"
-                hint="Time after a customer converts before the brand can approve + pay your commission. Aligns with their refund window or trial — shorter holdback = faster cash, but expect some clawbacks if customers cancel."
+                label="Максимальная отсрочка выплаты"
+                hint="Срок после конверсии, когда компания может подтвердить и выплатить комиссию. Обычно совпадает с периодом возврата или пробным периодом."
               />
               <Select value={maxHoldback} onChange={(e) => setMaxHoldback(e.target.value as typeof maxHoldback)}>
-                <option value="any">Any</option>
-                <option value="0">No holdback</option>
-                <option value="14">≤ 14 days</option>
-                <option value="30">≤ 30 days</option>
-                <option value="60">≤ 60 days</option>
-                <option value="90">≤ 90 days</option>
+                <option value="any">Любая</option>
+                <option value="0">Без отсрочки</option>
+                <option value="14">≤ 14 дней</option>
+                <option value="30">≤ 30 дней</option>
+                <option value="60">≤ 60 дней</option>
+                <option value="90">≤ 90 дней</option>
               </Select>
             </div>
             <div>
               <LabelWithHelp
-                label="Min commission"
-                hint="Lower bound on the percent-of-sale commission. Filters by the program's stated rate — fixed-fee programs (e.g. $50 per signup) stay visible regardless, since percent thresholds don't apply to them."
+                label="Минимальная комиссия"
+                hint="Нижняя граница процентной комиссии с продажи. Фиксированные вознаграждения остаются видимыми, потому что процентные фильтры к ним не применяются."
               />
               <Select value={minCommission} onChange={(e) => setMinCommission(e.target.value as typeof minCommission)}>
-                <option value="any">Any</option>
+                <option value="any">Любая</option>
                 <option value="10">≥ 10%</option>
                 <option value="20">≥ 20%</option>
                 <option value="30">≥ 30%</option>
@@ -310,11 +310,11 @@ export function CreatorDiscoverPage() {
             </div>
             <div>
               <LabelWithHelp
-                label="Category"
-                hint="Industry / product type the brand tagged this program with. Programs can carry up to 5 categories, so a 'SaaS analytics tool' shows up under both SaaS and Analytics."
+                label="Категория"
+                hint="Отрасль или тип продукта, указанные компанией. У программы может быть до пяти категорий."
               />
               <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="any">Any</option>
+                <option value="any">Любая</option>
                 {PROGRAM_CATEGORIES.map((c) => (
                   <option key={c.slug} value={c.slug}>{c.label}</option>
                 ))}
@@ -322,22 +322,22 @@ export function CreatorDiscoverPage() {
             </div>
             <div>
               <LabelWithHelp
-                label="Min remaining duration"
-                hint="How long the program is guaranteed to keep accepting your conversions. Indefinite programs (no end date set) always qualify — they're the longest possible runway. Useful when you're investing time in a piece of content and want it to keep paying you."
+                label="Минимальный оставшийся срок"
+                hint="Как долго программа гарантированно будет принимать ваши конверсии. Программы без даты окончания подходят всегда."
               />
               <Select value={minDuration} onChange={(e) => setMinDuration(e.target.value as typeof minDuration)}>
-                <option value="any">Any</option>
-                <option value="30">≥ 30 days</option>
-                <option value="90">≥ 90 days</option>
-                <option value="365">≥ 1 year</option>
+                <option value="any">Любой</option>
+                <option value="30">≥ 30 дней</option>
+                <option value="90">≥ 90 дней</option>
+                <option value="365">≥ 1 года</option>
               </Select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: 2 }}>
               <Label>&nbsp;</Label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.text, padding: '9px 0' }}>
                 <input type="checkbox" checked={recurringOnly} onChange={(e) => setRecurringOnly(e.target.checked)} />
-                Recurring only
-                <HelpIcon hint="Show only programs that pay commission on every renewal of a subscription, not just the first invoice. Best for SaaS / membership products where the customer keeps paying month after month." />
+                Только регулярные начисления
+                <HelpIcon hint="Показывать программы, которые платят комиссию при каждом продлении подписки, а не только за первый счёт. Подходит для SaaS и членских сервисов." />
               </label>
             </div>
             {activeFilterCount > 0 && (
@@ -347,7 +347,7 @@ export function CreatorDiscoverPage() {
                   onClick={clearFilters}
                   style={{ background: 'transparent', border: 'none', color: theme.accent, cursor: 'pointer', fontSize: 13, padding: 0 }}
                 >
-                  Clear all
+                  Сбросить все
                 </button>
               </div>
             )}
@@ -356,22 +356,22 @@ export function CreatorDiscoverPage() {
       </Card>
       <div style={{ height: 18 }} />
       {isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : filtered.length === 0 ? (
         <EmptyState
           title={
             debouncedQ
-              ? `No matches for "${debouncedQ}"`
+              ? `По запросу «${debouncedQ}» ничего не найдено`
               : activeFilterCount > 0
-                ? 'No programs match your filters'
-                : 'No programs yet'
+                ? 'По фильтрам программы не найдены'
+                : 'Программ пока нет'
           }
           hint={
             activeFilterCount > 0
-              ? 'Try widening one of the filters above.'
+              ? 'Попробуйте ослабить один из фильтров выше.'
               : debouncedQ
-                ? 'Try a different keyword.'
-                : 'Vendors are joining all the time — check back soon.'
+                ? 'Попробуйте другое слово.'
+                : 'Новые компании постоянно подключаются — зайдите позже.'
           }
           icon={<Globe size={28} strokeWidth={1.25} />}
         />
@@ -443,7 +443,7 @@ function OfferingDiscoverCard({ offering: o }: { offering: OfferingListItem }) {
           </Link>
           {o.vendorPartnerCount > 0 && (
             <div style={{ color: theme.textDim, fontSize: 11 }}>
-              {o.vendorPartnerCount} partner{o.vendorPartnerCount === 1 ? '' : 's'}
+              {o.vendorPartnerCount} {o.vendorPartnerCount === 1 ? 'партнёр' : 'партнёров'}
             </div>
           )}
         </div>
@@ -485,7 +485,7 @@ function OfferingDiscoverCard({ offering: o }: { offering: OfferingListItem }) {
         </Link>
         {o.myStatus !== 'none' && o.myStatus !== 'rejected' && (
           <span style={{ fontSize: 12, color: o.myStatus === 'approved' ? theme.success : theme.textMuted }}>
-            {o.myStatus === 'approved' ? '✓ Active' : o.myStatus === 'pending' ? 'Awaiting brand review' : null}
+            {o.myStatus === 'approved' ? '✓ Активно' : o.myStatus === 'pending' ? 'Ожидает проверки компании' : null}
           </span>
         )}
       </div>
@@ -671,9 +671,9 @@ function RecommendedStrip() {
 
   return (
     <Card style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Recommended for you</div>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Рекомендуем вам</div>
       <p style={{ fontSize: 13, color: theme.textMuted, margin: '0 0 14px' }}>
-        Programs that match your profile, ranked by category overlap + commission richness.
+        Программы, которые подходят вашему профилю, отсортированы по совпадению категорий и размеру комиссии.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
         {data.recommendations.map((r) => (
@@ -712,15 +712,15 @@ function RecommendedStrip() {
 function ctaForStatus(s: MyStatus): string {
   switch (s) {
     case 'approved':
-      return 'View link';
+      return 'Открыть ссылку';
     case 'pending':
-      return 'View application';
+      return 'Открыть заявку';
     case 'rejected':
-      return 'View & reapply';
+      return 'Открыть и подать снова';
     case 'cancelled':
     case 'none':
     default:
-      return 'View & apply';
+      return 'Подробнее и подать заявку';
   }
 }
 
@@ -762,17 +762,17 @@ function CreatorOnboarding() {
   if (complete) return null;
 
   const items = [
-    { done: true, label: 'Account created', href: null as string | null },
-    { done: handleSet, label: 'Pick a handle', hint: 'Used as the default slug for your share links.', href: '/creator/profile' },
-    { done: bioSet, label: 'Add a short bio', hint: 'Brands see this on your applications.', href: '/creator/profile' },
-    { done: hasApplied, label: 'Apply to your first program', hint: 'Browse below and click "View & apply" on anything that fits.', href: null },
+    { done: true, label: 'Аккаунт создан', href: null as string | null },
+    { done: handleSet, label: 'Выберите идентификатор', hint: 'Используется как идентификатор партнёрских ссылок.', href: '/creator/profile' },
+    { done: bioSet, label: 'Добавьте краткое описание', hint: 'Компании увидят его в ваших заявках.', href: '/creator/profile' },
+    { done: hasApplied, label: 'Подайте заявку на первую программу', hint: 'Выберите подходящую программу ниже и нажмите «Подробнее и подать заявку».', href: null },
   ];
 
   return (
     <Card style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Getting started</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Начало работы</div>
       <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 14 }}>
-        Three quick steps to put your best foot forward when applying. Card disappears when done.
+        Три простых шага помогут подготовить профиль к заявкам. Карточка исчезнет после завершения.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {items.map((it, i) => (

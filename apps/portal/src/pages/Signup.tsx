@@ -6,9 +6,9 @@ import { AuthFrame, SignupTabs } from './auth/Shared.js';
 
 type SignupPlan = 'flex' | 'revshare' | 'enterprise';
 const PLAN_LABELS: Record<SignupPlan, { name: string; tagline: string }> = {
-  flex: { name: 'Flex', tagline: '$49/mo + 1.5% of attributed GMV · 14-day free trial' },
-  revshare: { name: 'Revshare', tagline: '3% of attributed GMV, no monthly · 14-day free trial' },
-  enterprise: { name: 'Enterprise', tagline: 'Custom pricing — our team will reach out' },
+  flex: { name: 'Flex', tagline: '$49/мес. + 1,5% атрибуцированной выручки · пробный период 14 дней' },
+  revshare: { name: 'Revshare', tagline: '3% атрибуцированной выручки, без ежемесячной платы · пробный период 14 дней' },
+  enterprise: { name: 'Enterprise', tagline: 'Индивидуальная стоимость — мы свяжемся с вами' },
 };
 function isPlan(s: string | null): s is SignupPlan {
   return s === 'flex' || s === 'revshare' || s === 'enterprise';
@@ -71,16 +71,16 @@ export function SignupPage() {
 
   if (result) {
     return (
-      <AuthFrame title="Check your inbox" subtitle={`We just emailed ${adminEmail} a sign-in link.`}>
+      <AuthFrame title="Проверьте почту" subtitle={`Мы отправили ссылку для входа на ${adminEmail}.`}>
         <div style={{ background: theme.successSoft, border: `1px solid ${theme.success}55`, padding: 14, borderRadius: theme.radiusSm, fontSize: 13, color: theme.success }}>
-          <div style={{ fontWeight: 500, marginBottom: 6 }}>Account created.</div>
+          <div style={{ fontWeight: 500, marginBottom: 6 }}>Аккаунт компании создан.</div>
           <div style={{ color: `${theme.success}cc` }}>
-            Your slug is <code>{result.tenant.slug}</code>. The activation link is good for 15 minutes.
+            Ваш идентификатор: <code>{result.tenant.slug}</code>. Ссылка активации действительна 15 минут.
           </div>
         </div>
         {result.mailDelivered === false && (
           <div style={{ marginTop: 12, color: theme.danger, fontSize: 13 }}>
-            Mail send failed: {result.mailError ?? 'unknown'}. Contact support to retry.
+            Не удалось отправить письмо: {result.mailError ?? 'неизвестная ошибка'}. Обратитесь в поддержку.
           </div>
         )}
       </AuthFrame>
@@ -88,7 +88,7 @@ export function SignupPage() {
   }
 
   return (
-    <AuthFrame title="Sign up as a brand" subtitle="Create your brand account. We'll email you a sign-in link.">
+    <AuthFrame title="Регистрация компании" subtitle="Создайте аккаунт компании — мы отправим ссылку для входа на вашу почту.">
       <SignupTabs active="brand" />
       {plan && (
         <div
@@ -101,7 +101,7 @@ export function SignupPage() {
           }}
         >
           <div style={{ fontSize: 12, color: theme.accent, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 2 }}>
-            Plan: {PLAN_LABELS[plan].name}
+            Тариф: {PLAN_LABELS[plan].name}
           </div>
           <div style={{ fontSize: 12, color: theme.textMuted }}>
             {PLAN_LABELS[plan].tagline}
@@ -109,16 +109,16 @@ export function SignupPage() {
         </div>
       )}
       <form onSubmit={submit}>
-        <Field label="Brand name" hint="What partners see — e.g. Acme.">
+        <Field label="Название компании" hint="Так его будут видеть партнёры — например, Syntolk.">
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Acme"
+            placeholder="Syntolk"
             required
             style={inputStyle}
           />
         </Field>
-        <Field label="URL slug" hint="Lowercase letters, numbers, hyphens. Becomes app.openpartner.dev/t/<slug>/.">
+        <Field label="URL-идентификатор" hint="Строчные буквы, цифры и дефисы. Используется в адресе кабинета Syntolk.">
           <input
             value={slug}
             onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
@@ -130,7 +130,7 @@ export function SignupPage() {
             style={{ ...inputStyle, fontFamily: theme.fontMono }}
           />
         </Field>
-        <Field label="Your name">
+        <Field label="Ваше имя">
           <input
             name="name"
             autoComplete="name"
@@ -141,7 +141,7 @@ export function SignupPage() {
             style={inputStyle}
           />
         </Field>
-        <Field label="Your email" hint="We'll send the activation link here.">
+        <Field label="Ваш email" hint="Сюда мы отправим ссылку активации.">
           <input
             type="email"
             name="email"
@@ -155,10 +155,10 @@ export function SignupPage() {
         </Field>
         {err && <div style={{ color: theme.danger, fontSize: 13, marginTop: 4, marginBottom: 8 }}>{err}</div>}
         <button type="submit" disabled={busy} style={primaryBtnStyle(busy)}>
-          {busy ? 'Creating brand…' : 'Create brand account'}
+          {busy ? 'Создаём компанию…' : 'Создать аккаунт компании'}
         </button>
         <div style={{ marginTop: 12, fontSize: 12, color: theme.textDim, textAlign: 'center' }}>
-          Already have a program? <Link to="/signin" style={{ color: theme.accent }}>Sign in</Link>
+          Уже есть программа? <Link to="/signin" style={{ color: theme.accent }}>Войти</Link>
         </div>
       </form>
     </AuthFrame>
@@ -176,11 +176,11 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 function friendlyError(code: string): string {
-  if (code.includes('slug_taken')) return 'That slug is already taken. Pick another.';
-  if (code.includes('slug_reserved')) return 'That slug is reserved. Try a different one.';
-  if (code.includes('invalid_body')) return 'Some fields look invalid — check the slug format and email.';
-  if (code.includes('signup_not_available')) return 'Public signup is disabled on this deployment.';
-  return 'Something went wrong. Try again or contact support.';
+  if (code.includes('slug_taken')) return 'Этот идентификатор уже занят. Выберите другой.';
+  if (code.includes('slug_reserved')) return 'Этот идентификатор зарезервирован. Попробуйте другой.';
+  if (code.includes('invalid_body')) return 'Проверьте заполнение полей, формат идентификатора и email.';
+  if (code.includes('signup_not_available')) return 'Публичная регистрация отключена в этой установке.';
+  return 'Произошла ошибка. Повторите попытку или обратитесь в поддержку.';
 }
 
 const inputStyle: React.CSSProperties = {

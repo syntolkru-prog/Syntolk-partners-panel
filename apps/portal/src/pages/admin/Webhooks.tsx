@@ -69,21 +69,21 @@ export function WebhooksPage() {
 
   return (
     <Page
-      title="Webhooks"
-      subtitle="Subscribe to attribution, commission, payout, and partnership events."
-      actions={<Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>New endpoint</Button>}
+      title="Вебхуки"
+      subtitle="Подписывайтесь на события атрибуции, комиссий, выплат и партнёрств."
+      actions={<Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>Новый эндпоинт</Button>}
     >
       <ErrorBanner error={endpoints.error} />
 
       {newSecret && (
         <Card style={{ marginBottom: 14, borderColor: `${theme.warn}55` }}>
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>Signing secret</div>
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>Секрет подписи</div>
           <div style={{ color: theme.textMuted, fontSize: 13, marginBottom: 10 }}>
-            Save this now — it's the HMAC key you'll verify incoming deliveries with. It won't be shown again.
+            Сохраните его сейчас — это HMAC-секрет для проверки входящих доставок. Повторно он показан не будет.
           </div>
           <SecretReveal plaintext={newSecret.plaintext} />
           <Button variant="secondary" size="sm" style={{ marginTop: 10 }} onClick={() => setNewSecret(null)}>
-            Dismiss
+            Скрыть
           </Button>
         </Card>
       )}
@@ -100,11 +100,11 @@ export function WebhooksPage() {
       )}
 
       {endpoints.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : (endpoints.data?.endpoints ?? []).length === 0 ? (
         <EmptyState
-          title="No webhook endpoints yet"
-          hint="Add one to receive HMAC-signed POSTs when events fire."
+          title="Эндпоинтов вебхуков пока нет"
+          hint="Добавьте эндпоинт, чтобы получать подписанные HMAC-запросы при наступлении событий."
           icon={<WebhookIcon size={28} strokeWidth={1.25} />}
         />
       ) : (
@@ -120,22 +120,22 @@ export function WebhooksPage() {
         </div>
       )}
 
-      <SectionHeading>Signature format</SectionHeading>
+      <SectionHeading>Формат подписи</SectionHeading>
       <Card>
         <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.6 }}>
-          Every POST carries three headers:
+          Каждый POST содержит три заголовка:
           <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
             <li>
-              <code style={{ color: theme.accent }}>x-openpartner-event</code> — event type
+              <code style={{ color: theme.accent }}>x-openpartner-event</code> — тип события
             </li>
             <li>
-              <code style={{ color: theme.accent }}>x-openpartner-delivery</code> — unique delivery id
+              <code style={{ color: theme.accent }}>x-openpartner-delivery</code> — уникальный ID доставки
             </li>
             <li>
               <code style={{ color: theme.accent }}>x-openpartner-timestamp</code> + <code style={{ color: theme.accent }}>x-openpartner-signature</code>
             </li>
           </ul>
-          Verify:
+          Проверка:
           <code
             style={{
               display: 'block',
@@ -155,7 +155,7 @@ export function WebhooksPage() {
   .digest('hex');`}
           </code>
           <div style={{ marginTop: 8 }}>
-            Reject if the timestamp is more than 5 minutes off your clock (replay protection).
+            Отклоняйте запрос, если timestamp отличается от ваших часов более чем на 5 минут (защита от повторной отправки).
           </div>
         </div>
       </Card>
@@ -225,9 +225,9 @@ function EndpointCard({
             <code style={{ color: theme.textDim }}>{endpoint.secretPrefix}…</code>
             {' · '}
             {endpoint.events.length === 1 && endpoint.events[0] === '*'
-              ? 'all events'
-              : `${endpoint.events.length} event${endpoint.events.length === 1 ? '' : 's'}`}
-            {' · created '}
+              ? 'все события'
+              : `${endpoint.events.length} ${endpoint.events.length === 1 ? 'событие' : 'событий'}`}
+            {' · создано '}
             {formatDate(endpoint.createdAt, { relative: true })}
           </div>
           <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -251,10 +251,10 @@ function EndpointCard({
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
           <Button size="sm" variant="secondary" onClick={onToggle}>
-            {expanded ? 'Hide' : 'Deliveries'}
+            {expanded ? 'Скрыть доставки' : 'Доставки'}
           </Button>
           <Button size="sm" variant="secondary" onClick={() => toggleActive.mutate()} disabled={toggleActive.isPending}>
-            {endpoint.active ? 'Disable' : 'Enable'}
+            {endpoint.active ? 'Отключить' : 'Включить'}
           </Button>
           <Button size="sm" variant="danger" icon={<Trash2 size={12} />} onClick={() => del.mutate()} disabled={del.isPending} />
         </div>
@@ -271,7 +271,7 @@ function EndpointCard({
           flexWrap: 'wrap',
         }}
       >
-        <span style={{ fontSize: 12, color: theme.textMuted }}>Send test event:</span>
+        <span style={{ fontSize: 12, color: theme.textMuted }}>Отправить тестовое событие:</span>
         <select
           value={testEvent}
           onChange={(e) => setTestEvent(e.target.value)}
@@ -299,10 +299,10 @@ function EndpointCard({
           onClick={() => sendTest.mutate(testEvent)}
           disabled={!endpoint.active || sendTest.isPending}
         >
-          {sendTest.isPending ? 'Sending…' : 'Fire'}
+            {sendTest.isPending ? 'Отправляем…' : 'Отправить'}
         </Button>
         {!endpoint.active && (
-          <span style={{ fontSize: 11, color: theme.textDim }}>Endpoint disabled — enable to test</span>
+          <span style={{ fontSize: 11, color: theme.textDim }}>Эндпоинт отключён — включите его для теста</span>
         )}
         {testResult && (
           <span
@@ -317,8 +317,8 @@ function EndpointCard({
             }}
           >
             {testResult.status === 'delivered'
-              ? `✓ Delivered (HTTP ${testResult.httpStatus})`
-              : `✗ ${testResult.status}${testResult.httpStatus ? ` (HTTP ${testResult.httpStatus})` : ''}: ${testResult.error ?? 'unknown'}`}
+              ? `✓ Доставлено (HTTP ${testResult.httpStatus})`
+              : `✗ ${testResult.status}${testResult.httpStatus ? ` (HTTP ${testResult.httpStatus})` : ''}: ${testResult.error ?? 'неизвестно'}`}
           </span>
         )}
         {sendTest.error && (
@@ -350,16 +350,16 @@ function DeliveryList({ endpointId }: { endpointId: string }) {
   return (
     <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.borderSubtle}` }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
-        Recent deliveries
+        Последние доставки
       </div>
       <ErrorBanner error={error ?? retry.error} />
       {isLoading ? (
-        <div style={{ color: theme.textMuted, fontSize: 13 }}>Loading…</div>
+        <div style={{ color: theme.textMuted, fontSize: 13 }}>Загрузка…</div>
       ) : rows.length === 0 ? (
-        <div style={{ color: theme.textDim, fontSize: 13 }}>No deliveries yet.</div>
+        <div style={{ color: theme.textDim, fontSize: 13 }}>Доставок пока нет.</div>
       ) : (
         <Table
-          columns={['Event', 'Status', { label: 'Attempts', align: 'right' }, 'HTTP', 'Created', 'Actions']}
+          columns={['Событие', 'Статус', { label: 'Попытки', align: 'right' }, 'HTTP', 'Создано', 'Действия']}
           rows={rows.map((d) => [
             <code style={{ fontSize: 12, color: theme.accent }}>{d.eventType}</code>,
             <StatusPill status={d.status === 'pending' ? 'pending' : d.status === 'delivered' ? 'paid' : 'failed'} />,
@@ -384,7 +384,7 @@ function DeliveryList({ endpointId }: { endpointId: string }) {
               onClick={() => retry.mutate(d.id)}
               disabled={retry.isPending}
             >
-              Retry
+              Повторить
             </Button>,
           ])}
         />
@@ -418,20 +418,20 @@ function CreateEndpoint({
 
   return (
     <Card style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 14 }}>New endpoint</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 14 }}>Новый эндпоинт</div>
       <ErrorBanner error={mut.error} />
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 14 }}>
         <div>
           <Label>URL</Label>
-          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://your-server.example/webhooks/openpartner" />
+          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.ru/webhooks/syntolk" />
         </div>
         <div>
-          <Label>Label (optional)</Label>
-          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="slack alerts" />
+          <Label>Название (необязательно)</Label>
+          <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="уведомления в Slack" />
         </div>
       </div>
       <div style={{ marginBottom: 16 }}>
-        <Label>Events</Label>
+          <Label>События</Label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {KNOWN_EVENTS.map((ev) => {
             const on = events.includes(ev);
@@ -459,9 +459,9 @@ function CreateEndpoint({
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={() => mut.mutate()} disabled={!url || events.length === 0 || mut.isPending}>
-          {mut.isPending ? 'Creating…' : 'Create endpoint'}
+          {mut.isPending ? 'Создаём…' : 'Создать эндпоинт'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Card>
   );
@@ -492,7 +492,7 @@ function SecretReveal({ plaintext }: { plaintext: string }) {
           setTimeout(() => setCopied(false), 1500);
         }}
       >
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? 'Скопировано' : 'Скопировать'}
       </Button>
     </div>
   );

@@ -5,7 +5,6 @@ import {
   Link2,
   Receipt,
   Banknote,
-  CreditCard,
   Users,
   Tag,
   ShieldCheck,
@@ -26,6 +25,7 @@ import {
   Menu,
   Palette,
   AlertTriangle,
+  FlaskConical,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { clearApiKey, api, type Principal } from './api.js';
@@ -35,10 +35,11 @@ import { useIsMobile } from './lib/useMediaQuery.js';
 import { useBrand, usePublicBrand } from './lib/useBrand.js';
 import { Dashboard } from './pages/Dashboard.js';
 import { LinksPage } from './pages/Links.js';
+import { ResourcesPage } from './pages/Resources.js';
 import { CommissionsPage } from './pages/Commissions.js';
 import { PayoutsPage } from './pages/Payouts.js';
-import { ConnectPage } from './pages/Connect.js';
 import { AdminPartners } from './pages/AdminPartners.js';
+import { AdminPartnerDetail } from './pages/AdminPartnerDetail.js';
 import { AdminPartnerPrograms } from './pages/AdminPartnerPrograms.js';
 import { AdminPartnerCoupons } from './pages/AdminPartnerCoupons.js';
 import { AdminPartnerCommission } from './pages/AdminPartnerCommission.js';
@@ -49,15 +50,14 @@ import { LoginPage } from './pages/auth/Login.js';
 import { MagicLandingPage } from './pages/auth/MagicLanding.js';
 import { WebhooksPage } from './pages/admin/Webhooks.js';
 import { AdminIntegrations } from './pages/admin/Integrations.js';
+import { PaymentSimulator } from './pages/admin/PaymentSimulator.js';
 import { AdminSettings } from './pages/admin/Settings.js';
-import { AdminBilling } from './pages/admin/Billing.js';
 import { AdminWhiteLabel } from './pages/admin/WhiteLabel.js';
 import { AdminAdmins } from './pages/admin/Admins.js';
 import { AdminNetwork } from './pages/admin/Network.js';
 import { AdminNetworkComplete } from './pages/admin/NetworkComplete.js';
 import { AdminNetworkRequests } from './pages/admin/NetworkRequests.js';
 import { AdminNetworkCreators } from './pages/admin/NetworkCreators.js';
-import { AdminNetworkBilling } from './pages/admin/NetworkBilling.js';
 import { DiscoverPage } from './pages/partner/Discover.js';
 import { OfferingDetailPage } from './pages/partner/OfferingDetail.js';
 import { VendorDetailPage } from './pages/partner/VendorDetail.js';
@@ -117,7 +117,7 @@ export function App() {
   // A host-resolved tenant means the whole origin belongs to that tenant:
   // mount the Shell at root (like single-tenant) instead of the platform
   // landing/signup table, so emailed links to /auth/magic and deep links
-  // like /admin/billing work without a /t/<slug>/ prefix.
+  // like public workspace routes work without a /t/<slug>/ prefix.
   const isMultiTenant = install.data?.reason === 'multi_tenant';
   const hostBrand = useQuery({
     queryKey: ['host-tenant-probe'],
@@ -222,7 +222,7 @@ function Shell() {
     setDrawerOpen(false);
   }, [location.pathname]);
 
-  if (auth.loading) return <CenteredMessage>Loading…</CenteredMessage>;
+  if (auth.loading) return <CenteredMessage>Загрузка…</CenteredMessage>;
   if (!auth.principal) return <Navigate to={`${tenantBase}/login`} state={{ from: location }} replace />;
 
   return (
@@ -243,9 +243,9 @@ function Shell() {
           <Route index element={<Dashboard principal={auth.principal} />} />
 
           <Route path="links" element={<LinksPage principal={auth.principal} />} />
+          <Route path="resources" element={<ResourcesPage />} />
           <Route path="commissions" element={<CommissionsPage principal={auth.principal} />} />
           <Route path="payouts" element={<PayoutsPage principal={auth.principal} />} />
-          <Route path="connect" element={<ConnectPage principal={auth.principal} />} />
 
           {/* Network discovery — open to anyone signed in (vendor admin can
               browse too). Hidden entirely for white-label tenants. */}
@@ -274,6 +274,7 @@ function Shell() {
           {auth.principal.role === 'admin' && (
             <>
               <Route path="admin/partners" element={<AdminPartners />} />
+              <Route path="admin/partners/:id" element={<AdminPartnerDetail />} />
               <Route path="admin/partners/:id/programs" element={<AdminPartnerPrograms />} />
               <Route path="admin/partners/:id/coupons" element={<AdminPartnerCoupons />} />
               <Route path="admin/partners/:id/commission" element={<AdminPartnerCommission />} />
@@ -283,9 +284,9 @@ function Shell() {
               <Route path="admin/fraud-review" element={<FraudReviewPage />} />
               <Route path="admin/webhooks" element={<WebhooksPage />} />
               <Route path="admin/integrations" element={<AdminIntegrations />} />
+              <Route path="admin/payment-simulator" element={<PaymentSimulator />} />
               <Route path="admin/admins" element={<AdminAdmins />} />
               <Route path="admin/settings" element={<AdminSettings />} />
-              <Route path="admin/billing" element={<AdminBilling />} />
               <Route path="admin/white-label" element={<AdminWhiteLabel />} />
               {/* Brand-side Network management — isolated for white-label. */}
               {!whiteLabel && (
@@ -294,7 +295,6 @@ function Shell() {
                   <Route path="admin/network/complete" element={<AdminNetworkComplete />} />
                   <Route path="admin/network/requests" element={<AdminNetworkRequests />} />
                   <Route path="admin/network/creators" element={<AdminNetworkCreators />} />
-                  <Route path="admin/network/billing" element={<AdminNetworkBilling />} />
                 </>
               )}
             </>
@@ -329,7 +329,7 @@ function MobileTopBar({ onMenu }: { onMenu: () => void }) {
     >
       <button
         onClick={onMenu}
-        aria-label="Open menu"
+        aria-label="Открыть меню"
         style={{
           background: 'transparent',
           border: 'none',
@@ -428,36 +428,36 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, overflow: 'auto' }}>
         {/* Top-level nav — no header, always visible. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <NavItem to="/" icon={<LayoutDashboard size={16} />}>Dashboard</NavItem>
-          <NavItem to="/links" icon={<Link2 size={16} />}>Links</NavItem>
-          <NavItem to="/commissions" icon={<Receipt size={16} />}>Commissions</NavItem>
-          <NavItem to="/payouts" icon={<Banknote size={16} />}>Payouts</NavItem>
-          {principal.role === 'partner' && <NavItem to="/connect" icon={<CreditCard size={16} />}>Stripe Connect</NavItem>}
-          {principal.role === 'partner' && <NavItem to="/postbacks" icon={<Webhook size={16} />}>Postbacks</NavItem>}
+          <NavItem to="/" icon={<LayoutDashboard size={16} />}>Главная</NavItem>
+          <NavItem to="/links" icon={<Link2 size={16} />}>Ссылки</NavItem>
+          {principal.role === 'partner' && <NavItem to="/resources" icon={<Megaphone size={16} />}>Материалы</NavItem>}
+          <NavItem to="/commissions" icon={<Receipt size={16} />}>Комиссии</NavItem>
+          <NavItem to="/payouts" icon={<Banknote size={16} />}>Выплаты</NavItem>
+          {principal.role === 'partner' && <NavItem to="/postbacks" icon={<Webhook size={16} />}>Постбэки</NavItem>}
         </div>
 
         {principal.role === 'partner' && !whiteLabel && (
-          <NavSection title="Network" collapsible storageKey="partner-network">
-            <NavItem to="/network/discover" icon={<Globe size={16} />}>Discover programs</NavItem>
-            <NavItem to="/network/affiliations" icon={<Megaphone size={16} />}>My partnerships</NavItem>
-            <NavItem to="/network/requests" icon={<Inbox size={16} />}>My applications</NavItem>
-            <NavItem to="/network/profile" icon={<UserCog size={16} />}>Network profile</NavItem>
+          <NavSection title="Сеть партнёров" collapsible storageKey="partner-network">
+            <NavItem to="/network/discover" icon={<Globe size={16} />}>Найти программы</NavItem>
+            <NavItem to="/network/affiliations" icon={<Megaphone size={16} />}>Мои партнёрства</NavItem>
+            <NavItem to="/network/requests" icon={<Inbox size={16} />}>Мои заявки</NavItem>
+            <NavItem to="/network/profile" icon={<UserCog size={16} />}>Профиль в сети</NavItem>
           </NavSection>
         )}
 
         {principal.role === 'admin' && (
-          <NavSection title="Admin" collapsible storageKey="admin-admin">
-            <NavItem to="/admin/partners" icon={<Users size={16} />}>Partners</NavItem>
-            <NavItem to="/admin/programs" icon={<Tag size={16} />}>Programs</NavItem>
-            <NavItem to="/admin/review" icon={<ShieldCheck size={16} />}>Review queue</NavItem>
-            <NavItem to="/admin/export" icon={<Download size={16} />}>Export / import</NavItem>
-            <NavItem to="/admin/fraud-review" icon={<ShieldCheck size={16} />}>Fraud review</NavItem>
-            <NavItem to="/admin/webhooks" icon={<Webhook size={16} />}>Webhooks</NavItem>
-            <NavItem to="/admin/integrations" icon={<Link2 size={16} />}>CRM integration</NavItem>
-            <NavItem to="/admin/admins" icon={<UserCog size={16} />}>Admins</NavItem>
-            <NavItem to="/admin/settings" icon={<Settings size={16} />}>Settings</NavItem>
-            <NavItem to="/admin/billing" icon={<CreditCard size={16} />}>Billing</NavItem>
-            <NavItem to="/admin/white-label" icon={<Palette size={16} />}>White label</NavItem>
+          <NavSection title="Администрирование" collapsible storageKey="admin-admin">
+            <NavItem to="/admin/partners" icon={<Users size={16} />}>Партнёры</NavItem>
+            <NavItem to="/admin/programs" icon={<Tag size={16} />}>Программы</NavItem>
+            <NavItem to="/admin/review" icon={<ShieldCheck size={16} />}>Очередь проверки</NavItem>
+            <NavItem to="/admin/export" icon={<Download size={16} />}>Экспорт / импорт</NavItem>
+            <NavItem to="/admin/fraud-review" icon={<ShieldCheck size={16} />}>Проверка мошенничества</NavItem>
+            <NavItem to="/admin/webhooks" icon={<Webhook size={16} />}>Вебхуки</NavItem>
+            <NavItem to="/admin/integrations" icon={<Link2 size={16} />}>Интеграция с CRM</NavItem>
+            <NavItem to="/admin/payment-simulator" icon={<FlaskConical size={16} />}>Тестовые платежи</NavItem>
+            <NavItem to="/admin/admins" icon={<UserCog size={16} />}>Администраторы</NavItem>
+            <NavItem to="/admin/settings" icon={<Settings size={16} />}>Настройки</NavItem>
+            <NavItem to="/admin/white-label" icon={<Palette size={16} />}>Белая метка</NavItem>
           </NavSection>
         )}
 
@@ -817,12 +817,12 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
           >
             {(workspaces.isLoading || identities.isLoading) && (
               <div style={{ padding: '8px 10px', fontSize: 12, color: theme.textMuted }}>
-                Loading…
+                Загрузка…
               </div>
             )}
 
             {!workspaces.isLoading && hasMany && (
-              <SwitcherSectionLabel>Brands for this account</SwitcherSectionLabel>
+              <SwitcherSectionLabel>Компании этого аккаунта</SwitcherSectionLabel>
             )}
             {allWorkspaces.map((w) => {
               const active = w.tenantSlug === currentSlug;
@@ -843,7 +843,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
 
             {otherIdentities.length > 0 && (
               <>
-                <SwitcherSectionLabel>Other accounts</SwitcherSectionLabel>
+                <SwitcherSectionLabel>Другие аккаунты</SwitcherSectionLabel>
                 {otherIdentities.map((id) => {
                   const busy = busyAction === `switch:${id.sessionId}` || busyAction === `remove:${id.sessionId}`;
                   return (
@@ -854,7 +854,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
                       disabled={busyAction !== null}
                       onClick={() => switchIdentity(id.sessionId)}
                       title={id.email}
-                      subtitle="Click to switch"
+                      subtitle="Нажмите, чтобы переключиться"
                       right={
                         <button
                           onClick={(e) => {
@@ -864,7 +864,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
                             }
                           }}
                           disabled={busyAction !== null}
-                          title="Remove account from this device"
+                          title="Удалить аккаунт с этого устройства"
                           style={{
                             background: 'transparent',
                             border: 'none',
@@ -901,7 +901,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
                     onMouseLeave={switcherActionHoverOff}
                   >
                     <Plus size={14} />
-                    Add another account
+                    Добавить аккаунт
                   </a>
                   {/* Honest label (§13): a new brand is its own independently-
                       billed tenant that shares this sign-in — not a free
@@ -915,7 +915,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
                     onMouseLeave={switcherActionHoverOff}
                   >
                     <Plus size={14} />
-                    Create a new brand (own plan)
+                    Создать новую компанию (отдельный тариф)
                   </a>
                 </>
               )}
@@ -927,7 +927,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
                 onMouseLeave={switcherActionHoverOff}
               >
                 <LogOut size={14} />
-                Sign out {activeIdentity ? activeIdentity.email : ''}
+                Выйти {activeIdentity ? activeIdentity.email : ''}
               </button>
               {identityRows.length > 1 && (
                 <button
@@ -942,7 +942,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
                   }}
                 >
                   <LogOut size={14} />
-                  Sign out all accounts
+                  Выйти из всех аккаунтов
                 </button>
               )}
             </div>
@@ -1225,13 +1225,12 @@ function NetworkNav() {
   });
   const connected = !!(data?.enabled && data.hasVendorToken);
   return (
-    <NavSection title="Network" collapsible storageKey="admin-network">
-      <NavItem to="/admin/network" icon={<Globe size={16} />} exact>{connected ? 'Connection' : 'Get connected'}</NavItem>
+    <NavSection title="Сеть партнёров" collapsible storageKey="admin-network">
+      <NavItem to="/admin/network" icon={<Globe size={16} />} exact>{connected ? 'Подключено' : 'Подключиться'}</NavItem>
       {connected && (
         <>
-          <NavItem to="/admin/network/requests" icon={<Inbox size={16} />}>Requests</NavItem>
-          <NavItem to="/admin/network/creators" icon={<Users size={16} />}>Discover creators</NavItem>
-          <NavItem to="/admin/network/billing" icon={<CreditCard size={16} />}>Billing</NavItem>
+          <NavItem to="/admin/network/requests" icon={<Inbox size={16} />}>Заявки</NavItem>
+          <NavItem to="/admin/network/creators" icon={<Users size={16} />}>Найти авторов</NavItem>
         </>
       )}
     </NavSection>
@@ -1297,7 +1296,7 @@ function NavItem({
   );
 }
 
-function Logo({ size = 26, alt = 'OpenPartner' }: { size?: number; alt?: string } = {}) {
+function Logo({ size = 26, alt = 'Syntolk' }: { size?: number; alt?: string } = {}) {
   return (
     <img
       src="/logo-mark-green.svg"
@@ -1384,13 +1383,13 @@ function PendingReviewBanner({ isMobile, onDismiss }: { isMobile: boolean; onDis
       >
         <AlertTriangle size={18} color={theme.warn} style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.5, color: theme.text }}>
-          <strong style={{ color: theme.warn }}>Your brand is under review.</strong>{' '}
-          You can set up your program now, but partner links won&rsquo;t redirect and you can&rsquo;t invite
-          partners until an OpenPartner operator approves your account.
+          <strong style={{ color: theme.warn }}>Ваша компания проходит проверку.</strong>{' '}
+          Вы уже можете настроить программу, но партнёрские ссылки пока не будут перенаправлять пользователей,
+          и приглашать партнёров нельзя, пока оператор Syntolk не одобрит вашу учётную запись.
         </div>
         <button
           onClick={onDismiss}
-          aria-label="Dismiss"
+          aria-label="Скрыть"
           style={{
             background: 'transparent',
             border: 'none',

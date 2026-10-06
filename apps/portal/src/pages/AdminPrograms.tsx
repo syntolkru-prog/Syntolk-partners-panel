@@ -93,11 +93,11 @@ export function AdminPrograms() {
 
   return (
     <Page
-      title="Programs"
-      subtitle="Commission rules, attribution windows, and models applied to partner clicks."
+       title="Программы"
+       subtitle="Правила комиссий, окна атрибуции и модели, применяемые к партнёрским кликам."
       actions={
         <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
-          New campaign
+           Новая кампания
         </Button>
       }
     >
@@ -125,12 +125,12 @@ export function AdminPrograms() {
           duplicating the row being edited is just visual noise, and on a
           single-program tenant it pushes the form off-screen. */}
       {editing || showCreate ? null : campaigns.isLoading ? (
-        <Card>Loading…</Card>
+         <Card>Загрузка…</Card>
       ) : (campaigns.data?.programs ?? []).length === 0 ? (
-        <EmptyState title="No programs yet" hint="A program holds the commission rule and attribution settings." icon={<Tag size={28} strokeWidth={1.25} />} />
+         <EmptyState title="Программ пока нет" hint="Программа содержит правила комиссии и настройки атрибуции." icon={<Tag size={28} strokeWidth={1.25} />} />
       ) : (
         <Table
-          columns={['Name', 'Status', 'Destination', 'Commission', 'Window', 'Holdback', 'Model', 'Created', 'Actions']}
+           columns={['Название', 'Статус', 'Назначение', 'Комиссия', 'Окно', 'Отсрочка', 'Модель', 'Создано', 'Действия']}
           rows={(campaigns.data?.programs ?? []).map((c) => {
             const status = statusOf(c);
             return [
@@ -139,15 +139,15 @@ export function AdminPrograms() {
               <span style={{ color: theme.textMuted, fontSize: 12, fontFamily: theme.fontMono }}>
                 {c.destinationUrl ? new URL(c.destinationUrl).hostname + new URL(c.destinationUrl).pathname.replace(/\/$/, '') : '—'}
                 {c.deepLinkAllowedDomains && (
-                  <span style={{ color: theme.accent, fontSize: 11, marginLeft: 8 }}>+ deep links</span>
+                   <span style={{ color: theme.accent, fontSize: 11, marginLeft: 8 }}>+ дополнительная ссылка</span>
                 )}
               </span>,
               <span style={{ fontSize: 13 }}>{summarizeRules(c.commissionRule, c.customerReward)}</span>,
-              <span style={{ color: theme.textMuted }}>{c.attributionWindowDays}d</span>,
+              <span style={{ color: theme.textMuted }}>{c.attributionWindowDays} дн.</span>,
               <span style={{ color: c.holdbackDays ? theme.text : theme.textDim }}>
-                {c.holdbackDays ? `${c.holdbackDays}d` : '—'}
+                {c.holdbackDays ? `${c.holdbackDays} дн.` : '—'}
               </span>,
-              <code style={{ color: theme.accent, fontSize: 12 }}>{c.attributionModel}</code>,
+              <span style={{ color: theme.accent, fontSize: 12 }}>{modelLabel(c.attributionModel)}</span>,
               <span style={{ color: theme.textMuted }}>{formatDate(c.createdAt, { relative: true })}</span>,
               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                 <button
@@ -155,20 +155,20 @@ export function AdminPrograms() {
                   onClick={() => setEditing(c)}
                   style={smallActionStyle(theme.textMuted)}
                 >
-                  Edit
+                   Изменить
                 </button>
                 {status !== 'ended' && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (confirm(`End "${c.name}" now? Existing share-links keep redirecting; new commissions stop accruing.`)) {
+                       if (confirm(`Завершить кампанию «${c.name}» сейчас? Существующие ссылки продолжат работать, но новые комиссии начисляться не будут.`)) {
                         endNow.mutate(c.id);
                       }
                     }}
                     disabled={endNow.isPending}
                     style={smallActionStyle(theme.danger)}
                   >
-                    End now
+                     Завершить сейчас
                   </button>
                 )}
               </div>,
@@ -253,36 +253,36 @@ function EditProgramDates({
   return (
     <Card style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>
-        Edit campaign — {campaign.name}
+         Редактирование кампании — {campaign.name}
       </div>
       <ErrorBanner error={save.error} />
 
       <div style={{ marginTop: 14, fontSize: 12, color: theme.textMuted, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-        Schedule
+         Расписание
       </div>
       <p style={{ fontSize: 12, color: theme.textDim, margin: '4px 0 12px' }}>
-        Setting <strong>Ends</strong> to a past date marks the campaign Ended immediately. Past the
-        end date, existing share-links keep redirecting but no new commissions accrue.
+         Если указать прошедшую дату в поле <strong>Окончание</strong>, кампания сразу получит статус «Завершена».
+         После этой даты существующие ссылки продолжат работать, но новые комиссии начисляться не будут.
       </p>
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
         <div>
-          <Label>Starts</Label>
+           <Label>Начало</Label>
           <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>
-            Blank = started immediately. Future date hides from creators until then.
+             Пустое значение — начать сразу. До будущей даты кампания скрыта от партнёров.
           </div>
         </div>
         <div>
-          <Label>Ends</Label>
+           <Label>Окончание</Label>
           <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>
-            Blank = runs indefinitely.
+             Пустое значение — без ограничения по времени.
           </div>
         </div>
       </div>
 
       <div style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-        Terms
+         Условия
       </div>
       <div
         style={{
@@ -295,9 +295,9 @@ function EditProgramDates({
           color: theme.text,
         }}
       >
-        Editing the rate or holdback affects <strong>new partnerships only</strong>. Existing
-        partners keep the rate they were approved under — the snapshot is stamped at approval
-        time and stored on PartnerCommission, queried at accrual.
+         Изменение ставки или отсрочки влияет только на <strong>новые партнёрства</strong>.
+         Действующие партнёры сохраняют ставку, с которой были одобрены: снимок условий фиксируется
+         при одобрении и используется при начислении.
       </div>
       <CompoundRuleEditor rules={rules} onChange={setRules} />
       <CustomerRewardEditor reward={customerReward} onChange={setCustomerReward} />
@@ -318,14 +318,14 @@ function EditProgramDates({
         />
       )}
       <div style={{ marginBottom: 16 }}>
-        <Label>Payout holdback (days)</Label>
+         <Label>Отсрочка выплаты (дни)</Label>
         <Select value={holdbackDays} onChange={(e) => setHoldbackDays(e.target.value)}>
-          <option value="0">None</option>
-          <option value="7">7 days</option>
-          <option value="14">14 days</option>
-          <option value="30">30 days</option>
-          <option value="60">60 days</option>
-          <option value="90">90 days</option>
+           <option value="0">Нет</option>
+           <option value="7">7 дней</option>
+           <option value="14">14 дней</option>
+           <option value="30">30 дней</option>
+           <option value="60">60 дней</option>
+           <option value="90">90 дней</option>
         </Select>
       </div>
 
@@ -338,9 +338,9 @@ function EditProgramDates({
             (shareOnNetwork && !marketplaceDescription.trim())
           }
         >
-          {save.isPending ? 'Saving…' : 'Save changes'}
+           {save.isPending ? 'Сохраняем…' : 'Сохранить изменения'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+         <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Card>
   );
@@ -429,19 +429,19 @@ function CreateProgram({ onClose, onCreated }: { onClose: () => void; onCreated:
 
   return (
     <Card style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 14 }}>New campaign</div>
+       <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 14 }}>Новая кампания</div>
       <ErrorBanner error={mut.error} />
       <div style={{ marginBottom: 14 }}>
-        <Label>Name</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Default" />
+         <Label>Название</Label>
+         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Например, основная программа" />
       </div>
       <div style={{ marginBottom: 14 }}>
-        <Label>Destination URL</Label>
+         <Label>URL назначения</Label>
         <Input
           type="url"
           value={destinationUrl}
           onChange={(e) => setDestinationUrl(e.target.value)}
-          placeholder="https://yourbrand.com/landing-page"
+           placeholder="https://syntolk.ru/landing-page"
         />
         {urlProblem ? (
           <div style={{ fontSize: 12, color: theme.danger, marginTop: 4 }}>
@@ -454,26 +454,28 @@ function CreateProgram({ onClose, onCreated }: { onClose: () => void; onCreated:
                   onClick={() => setDestinationUrl(schemeFix)}
                   style={{ background: 'none', border: 'none', color: theme.accent, cursor: 'pointer', padding: 0, fontSize: 12, textDecoration: 'underline' }}
                 >
-                  Use {schemeFix}
+                   Использовать {schemeFix}
                 </button>
               </>
             )}
           </div>
         ) : (
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>
-            Where partner share-links for this campaign land. Partners can&rsquo;t change this unless you allow deep links below.
+             Адрес, на который ведут партнёрские ссылки этой кампании. Партнёры не смогут изменить его,
+             если ниже не разрешить дополнительные адреса.
           </div>
         )}
       </div>
       <div style={{ marginBottom: 14 }}>
-        <Label>Allowed deep-link domains (optional)</Label>
+         <Label>Разрешённые домены дополнительных адресов (необязательно)</Label>
         <Input
           value={deepLinkDomains}
           onChange={(e) => setDeepLinkDomains(e.target.value)}
-          placeholder="yourbrand.com,docs.yourbrand.com"
+           placeholder="syntolk.ru,docs.syntolk.ru"
         />
         <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>
-          Comma-separated host list. Partners can override the destination on share-links as long as their override matches one of these. Leave blank to lock destinations.
+           Список доменов через запятую. Партнёры смогут менять адрес ссылки только на один из этих доменов.
+           Оставьте поле пустым, чтобы запретить изменение адреса.
         </div>
       </div>
       <CompoundRuleEditor rules={rules} onChange={setRules} />
@@ -494,64 +496,65 @@ function CreateProgram({ onClose, onCreated }: { onClose: () => void; onCreated:
       )}
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14, marginBottom: 16 }}>
         <div>
-          <Label>Attribution window (days)</Label>
+           <Label>Окно атрибуции (дни)</Label>
           <Input type="number" value={windowDays} onChange={(e) => setWindowDays(e.target.value)} />
         </div>
         <div>
           <LabelWithHelp
-            label="Attribution model"
+             label="Модель атрибуции"
             help={[
-              'Which click gets the commission when a conversion has multiple touches in the window.',
+               'Какому клику назначается комиссия, если в окне было несколько взаимодействий.',
               '',
-              'Last click — the most recent click gets 100%. Simple, predictable, the default for most programs.',
-              'First click — the very first click gets 100%. Rewards partners who introduced the brand.',
-              'Linear — every click in the window splits the commission evenly.',
-              'Position (40 / 20 / 40) — first + last click get 40% each, middle clicks split the remaining 20%.',
+               'Последний клик — последний клик получает 100%. Простой и предсказуемый вариант по умолчанию.',
+               'Первый клик — самый первый клик получает 100%. Поощряет партнёра, который представил компанию.',
+               'Линейная — комиссия равномерно делится между всеми кликами в окне.',
+               'Позиционная (40 / 20 / 40) — первый и последний клик получают по 40%, средние делят оставшиеся 20%.',
             ].join('\n')}
           />
           <Select value={model} onChange={(e) => setModel(e.target.value as typeof model)}>
-            <option value="last_click">Last click</option>
-            <option value="first_click">First click</option>
-            <option value="linear">Linear</option>
-            <option value="position">Position (40 / 20 / 40)</option>
+             <option value="last_click">Последний клик</option>
+             <option value="first_click">Первый клик</option>
+             <option value="linear">Линейная</option>
+             <option value="position">Позиционная (40 / 20 / 40)</option>
           </Select>
         </div>
       </div>
       <div style={{ marginBottom: 16 }}>
         <LabelWithHelp
-          label="Payout holdback (days)"
+           label="Отсрочка выплаты (дни)"
           help={[
-            'How long a commission must age past the conversion before it can be paid out.',
+             'Сколько дней после конверсии комиссия должна находиться в ожидании перед выплатой.',
             '',
-            'Set this to match your refund window or trial period — e.g. 30 days for a SaaS with a 30-day money-back guarantee, or 14 for a 14-day trial. Commissions accrue immediately on conversion but stay in "holdback" until this window elapses.',
+             'Настройте срок под окно возврата или пробный период — например, 30 дней для гарантии возврата или 14 дней для пробного периода. Комиссия начисляется сразу, но остаётся в отсрочке до окончания срока.',
             '',
-            'Visible to creators on the program listing so they know your terms before applying.',
+             'Срок виден партнёрам в описании программы до подачи заявки.',
             '',
-            '0 (default) = no holdback, commissions can be approved as soon as they accrue.',
+             '0 (по умолчанию) = без отсрочки, комиссию можно подтвердить сразу после начисления.',
           ].join('\n')}
         />
         <Select value={holdbackDays} onChange={(e) => setHoldbackDays(e.target.value)}>
-          <option value="0">None — approve immediately</option>
-          <option value="7">7 days</option>
-          <option value="14">14 days (matches a 14-day trial)</option>
-          <option value="30">30 days (matches a 30-day refund window)</option>
-          <option value="60">60 days</option>
-          <option value="90">90 days</option>
+           <option value="0">Нет — подтверждать сразу</option>
+           <option value="7">7 дней</option>
+           <option value="14">14 дней (как пробный период)</option>
+           <option value="30">30 дней (как срок возврата)</option>
+           <option value="60">60 дней</option>
+           <option value="90">90 дней</option>
         </Select>
       </div>
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
         <div>
-          <Label>Starts (optional)</Label>
+           <Label>Начало (необязательно)</Label>
           <Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>
-            Leave blank to start immediately. Before this date the campaign is hidden from creators.
+             Оставьте пустым, чтобы начать сразу. До этой даты кампания скрыта от партнёров.
           </div>
         </div>
         <div>
-          <Label>Ends (optional)</Label>
+           <Label>Окончание (необязательно)</Label>
           <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>
-            Leave blank to run indefinitely. Past this date existing share-links keep redirecting but no new commissions accrue.
+             Оставьте пустым, чтобы кампания работала бессрочно. После этой даты ссылки продолжат работать,
+             но новые комиссии начисляться не будут.
           </div>
         </div>
       </div>
@@ -562,11 +565,11 @@ function CreateProgram({ onClose, onCreated }: { onClose: () => void; onCreated:
             checked={grantToAllPartners}
             onChange={(e) => setGrantToAllPartners(e.target.checked)}
           />
-          Also grant access to all existing partners
+           Также дать доступ всем действующим партнёрам
         </label>
         <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4, marginLeft: 24 }}>
-          Off by default so VIP / scoped campaigns stay private. Only affects the current
-          partner roster &mdash; new invitees still need to be granted explicitly.
+           По умолчанию выключено, чтобы закрытые кампании оставались приватными. Настройка действует
+           только на текущий список партнёров — новым приглашённым доступ нужно выдать отдельно.
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -582,9 +585,9 @@ function CreateProgram({ onClose, onCreated }: { onClose: () => void; onCreated:
             mut.isPending
           }
         >
-          {mut.isPending ? 'Creating…' : 'Create campaign'}
+           {mut.isPending ? 'Создаём…' : 'Создать кампанию'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+         <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Card>
   );
@@ -618,9 +621,9 @@ function CompoundRuleEditor({
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <Label>Commission rules</Label>
+         <Label>Правила комиссии</Label>
         <span style={{ fontSize: 12, color: theme.textDim }}>
-          Multiple rules combine — e.g. one-time bonus + recurring revenue share.
+           Правила складываются — например, разовый бонус плюс регулярная доля выручки.
         </span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
@@ -646,7 +649,7 @@ function CompoundRuleEditor({
           cursor: 'pointer',
         }}
       >
-        + Add bonus or rule
+         + Добавить бонус или правило
       </button>
     </div>
   );
@@ -658,10 +661,10 @@ function CompoundRuleEditor({
  *  hatch in the UI so a typo doesn't silently misroute commissions to
  *  an event that never fires. */
 const STANDARD_EVENT_TYPES = [
-  { value: 'invoice_paid', label: 'Invoice paid' },
-  { value: 'subscription_created', label: 'Subscription created' },
-  { value: 'trial_started', label: 'Trial started' },
-  { value: 'signup', label: 'Signup' },
+  { value: 'invoice_paid', label: 'Счёт оплачен' },
+  { value: 'subscription_created', label: 'Подписка создана' },
+  { value: 'trial_started', label: 'Пробный период начат' },
+  { value: 'signup', label: 'Регистрация' },
 ] as const;
 const STANDARD_EVENT_VALUES: ReadonlySet<string> = new Set(STANDARD_EVENT_TYPES.map((e) => e.value));
 
@@ -710,9 +713,9 @@ function SubRuleRow({
           onChange(patch);
         }}
       >
-        <option value="every">On every</option>
-        <option value="first">On first</option>
-        <option value="subsequent">On every subsequent</option>
+        <option value="every">На каждое событие</option>
+        <option value="first">Только первое</option>
+        <option value="subsequent">На каждое последующее</option>
       </Select>
       <Select
         value={eventSelectValue}
@@ -732,15 +735,15 @@ function SubRuleRow({
       >
         {/* Empty-string option only meaningful for 'every' — 'first' and
             'subsequent' require a specific eventType, so we hide it. */}
-        {rule.trigger === 'every' && <option value="">All events with value</option>}
+       {rule.trigger === 'every' && <option value="">Все события со значением</option>}
         {STANDARD_EVENT_TYPES.map((e) => (
           <option key={e.value} value={e.value}>{e.label}</option>
         ))}
-        <option value="__custom__">Custom event…</option>
+       <option value="__custom__">Пользовательское событие…</option>
       </Select>
       <Select value={rule.type} onChange={(e) => onChange({ type: e.target.value as 'percent' | 'fixed' })}>
-        <option value="percent">Percent</option>
-        <option value="fixed">Fixed $</option>
+         <option value="percent">Процент</option>
+         <option value="fixed">Фиксированная сумма</option>
       </Select>
       <Input
         type="number"
@@ -753,13 +756,13 @@ function SubRuleRow({
           checked={rule.recurring ?? false}
           onChange={(e) => onChange({ recurring: e.target.checked, recurringMonths: e.target.checked ? rule.recurringMonths : undefined })}
         />
-        Recurring
+         Регулярная
       </label>
       {onRemove ? (
         <button
           type="button"
           onClick={onRemove}
-          aria-label="Remove rule"
+          aria-label="Удалить правило"
           style={{
             background: 'transparent',
             border: 'none',
@@ -776,9 +779,9 @@ function SubRuleRow({
       )}
       {isCustomEvent && (
         <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: theme.textMuted }}>Custom event name</span>
+           <span style={{ fontSize: 12, color: theme.textMuted }}>Название события</span>
           <Input
-            placeholder="e.g. demo_booked"
+             placeholder="например, demo_booked"
             value={rule.eventType ?? ''}
             onChange={(e) => onChange({ eventType: e.target.value.trim() || undefined })}
           />
@@ -786,15 +789,15 @@ function SubRuleRow({
       )}
       {rule.recurring && (
         <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'auto 120px 1fr', gap: 8, alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: theme.textMuted }}>Cap recurring at</span>
+           <span style={{ fontSize: 12, color: theme.textMuted }}>Ограничить регулярные начисления</span>
           <Input
             type="number"
             placeholder="∞"
             value={rule.recurringMonths ?? ''}
             onChange={(e) => onChange({ recurringMonths: e.target.value ? Number(e.target.value) : undefined })}
           />
-          <span style={{ fontSize: 12, color: theme.textDim }}>
-            months from the partner's first attributed event of this type. Blank = no cap.
+             <span style={{ fontSize: 12, color: theme.textDim }}>
+             месяцев с первого атрибуцированного события этого типа. Пустое значение — без ограничения.
           </span>
         </div>
       )}
@@ -823,14 +826,12 @@ function PartnerCodeCustomizationField({
     <div style={{ marginBottom: 16 }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: theme.text, marginBottom: 6 }}>
         <input type="checkbox" checked={enabled} onChange={(e) => onChange(e.target.checked)} />
-        Let partners customize their coupon code
+         Разрешить партнёрам менять промокод
       </label>
       <div style={{ fontSize: 12, color: theme.textDim, marginLeft: 24 }}>
-        Off (default) = you control every code. On = creators can pick a
-        vanity code from their dashboard (e.g. <code>GRACIE15</code>). The
-        discount terms above stay locked — partners only change the string.
-        Renaming replaces the previous code; anyone using the old one at
-        checkout gets an invalid-code error.
+         Выключено (по умолчанию) — все коды контролирует администратор. Включено — партнёр сможет
+         выбрать короткий код в своём кабинете (например, <code>GRACIE15</code>). Условия скидки остаются
+         неизменными — партнёр меняет только текст кода. При переименовании старый код перестаёт работать.
       </div>
     </div>
   );
@@ -880,20 +881,20 @@ function MarketplaceFields({
           checked={shareOnNetwork}
           onChange={(e) => onShareChange(e.target.checked)}
         />
-        List on the OpenPartner Network marketplace
+        Разместить в сети Syntolk
       </label>
       <div style={{ fontSize: 12, color: theme.textDim, marginLeft: 24, marginBottom: shareOnNetwork ? 12 : 0 }}>
-        Creators on the marketplace can discover this campaign and apply.
-        Off = private (existing partners only — VIP / scoped programs).
+         Партнёры в каталоге смогут найти эту кампанию и подать заявку.
+         Выключено = приватная кампания (только действующие партнёры).
       </div>
       {shareOnNetwork && (
         <div style={{ marginLeft: 24 }}>
-          <Label>Marketplace description <span style={{ color: theme.danger }}>*</span></Label>
+           <Label>Описание в каталоге <span style={{ color: theme.danger }}>*</span></Label>
           <textarea
             value={description}
             onChange={(e) => onDescriptionChange(e.target.value)}
             rows={3}
-            placeholder="What you sell, who it's for, why it converts."
+             placeholder="Что вы предлагаете, для кого это и почему это интересно клиентам."
             required
             style={{
               width: '100%',
@@ -908,9 +909,9 @@ function MarketplaceFields({
             }}
           />
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4, marginBottom: 12 }}>
-            Public copy on the discover card. Required when listed on the marketplace.
+             Публичное описание в карточке каталога. Обязательно, если кампания опубликована.
           </div>
-          <Label>Categories (up to 5)</Label>
+           <Label>Категории (до 5)</Label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
             {PROGRAM_CATEGORIES.map((cat) => {
               const selected = categories.includes(cat.slug);
@@ -938,8 +939,8 @@ function MarketplaceFields({
             })}
           </div>
           <div style={{ fontSize: 12, color: theme.textDim, marginTop: 4 }}>
-            Helps creators filter the marketplace. Pick the closest matches —
-            don&rsquo;t tag every category, it dilutes filtering.
+             Помогает партнёрам фильтровать каталог. Выбирайте только подходящие категории —
+             слишком большое число меток ухудшает поиск.
           </div>
         </div>
       )}
@@ -973,11 +974,11 @@ function CustomerRewardEditor({
             )
           }
         />
-        Offer customer-side discount (dual-sided)
+        Дать клиенту скидку (двусторонняя программа)
       </label>
       <div style={{ fontSize: 12, color: theme.textDim, marginLeft: 24, marginBottom: 8 }}>
-        Auto-provisioned as a Stripe coupon on each partner's code. Customer types
-        the code at your Stripe checkout → discount applies automatically.
+        Автоматически создаётся на коде партнёра. Клиент вводит код при оплате в CloudPayments,
+        после чего скидка применяется по правилам вашей программы.
       </div>
       {enabled && reward && (
         <div
@@ -993,7 +994,7 @@ function CustomerRewardEditor({
           }}
         >
           <div>
-            <Label>Type</Label>
+         <Label>Тип</Label>
             <Select
               value={reward.type}
               onChange={(e) => {
@@ -1005,13 +1006,13 @@ function CustomerRewardEditor({
                 }
               }}
             >
-              <option value="percent_off">% off</option>
-              <option value="amount_off">$ off</option>
-              <option value="free_months">Free months</option>
+           <option value="percent_off">Скидка в %</option>
+           <option value="amount_off">Скидка в валюте</option>
+           <option value="free_months">Бесплатные месяцы</option>
             </Select>
           </div>
           <div>
-            <Label>{reward.type === 'free_months' ? 'Months' : 'Value'}</Label>
+             <Label>{reward.type === 'free_months' ? 'Месяцы' : 'Значение'}</Label>
             <Input
               type="number"
               value={reward.value}
@@ -1020,7 +1021,7 @@ function CustomerRewardEditor({
           </div>
           {reward.type === 'amount_off' ? (
             <div>
-              <Label>Currency</Label>
+               <Label>Валюта</Label>
               <Input
                 value={reward.currency ?? ''}
                 placeholder="USD"
@@ -1032,11 +1033,11 @@ function CustomerRewardEditor({
           )}
           {reward.type === 'free_months' ? (
             <span style={{ fontSize: 12, color: theme.textDim, paddingBottom: 8 }}>
-              Delivered as a 100% Stripe coupon for the configured number of months.
+              Скидка 100% применяется на заданное количество месяцев в платёжной системе.
             </span>
           ) : (
             <div>
-              <Label>Duration</Label>
+               <Label>Срок действия</Label>
               <Select
                 value={reward.duration}
                 onChange={(e) => {
@@ -1047,21 +1048,21 @@ function CustomerRewardEditor({
                   });
                 }}
               >
-                <option value="once">First invoice only</option>
-                <option value="forever">Every invoice</option>
-                <option value="repeating">First N months</option>
+                 <option value="once">Только первый счёт</option>
+                 <option value="forever">Каждый счёт</option>
+                 <option value="repeating">Первые N месяцев</option>
               </Select>
             </div>
           )}
           {reward.type !== 'free_months' && reward.duration === 'repeating' && (
             <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'auto 120px 1fr', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: theme.textMuted }}>Apply for</span>
+               <span style={{ fontSize: 12, color: theme.textMuted }}>Применять</span>
               <Input
                 type="number"
                 value={reward.durationInMonths ?? ''}
                 onChange={(e) => update({ durationInMonths: e.target.value ? Number(e.target.value) : undefined })}
               />
-              <span style={{ fontSize: 12, color: theme.textDim }}>months from the customer's first invoice.</span>
+               <span style={{ fontSize: 12, color: theme.textDim }}>месяцев с первого счёта клиента.</span>
             </div>
           )}
         </div>
@@ -1082,11 +1083,11 @@ function destinationUrlProblem(value: string): string | null {
   try {
     const url = new URL(v);
     if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      return 'Must be an http(s) address.';
+      return 'Укажите адрес http(s).';
     }
     return null;
   } catch {
-    return 'Must be a full URL starting with https:// — e.g. https://yourbrand.com/landing.';
+    return 'Укажите полный URL, начинающийся с https:// — например, https://syntolk.ru/landing.';
   }
 }
 
@@ -1108,9 +1109,9 @@ function LabelWithHelp({ label, help }: { label: string; help: string }) {
 function ProgramStatusPill({ campaign }: { campaign: Pick<Program, 'startsAt' | 'endsAt'> }) {
   const status = statusOf(campaign);
   const palette: Record<ProgramStatus, { bg: string; fg: string; label: string }> = {
-    active: { bg: theme.successSoft, fg: theme.success, label: 'Active' },
-    scheduled: { bg: `${theme.accentA15}`, fg: theme.accent, label: 'Scheduled' },
-    ended: { bg: theme.surface2, fg: theme.textMuted, label: 'Ended' },
+    active: { bg: theme.successSoft, fg: theme.success, label: 'Активна' },
+    scheduled: { bg: `${theme.accentA15}`, fg: theme.accent, label: 'Запланирована' },
+    ended: { bg: theme.surface2, fg: theme.textMuted, label: 'Завершена' },
   };
   const { bg, fg, label } = palette[status];
   return (
@@ -1118,4 +1119,12 @@ function ProgramStatusPill({ campaign }: { campaign: Pick<Program, 'startsAt' | 
       {label}
     </span>
   );
+}
+
+function modelLabel(model: string): string {
+  if (model === 'last_click') return 'последний клик';
+  if (model === 'first_click') return 'первый клик';
+  if (model === 'linear') return 'линейная';
+  if (model === 'position') return 'позиционная';
+  return model;
 }

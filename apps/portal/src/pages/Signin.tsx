@@ -41,7 +41,7 @@ export function SigninPage() {
       }
       setSent(true);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Something went wrong.');
+      setErr(e instanceof Error ? e.message : 'Произошла ошибка.');
     } finally {
       setBusy(false);
     }
@@ -49,22 +49,22 @@ export function SigninPage() {
 
   if (sent) {
     return (
-      <AuthFrame title="Check your inbox" subtitle={`If we found accounts for ${email}, we just emailed sign-in links.`}>
+      <AuthFrame title="Проверьте почту" subtitle={`Если для ${email} найдены аккаунты, мы отправили ссылки для входа.`}>
         <div style={{ background: theme.successSoft, border: `1px solid ${theme.success}55`, padding: 14, borderRadius: theme.radiusSm, fontSize: 13, color: theme.success }}>
-          The link is good for 15 minutes. If you have both a brand and a creator account, you&rsquo;ll get one email for each.
+          Ссылка действительна 15 минут. Если у вас есть аккаунт компании и автора, для каждого будет отдельное письмо.
         </div>
         <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: theme.textDim }}>
-          <Link to="/" style={{ color: theme.accent }}>Back to home</Link>
+          <Link to="/" style={{ color: theme.accent }}>На главную</Link>
         </div>
       </AuthFrame>
     );
   }
 
   return (
-    <AuthFrame title={addMode ? 'Add another account' : 'Sign in'} subtitle={addMode ? 'Enter the email for the account you want to add to this browser.' : 'Enter your email — we’ll send you a sign-in link.'}>
+    <AuthFrame title={addMode ? 'Добавить аккаунт' : 'Войти'} subtitle={addMode ? 'Введите email аккаунта, который хотите добавить в этот браузер.' : 'Введите email — мы отправим ссылку для входа.'}>
       {addMode && (
         <div style={{ background: theme.accent + '15', border: `1px solid ${theme.accentA55}`, padding: 12, borderRadius: theme.radiusSm, fontSize: 12, color: theme.textMuted, marginBottom: 14 }}>
-          You&rsquo;re adding a second account. Your current account stays signed in &mdash; you&rsquo;ll be able to switch between them from the sidebar.
+          Вы добавляете второй аккаунт. Текущий аккаунт останется активным — между ними можно будет переключаться в меню.
         </div>
       )}
       <form onSubmit={submit}>
@@ -84,10 +84,10 @@ export function SigninPage() {
         </div>
         {err && <div style={{ color: theme.danger, fontSize: 13, marginBottom: 8 }}>{err}</div>}
         <button type="submit" disabled={busy || !email} style={primaryBtnStyle(busy || !email)}>
-          {busy ? 'Sending…' : 'Email me a sign-in link'}
+          {busy ? 'Отправляем…' : 'Отправить ссылку для входа'}
         </button>
         <div style={{ marginTop: 12, fontSize: 12, color: theme.textDim, textAlign: 'center' }}>
-          New here? <Link to="/signup" style={{ color: theme.accent }}>Sign up as a brand</Link> · <Link to="/creator/signup" style={{ color: theme.accent }}>Sign up as a creator</Link>
+          Впервые здесь? <Link to="/signup" style={{ color: theme.accent }}>Зарегистрировать компанию</Link> · <Link to="/creator/signup" style={{ color: theme.accent }}>Зарегистрироваться как автор</Link>
         </div>
       </form>
     </AuthFrame>

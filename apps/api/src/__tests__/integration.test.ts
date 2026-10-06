@@ -499,25 +499,20 @@ describe.skipIf(skipIntegration)('api integration', () => {
 });
 
 describe.skipIf(skipIntegration)('audit safe-fixes', () => {
-  it('POST /billing/plan rejects enterprise (sales-led), accepts flex', async () => {
-    // enterprise counts as active + white-label with no Stripe sub, so it
-    // must not be self-assignable through this authenticated setter.
-    await db(TABLES.Tenant).where({ id: DEFAULT_TENANT_ID }).update({ billingPlan: null });
-    try {
-      const bad = await request(app)
-        .post('/billing/plan')
-        .set('Authorization', `Bearer ${ADMIN_KEY}`)
-        .send({ plan: 'enterprise' });
-      expect(bad.status).toBe(400);
+  it('hosted billing endpoint is removed from the Syntolk self-host contract', async () => {
+    // Syntolk is self-hosted and uses CloudPayments for customer payments;
+    // the old OpenPartner hosted Stripe billing rail is intentionally absent.
+    const enterprise = await request(app)
+      .post('/billing/plan')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
+      .send({ plan: 'enterprise' });
+    expect(enterprise.status).toBe(404);
 
-      const ok = await request(app)
-        .post('/billing/plan')
-        .set('Authorization', `Bearer ${ADMIN_KEY}`)
-        .send({ plan: 'flex' });
-      expect(ok.status).toBe(200);
-    } finally {
-      await db(TABLES.Tenant).where({ id: DEFAULT_TENANT_ID }).update({ billingPlan: null });
-    }
+    const flex = await request(app)
+      .post('/billing/plan')
+      .set('Authorization', `Bearer ${ADMIN_KEY}`)
+      .send({ plan: 'flex' });
+    expect(flex.status).toBe(404);
   });
 
   it('a click that happened AFTER the event does not attribute it (negative age)', async () => {

@@ -30,7 +30,7 @@ function CopyableShareLink({ linkKey, base }: { linkKey: string; base: string | 
   return (
     <button
       type="button"
-      title="Copy share link"
+      title="Скопировать партнёрскую ссылку"
       onClick={() => {
         void navigator.clipboard.writeText(url).then(() => {
           setCopied(true);
@@ -64,6 +64,8 @@ interface LinkRow {
   programId: string;
   partnerId: string;
   createdAt: string;
+  label: string | null;
+  channel: string | null;
 }
 
 interface Program {
@@ -81,25 +83,35 @@ export function LinksPage({ principal }: { principal: Principal }) {
   if (isAdmin && !partnerId) {
     return <AdminLinksHub />;
   }
-  return <PartnerLinks partnerId={partnerId!} readOnly={isAdmin} />;
+  // An admin opening a partner's links from the admin area must be able to
+  // create a link for that partner as well. The API already authorizes this
+  // operation for admins; keeping the page read-only made the feature look
+  // broken because the create action was hidden entirely.
+  return <PartnerLinks partnerId={partnerId!} readOnly={false} />;
 }
 
 function AdminLinksHub() {
   const { data, error, isLoading } = useQuery({
     queryKey: ['partners'],
-    queryFn: () => api<{ partners: Array<{ id: string; name: string; email: string }> }>('/partners'),
+    queryFn: () =>
+      api<{ partners: Array<{ id: string; name: string; email: string; revokedAt: string | null }> }>('/partners'),
   });
+  const activePartners = data?.partners.filter((partner) => !partner.revokedAt) ?? [];
 
   return (
-    <Page title="Links" subtitle="Pick a partner to see the links they've created.">
+    <Page title="Ссылки" subtitle="Выберите партнёра, чтобы посмотреть и создать его ссылки.">
       <ErrorBanner error={error} />
       {isLoading ? (
-        <Card>Loading…</Card>
-      ) : data?.partners.length === 0 ? (
-        <EmptyState title="No partners yet" hint="Invite a partner — they create their own links." icon={<Link2 size={28} strokeWidth={1.25} />} />
+        <Card>Загрузка…</Card>
+      ) : activePartners.length === 0 ? (
+        <EmptyState
+          title="Активных партнёров пока нет"
+          hint="Добавьте или восстановите партнёра в разделе «Партнёры»."
+          icon={<Link2 size={28} strokeWidth={1.25} />}
+        />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-          {data?.partners.map((p) => (
+          {activePartners.map((p) => (
             <TenantLink
               key={p.id}
               to={`/links?partnerId=${p.id}`}
@@ -150,16 +162,16 @@ function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: bo
 
   return (
     <Page
-      title="Links"
+      title="Ссылки"
       subtitle={
         readOnly
-          ? "Links this partner has created. Partners manage their own; admins view only."
-          : "Your share links — the router turns /r/<key> into an attributed click."
+          ? "Ссылки, созданные этим партнёром."
+          : "Ваши партнёрские ссылки — переход по /r/<ключ> фиксируется и учитывается в начислениях."
       }
       actions={
         readOnly ? undefined : (
           <Button icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
-            New link
+            Новая ссылка
           </Button>
         )
       }
@@ -177,25 +189,26 @@ function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: bo
         />
       )}
       {links.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : (links.data?.links ?? []).length === 0 ? (
         <EmptyState
-          title="No links yet"
-          hint={readOnly ? "This partner hasn't created any links yet." : 'Create one to start capturing clicks.'}
+          title="Ссылок пока нет"
+          hint={readOnly ? 'У этого партнёра пока нет ссылок.' : 'Создайте ссылку, чтобы начать учитывать переходы.'}
           icon={<Link2 size={28} strokeWidth={1.25} />}
         />
       ) : (
         <Table
-          columns={['Key', 'Destination', 'Program', 'Created']}
+          columns={['Ключ', 'Канал', 'Назначение', 'Программа', 'Создана']}
           rows={(links.data?.links ?? []).map((l) => {
             const campaign = campaigns.data?.programs.find((c) => c.id === l.programId);
             const dest = l.destinationUrl ?? campaign?.destinationUrl ?? '—';
             return [
               <CopyableShareLink linkKey={l.linkKey} base={shareBase} />,
+              <span style={{ color: theme.textMuted, fontSize: 13 }}>{l.label || l.channel || '—'}</span>,
               <span style={{ color: theme.textMuted, fontSize: 13 }}>
                 {dest}
                 {l.destinationUrl && (
-                  <span style={{ color: theme.accent, fontSize: 11, marginLeft: 8 }}>(deep link)</span>
+                    <span style={{ color: theme.accent, fontSize: 11, marginLeft: 8 }}>(прямая ссылка)</span>
                 )}
               </span>,
               <span>{campaign?.name ?? <code style={{ color: theme.textDim, fontSize: 12 }}>{l.programId.slice(0, 8)}…</code>}</span>,
@@ -223,6 +236,8 @@ function CreateLink({
   const [programId, setProgramId] = useState(campaigns[0]?.id ?? '');
   const [useDeepLink, setUseDeepLink] = useState(false);
   const [destinationOverride, setDestinationOverride] = useState('');
+  const [label, setLabel] = useState('');
+  const [channel, setChannel] = useState('');
 
   const selectedProgram = campaigns.find((c) => c.id === programId);
   const deepLinkAllowed = !!selectedProgram?.deepLinkAllowedDomains;
@@ -237,6 +252,8 @@ function CreateLink({
           // Only send destinationUrl when the partner has explicitly
           // opted into a deep-link override on a  Program that allows it.
           destinationUrl: useDeepLink && destinationOverride ? destinationOverride : undefined,
+          label: label || undefined,
+          channel: channel || undefined,
         },
       }),
     onSuccess: onCreated,
@@ -244,12 +261,12 @@ function CreateLink({
 
   return (
     <Card style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>New link</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>Новая ссылка</div>
       <ErrorBanner error={mut.error} />
       <div style={{ marginBottom: 14 }}>
-        <Label>Program</Label>
+        <Label>Программа</Label>
         {campaigns.length === 0 ? (
-          <Input value={programId} onChange={(e) => setProgramId(e.target.value)} placeholder="campaign id (ULID)" />
+          <Input value={programId} onChange={(e) => setProgramId(e.target.value)} placeholder="ID программы" />
         ) : (
           <Select value={programId} onChange={(e) => setProgramId(e.target.value)}>
             {campaigns.map((c) => (
@@ -261,22 +278,30 @@ function CreateLink({
         )}
         {selectedProgram && (
           <div style={{ fontSize: 12, color: theme.textMuted, marginTop: 6 }}>
-            Lands at <code style={{ color: theme.textMuted }}>{selectedProgram.destinationUrl}</code>
+            Адрес перехода: <code style={{ color: theme.textMuted }}>{selectedProgram.destinationUrl}</code>
           </div>
         )}
       </div>
       <div style={{ marginBottom: 14 }}>
-        <Label>Link key</Label>
-        <Input value={linkKey} onChange={(e) => setLinkKey(e.target.value)} placeholder="ada" />
+        <Label>Название ссылки</Label>
+        <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Telegram — закреплённый пост" />
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <Label>Канал</Label>
+        <Input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="telegram, tiktok, youtube или site" />
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <Label>Ключ ссылки</Label>
+        <Input value={linkKey} onChange={(e) => setLinkKey(e.target.value)} placeholder="partner-ada" />
         <div style={{ fontSize: 12, color: theme.textDim, marginTop: 6 }}>
-          Becomes <code style={{ color: theme.textDim }}>/r/{linkKey || 'your-key'}</code>.
+          Будет доступна по адресу <code style={{ color: theme.textDim }}>/r/{linkKey || 'ваш-ключ'}</code>.
         </div>
       </div>
       {deepLinkAllowed && (
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: theme.text, marginBottom: 8 }}>
             <input type="checkbox" checked={useDeepLink} onChange={(e) => setUseDeepLink(e.target.checked)} />
-            Deep-link to a specific page on the brand&rsquo;s site
+            Вести на конкретную страницу сайта Syntolk
           </label>
           {useDeepLink && (
             <>
@@ -287,7 +312,7 @@ function CreateLink({
                 placeholder={`https://${selectedProgram?.deepLinkAllowedDomains?.split(',')[0]?.trim() ?? 'yourbrand.com'}/some/page`}
               />
               <div style={{ fontSize: 12, color: theme.textDim, marginTop: 6 }}>
-                Must be on: {selectedProgram?.deepLinkAllowedDomains}
+                Разрешённые домены: {selectedProgram?.deepLinkAllowedDomains}
               </div>
             </>
           )}
@@ -295,10 +320,10 @@ function CreateLink({
       )}
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={() => mut.mutate()} disabled={!linkKey || !programId || mut.isPending}>
-          {mut.isPending ? 'Creating…' : 'Create link'}
+          {mut.isPending ? 'Создание…' : 'Создать ссылку'}
         </Button>
         <Button variant="secondary" onClick={onClose}>
-          Cancel
+          Отмена
         </Button>
       </div>
     </Card>

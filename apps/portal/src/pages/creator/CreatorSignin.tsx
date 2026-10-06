@@ -21,7 +21,7 @@ export function CreatorSigninPage() {
       });
       setSent(true);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Something went wrong.');
+      setErr(e instanceof ApiError ? e.message : 'Что-то пошло не так.');
     } finally {
       setBusy(false);
     }
@@ -29,16 +29,16 @@ export function CreatorSigninPage() {
 
   if (sent) {
     return (
-      <AuthFrame title="Check your inbox" subtitle={`If an account exists for ${email}, we just sent a sign-in link.`}>
+      <AuthFrame title="Проверьте входящие" subtitle={`Если аккаунт для ${email} существует, мы отправили ссылку для входа.`}>
         <div style={{ background: theme.successSoft, border: `1px solid ${theme.success}55`, padding: 14, borderRadius: theme.radiusSm, fontSize: 13, color: theme.success }}>
-          The link is good for 15 minutes.
+          Ссылка действует 15 минут.
         </div>
       </AuthFrame>
     );
   }
 
   return (
-    <AuthFrame title="Creator sign in" subtitle="We&rsquo;ll email you a one-time sign-in link.">
+    <AuthFrame title="Вход автора" subtitle="Мы отправим на email одноразовую ссылку для входа.">
       <form onSubmit={submit}>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 4 }}>Email</div>
@@ -46,10 +46,10 @@ export function CreatorSigninPage() {
         </div>
         {err && <div style={{ color: theme.danger, fontSize: 13, marginBottom: 8 }}>{err}</div>}
         <button type="submit" disabled={busy} style={primaryBtnStyle(busy)}>
-          {busy ? 'Sending…' : 'Email me a sign-in link'}
+          {busy ? 'Отправляем…' : 'Отправить ссылку для входа'}
         </button>
         <div style={{ marginTop: 12, fontSize: 12, color: theme.textDim, textAlign: 'center' }}>
-          New here? <Link to="/creator/signup" style={{ color: theme.accent }}>Create an account</Link> · <Link to="/" style={{ color: theme.accent }}>Home</Link>
+          Впервые здесь? <Link to="/creator/signup" style={{ color: theme.accent }}>Создать аккаунт</Link> · <Link to="/" style={{ color: theme.accent }}>Главная</Link>
         </div>
       </form>
     </AuthFrame>

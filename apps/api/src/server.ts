@@ -12,17 +12,12 @@ const MODE = process.env.OPENPARTNER_MODE ?? 'selfhost';
 // way to spot that is at startup. Lengths only, never values.
 console.log(JSON.stringify({
   msg: 'secrets_probe',
-  app: 'openpartner',
+  app: 'syntolk-partners',
   tenancy: process.env.OPENPARTNER_TENANCY ?? 'single',
-  // Stripe
-  stripeSecretLen: (process.env.STRIPE_SECRET_KEY ?? '').length,
-  webhookSecretLen: (process.env.STRIPE_WEBHOOK_SECRET ?? '').length,
-  flatPriceIdLen: (process.env.STRIPE_FLAT_PRICE_ID ?? '').length,
-  flatUsagePriceIdLen: (process.env.STRIPE_FLAT_USAGE_PRICE_ID ?? '').length,
-  revsharePriceIdLen: (process.env.STRIPE_REVSHARE_USAGE_PRICE_ID ?? '').length,
-  whitelabelAddOnPriceIdLen: (process.env.STRIPE_WHITELABEL_ADD_ON_PRICE_ID ?? '').length,
-  networkPriceIdLen: (process.env.STRIPE_NETWORK_PRICE_ID ?? '').length,
-  networkUsagePriceIdLen: (process.env.STRIPE_NETWORK_USAGE_PRICE_ID ?? '').length,
+  // CloudPayments
+  cloudPaymentsPublicIdLen: (process.env.CLOUDPAYMENTS_PUBLIC_ID ?? '').length,
+  cloudPaymentsApiSecretLen: (process.env.CLOUDPAYMENTS_API_SECRET ?? '').length,
+  cloudPaymentsWebhookSecretLen: (process.env.CLOUDPAYMENTS_WEBHOOK_SECRET ?? '').length,
   // Mail
   postmarkTokenLen: (process.env.POSTMARK_SERVER_TOKEN ?? '').length,
   mailFromLen: (process.env.MAIL_FROM ?? '').length,

@@ -22,18 +22,18 @@ export function AdminNetworkRequests() {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'cancelled'>('pending');
   return (
     <Page
-      title="Network requests"
-      subtitle="Creators applying to promote your offerings. Approve to provision a Partner + Link automatically."
+      title="Заявки из сети"
+      subtitle="Авторы подают заявки на продвижение ваших предложений. После одобрения партнёр и ссылка создаются автоматически."
       actions={
         <Select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           style={{ width: 'auto', padding: '6px 10px', fontSize: 13 }}
         >
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="cancelled">Cancelled</option>
+          <option value="pending">Ожидают проверки</option>
+          <option value="approved">Одобрены</option>
+          <option value="rejected">Отклонены</option>
+          <option value="cancelled">Отменены</option>
         </Select>
       }
     >
@@ -66,14 +66,14 @@ function RequestList({ statusFilter }: { statusFilter: string }) {
 
   if (error) {
     const msg = error instanceof ApiError && error.message.includes('network_not_configured')
-      ? 'Connect to the Network first under Settings → Network.'
-      : `Couldn't load requests: ${error instanceof Error ? error.message : String(error)}`;
+      ? 'Сначала подключите сеть в разделе «Настройки → Сеть партнёров».'
+      : `Не удалось загрузить заявки: ${error instanceof Error ? error.message : String(error)}`;
     return <ErrorBanner error={msg} />;
   }
-  if (isLoading) return <Card><p>Loading…</p></Card>;
+  if (isLoading) return <Card><p>Загрузка…</p></Card>;
   const requests = data?.requests ?? [];
   if (requests.length === 0) {
-    return <Card><p style={{ color: '#6b7280' }}>No {statusFilter} requests.</p></Card>;
+    return <Card><p style={{ color: '#6b7280' }}>Заявок в выбранном статусе нет.</p></Card>;
   }
   return (
     <>
@@ -115,8 +115,8 @@ function RequestRow({
         </span>
       </div>
       <p style={{ color: '#6b7280', fontSize: 13, margin: '0 0 8px' }}>
-        {request.creatorEmail} · applying to <strong>{request.offeringTitle}</strong>
-        {request.preferredSlug && <> · prefers slug <code>/{request.preferredSlug}</code></>}
+        {request.creatorEmail} · заявка на <strong>{request.offeringTitle}</strong>
+        {request.preferredSlug && <> · предпочтительный идентификатор <code>/{request.preferredSlug}</code></>}
       </p>
       {request.creatorBio && <p style={{ fontSize: 14 }}>{request.creatorBio}</p>}
       {request.message && (
@@ -126,20 +126,20 @@ function RequestRow({
       )}
       {isPending && (
         <div style={{ marginTop: 12 }}>
-          <Label>Decision note (optional)</Label>
+          <Label>Комментарий к решению (необязательно)</Label>
           <Input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Welcome to the program!"
+            placeholder="Добро пожаловать в программу!"
             style={{ marginBottom: 12 }}
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <Button onClick={() => onApprove(note || undefined)} disabled={busy}>
-              {busy ? 'Working…' : 'Approve + provision'}
+              {busy ? 'Обрабатываем…' : 'Одобрить и создать доступ'}
             </Button>
             <Button onClick={() => onReject(note || undefined)} disabled={busy} variant="danger">
-              Reject
+              Отклонить
             </Button>
           </div>
         </div>

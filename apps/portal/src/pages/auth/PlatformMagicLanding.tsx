@@ -19,7 +19,7 @@ export function PlatformMagicLandingPage() {
     const token = params.get('token');
     if (!token) {
       setState('failed');
-      setDetail('No token in URL.');
+      setDetail('В URL нет токена.');
       return;
     }
     fetch('/api/auth/platform-verify', {
@@ -38,19 +38,19 @@ export function PlatformMagicLandingPage() {
       })
       .catch((err) => {
         setState('failed');
-        setDetail(err instanceof Error ? err.message : 'Link is invalid or expired.');
+        setDetail(err instanceof Error ? err.message : 'Ссылка недействительна или истекла.');
       });
   }, [nav, params]);
 
   return (
-    <AuthFrame title="Signing you in" subtitle="One moment…">
-      {state === 'verifying' && <div style={{ color: theme.textMuted, fontSize: 14 }}>Verifying your link…</div>}
-      {state === 'ok' && <div style={{ color: theme.success, fontSize: 14 }}>Signed in. Picking your workspace…</div>}
+    <AuthFrame title="Выполняем вход" subtitle="Одну секунду…">
+      {state === 'verifying' && <div style={{ color: theme.textMuted, fontSize: 14 }}>Проверяем ссылку…</div>}
+      {state === 'ok' && <div style={{ color: theme.success, fontSize: 14 }}>Вход выполнен. Выбираем рабочее пространство…</div>}
       {state === 'failed' && (
         <div style={{ color: theme.danger, fontSize: 14 }}>
-          {detail ?? 'Could not verify.'}
+          {detail ?? 'Не удалось выполнить проверку.'}
           <div style={{ color: theme.textDim, fontSize: 13, marginTop: 10 }}>
-            Ask for a new link from <a href="/signin" style={{ color: theme.accent }}>the sign-in page</a>.
+            Запросите новую ссылку на <a href="/signin" style={{ color: theme.accent }}>странице входа</a>.
           </div>
         </div>
       )}

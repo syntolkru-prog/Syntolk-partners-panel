@@ -49,11 +49,11 @@ interface CreatedKey {
 // the same constant so the displayed list never drifts from what
 // the create mutation actually mints.
 const SCOPE_DESCRIPTIONS: Array<{ scope: string; description: string }> = [
-  { scope: 'events:write', description: 'Record conversion events (the CRM webhook path).' },
-  { scope: 'partners:write', description: 'Create + revoke partners (Zapier/ActivePieces actions).' },
-  { scope: 'partners:read', description: 'List partners + look up by email.' },
-  { scope: 'commissions:read', description: 'List commissions for trigger sample data.' },
-  { scope: 'webhooks:write', description: 'Subscribe + unsubscribe webhook endpoints (Zapier/ActivePieces triggers register their callback URLs through these).' },
+  { scope: 'events:write', description: 'Передавать события конверсий через CRM-вебхук.' },
+  { scope: 'partners:write', description: 'Создавать и отзывать партнёров (действия Zapier/ActivePieces).' },
+  { scope: 'partners:read', description: 'Получать список партнёров и искать их по email.' },
+  { scope: 'commissions:read', description: 'Получать комиссии для тестовых данных триггеров.' },
+  { scope: 'webhooks:write', description: 'Подписывать и отписывать вебхук-эндпоинты.' },
 ];
 const INTEGRATION_SCOPES = SCOPE_DESCRIPTIONS.map((s) => s.scope);
 const EVENTS_SCOPE = 'events:write'; // legacy filter on the keys list query
@@ -62,8 +62,8 @@ export function AdminIntegrations() {
   const { programName } = useBrand();
   return (
     <Page
-      title="CRM integration"
-      subtitle={`Pipe your CRM's conversion events into ${programName} so partners get attributed for full-funnel deals, not just self-serve signups.`}
+      title="Интеграция с CRM"
+      subtitle={`Передавайте события конверсий из CRM в ${programName}, чтобы партнёры получали начисления за всю воронку, а не только за самостоятельные регистрации.`}
     >
       <WhyCard />
       <div style={{ height: 18 }} />
@@ -79,36 +79,33 @@ function WhyCard() {
   return (
     <Card>
       <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15, fontWeight: 500 }}>
-        How this works
+        Как это работает
       </h3>
       <p style={{ fontSize: 13, color: theme.textMuted, marginTop: 0, marginBottom: 10, lineHeight: 1.55 }}>
-        Conversion events that drive partner commissions don&rsquo;t always
-        happen in your billing system. For B2B / SaaS programs, the
-        meaningful state changes — &ldquo;lead qualified&rdquo;,
-        &ldquo;opportunity won&rdquo;, &ldquo;trial converted&rdquo; — live
-        in your CRM. Without a CRM signal, partners only get paid on the
-        trivial cases.
+        События конверсий, по которым начисляются партнёрские комиссии, не всегда
+        происходят в платёжной системе. В B2B- и SaaS-программах важные изменения —
+        «квалифицированный лид», «выигранная сделка», «пробный период оплачен» —
+        находятся в CRM. Без сигнала из CRM партнёры получают вознаграждение только
+        за самые простые случаи.
       </p>
       <p style={{ fontSize: 13, color: theme.textMuted, marginTop: 0, marginBottom: 10, lineHeight: 1.55 }}>
-        Mint a scoped API key here, then have your CRM (or a Zapier /
-        Make workflow in front of it) POST conversion events to{' '}
+        Создайте здесь API-ключ с нужными правами, затем отправляйте из CRM
+        (или через сценарий Zapier / Make) события конверсий POST-запросом на{' '}
         <code style={{ background: theme.surface2, padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>
           /attribution/events
         </code>{' '}
-        with the key as a Bearer token. {programName} ties the event to the
-        originating click via the <code>userId</code> you assigned at
-        signup, then accrues commission per the bound campaign&rsquo;s
-        rule.
+        с ключом в Bearer-токене. {programName} свяжет событие с исходным
+        кликом через <code>userId</code>, который вы назначили при регистрации,
+        и начислит комиссию по правилу программы.
       </p>
       <p style={{ fontSize: 13, color: theme.textMuted, margin: 0, lineHeight: 1.55 }}>
-        Keys here carry five scopes (events:write, partners:write,
-        partners:read, commissions:read, webhooks:write) — covers the
-        full surface Zapier / ActivePieces / CRM workflows touch. A
-        leak can fabricate conversion events, create/revoke partners,
-        and register/remove webhook endpoints on your tenant — but
-        can&rsquo;t touch billing, payouts, campaigns, or admin
-        surfaces. Full per-scope breakdown sits under the Generate
-        button below.
+        Эти ключи имеют пять прав (events:write, partners:write,
+        partners:read, commissions:read, webhooks:write) — этого достаточно
+        для сценариев Zapier / ActivePieces / CRM. Утёкший ключ может создавать
+        события конверсий, создавать и отзывать партнёров, регистрировать и
+        удалять вебхуки в вашей компании, но не имеет доступа к оплате, выплатам,
+        программам и админским разделам. Полный список прав находится под кнопкой
+        создания ключа.
       </p>
     </Card>
   );
@@ -145,10 +142,10 @@ function KeysPanel() {
 
   return (
     <Card>
-      <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15, fontWeight: 500 }}>API keys for CRM</h3>
+      <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15, fontWeight: 500 }}>API-ключи для CRM</h3>
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 14px' }}>
-        One key per integration — a separate key for HubSpot vs. Zapier vs. internal scripts
-        makes leak attribution easy and revocation clean.
+        Один ключ на интеграцию — отдельный ключ для HubSpot, Zapier и внутренних скриптов
+        упрощает контроль утечек и отзыв доступа.
       </p>
       <ErrorBanner error={create.error ?? revoke.error ?? list.error} />
 
@@ -163,11 +160,11 @@ function KeysPanel() {
           }}
         >
           <div style={{ fontSize: 13, fontWeight: 500, color: theme.success, marginBottom: 6 }}>
-            New key created — copy it now
+            Новый ключ создан — скопируйте его сейчас
           </div>
           <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 8px' }}>
-            We don&rsquo;t store the plaintext anywhere. After you leave this page you&rsquo;ll
-            never see it again — generate a new one if you lose it.
+            Мы нигде не сохраняем ключ в открытом виде. После ухода со страницы вы больше
+            не увидите его — при потере создайте новый.
           </p>
           <code
             style={{
@@ -190,7 +187,7 @@ function KeysPanel() {
             }}
             style={{ marginTop: 10 }}
           >
-            Copy to clipboard
+            Скопировать в буфер
           </Button>
           <button
             type="button"
@@ -204,33 +201,33 @@ function KeysPanel() {
               fontSize: 13,
             }}
           >
-            Dismiss
+            Скрыть
           </button>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
-          <Label>Label</Label>
+           <Label>Название</Label>
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="HubSpot prod"
+             placeholder="HubSpot — продакшн"
             maxLength={120}
           />
         </div>
         <Button onClick={() => create.mutate()} disabled={create.isPending}>
-          {create.isPending ? 'Generating…' : 'Generate key'}
+          {create.isPending ? 'Создаём…' : 'Создать ключ'}
         </Button>
       </div>
       <ScopesPanel />
       <div style={{ height: 14 }} />
 
       {list.isLoading ? (
-        <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>Loading…</p>
+        <p style={{ fontSize: 13, color: theme.textMuted, margin: 0 }}>Загрузка…</p>
       ) : keys.length === 0 ? (
         <p style={{ fontSize: 13, color: theme.textDim, margin: 0 }}>
-          No CRM keys yet. Generate one above to start receiving events.
+          CRM-ключей пока нет. Создайте ключ выше, чтобы начать получать события.
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -250,14 +247,14 @@ function KeysPanel() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, color: theme.text }}>{k.label ?? 'CRM webhook'}</div>
                 <div style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>
-                  <code>{k.prefix}…</code> · created {new Date(k.createdAt).toLocaleDateString()}
-                  {k.lastUsedAt && <> · last used {new Date(k.lastUsedAt).toLocaleDateString()}</>}
+                  <code>{k.prefix}…</code> · создан {new Date(k.createdAt).toLocaleDateString()}
+                  {k.lastUsedAt && <> · последнее использование {new Date(k.lastUsedAt).toLocaleDateString()}</>}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm(`Revoke "${k.label ?? 'CRM webhook'}"? Any CRM using this key will stop receiving events.`)) {
+                    if (confirm(`Отозвать «${k.label ?? 'CRM-вебхук'}»? CRM, использующая этот ключ, перестанет получать события.`)) {
                     revoke.mutate(k.id);
                   }
                 }}
@@ -272,7 +269,7 @@ function KeysPanel() {
                   cursor: 'pointer',
                 }}
               >
-                Revoke
+                Отозвать
               </button>
             </div>
           ))}
@@ -336,9 +333,9 @@ function ScopesPanel() {
             </div>
           ))}
           <div style={{ marginTop: 4, color: theme.textDim, fontSize: 11, lineHeight: 1.5 }}>
-            None of these touch billing, payouts, campaigns, or admin surfaces — those have no
-            scope grants. A leaked key can fabricate conversion events + create/revoke
-            partners on this tenant only.
+            Эти права не дают доступа к оплате, выплатам, программам и админским разделам.
+            Утёкший ключ может создавать события конверсий и создавать/отзывать партнёров
+            только в этой компании.
           </div>
         </div>
       )}
@@ -359,7 +356,7 @@ function PayloadGuide() {
   return (
     <Card>
       <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15, fontWeight: 500 }}>
-        Payload contract
+        Формат запроса
       </h3>
       {slug && (
         <div
@@ -374,16 +371,16 @@ function PayloadGuide() {
             lineHeight: 1.55,
           }}
         >
-          <strong>Multi-tenant URL:</strong> the path includes your tenant slug{' '}
-          (<code>/t/{slug}</code>) before <code>/api/...</code>. Use the full base URL below
-          as-is — leaving the slug out returns a <code>tenant_slug_missing</code> 400 error.
+          <strong>URL многокомпанийной установки:</strong> путь содержит slug компании{' '}
+          (<code>/t/{slug}</code>) перед <code>/api/...</code>. Используйте полный URL ниже
+          как есть — без slug сервер вернёт ошибку 400 <code>tenant_slug_missing</code>.
         </div>
       )}
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 12px' }}>
-        Send a POST with the key as a Bearer token. <code>userId</code> is the same identifier
-        you assign at signup time so {programName} can stitch the event to a click. <code>type</code>{' '}
-        can be any string — use <code>opportunity_won</code> for B2B sales,{' '}
-        <code>trial_converted</code> for trial→paid, or your own conventions.
+        Отправляйте POST-запрос с ключом в Bearer-токене. <code>userId</code> — тот же идентификатор,
+        который вы назначаете при регистрации, чтобы {programName} связал событие с кликом. <code>type</code>{' '}
+        может быть любой строкой: используйте <code>opportunity_won</code> для B2B-сделок,
+        <code>trial_converted</code> для перехода с пробного периода на оплату или свои значения.
       </p>
       <pre
         style={{
@@ -402,24 +399,50 @@ function PayloadGuide() {
     "userId": "user_or_email_from_your_system",
     "type": "opportunity_won",
     "value": 4500.00,
-    "currency": "USD",
+    "currency": "RUB",
     "metadata": {
       "deal_id": "0061k00000ABC",
       "stage": "Closed Won"
     }
   }'`}</pre>
+      <h4 style={{ margin: '18px 0 6px', fontSize: 14, fontWeight: 500 }}>Контракт платежей Syntolk</h4>
+      <p style={{ fontSize: 12, color: theme.textMuted, margin: '0 0 10px' }}>
+        Для первой оплаты и каждого продления отправляйте уникальный <code>externalEventId</code>.
+        Повторная доставка одного события не создаст двойную комиссию.
+      </p>
+      <pre
+        style={{
+          padding: 14,
+          background: theme.surface2,
+          border: `1px solid ${theme.borderSubtle}`,
+          borderRadius: 6,
+          fontSize: 12,
+          overflow: 'auto',
+          margin: 0,
+        }}
+      >{`curl -X POST ${apiBase}/api/payments/events \\
+  -H "Authorization: Bearer <your-key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "userId": "syntolk-user-5842",
+    "type": "invoice_paid",
+    "value": 1000.00,
+    "currency": "RUB",
+    "externalEventId": "payment_2026_000001",
+    "metadata": { "tariff": "monthly" }
+  }'`}</pre>
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '12px 0 0' }}>
-        See the{' '}
+        Смотрите{' '}
         <a
-          href="https://openpartner.dev/docs/integrations/crm"
+          href="/admin/settings"
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: theme.accent, display: 'inline-flex', alignItems: 'center', gap: 3 }}
         >
-          CRM integration docs
+          документацию по интеграции с CRM
           <ExternalLink size={12} />
         </a>{' '}
-        for HubSpot, Salesforce, Pipedrive, and Zapier walkthroughs.
+        с пошаговыми инструкциями для HubSpot, Salesforce, Pipedrive и Zapier.
       </p>
     </Card>
   );

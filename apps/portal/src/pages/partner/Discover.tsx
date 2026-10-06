@@ -41,23 +41,23 @@ export function DiscoverPage() {
   });
 
   return (
-    <Page title="Discover programs" subtitle="Browse partner programs across the OpenPartner Network.">
+    <Page title="Программы" subtitle="Просматривайте партнёрские программы сети Syntolk.">
       <ErrorBanner error={error} />
       <Card>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 240 }}>
-            <Label>Search</Label>
+            <Label>Поиск</Label>
             <Input
-              placeholder="Title or description…"
+              placeholder="Название или описание…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
           <div style={{ minWidth: 160 }}>
-            <Label>Sort</Label>
+            <Label>Сортировка</Label>
             <Select value={sort} onChange={(e) => setSort(e.target.value as 'newest' | 'popular')}>
-              <option value="newest">Newest</option>
-              <option value="popular">Most partners</option>
+              <option value="newest">Сначала новые</option>
+              <option value="popular">Больше всего партнёров</option>
             </Select>
           </div>
         </div>
@@ -66,11 +66,11 @@ export function DiscoverPage() {
       <div style={{ height: 18 }} />
 
       {isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : !data || data.offerings.length === 0 ? (
         <EmptyState
-          title={debouncedQ ? `No matches for "${debouncedQ}"` : 'No programs yet'}
-          hint={debouncedQ ? 'Try a different keyword.' : 'Check back soon — vendors are joining the Network all the time.'}
+          title={debouncedQ ? `По запросу «${debouncedQ}» ничего не найдено` : 'Программ пока нет'}
+          hint={debouncedQ ? 'Попробуйте другое слово.' : 'Зайдите позже — новые компании постоянно подключаются к сети.'}
           icon={<Globe size={28} strokeWidth={1.25} />}
         />
       ) : (
@@ -80,7 +80,7 @@ export function DiscoverPage() {
               <div style={{ color: theme.textMuted, fontSize: 13 }}>
                 <TenantLink to={`/network/vendors/${o.vendorId}`} style={{ color: theme.textMuted }}>{o.vendorName}</TenantLink>
                 {o.vendorPartnerCount > 0 && (
-                  <> · {o.vendorPartnerCount} partner{o.vendorPartnerCount === 1 ? '' : 's'}</>
+                  <> · {o.vendorPartnerCount} {o.vendorPartnerCount === 1 ? 'партнёр' : 'партнёров'}</>
                 )}
               </div>
               <h3 style={{ marginTop: 4, marginBottom: 8 }}>
@@ -98,7 +98,7 @@ export function DiscoverPage() {
               )}
               <div style={{ marginTop: 12 }}>
                 <TenantLink to={`/network/offerings/${o.id}`}>
-                  <Button>View &amp; apply</Button>
+                  <Button>Подробнее и подать заявку</Button>
                 </TenantLink>
               </div>
             </Card>

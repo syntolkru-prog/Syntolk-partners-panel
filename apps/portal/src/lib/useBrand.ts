@@ -17,7 +17,7 @@ export interface ProgramSettings {
 }
 
 /** Platform fallback applied whenever the tenant hasn't set a brand name. */
-export const DEFAULT_BRAND = 'OpenPartner';
+export const DEFAULT_BRAND = 'Syntolk';
 
 export interface Brand {
   /** Brand name with the platform fallback applied — never empty. When
@@ -26,6 +26,7 @@ export interface Brand {
   programName: string;
   logoUrl: string | null;
   supportEmail: string | null;
+  programTermsUrl: string | null;
   /** Effective white-label entitlement. When true: hide every Network /
    *  Discover / "Powered by" surface and never render the 'OpenPartner'
    *  product name in partner-facing UI; brand name + logo come from
@@ -58,6 +59,7 @@ export function useBrand(): Brand {
     programName: data?.programName || DEFAULT_BRAND,
     logoUrl: data?.logoUrl ?? null,
     supportEmail: data?.supportEmail || null,
+    programTermsUrl: data?.programTermsUrl ?? null,
     whiteLabel: data?.whiteLabel ?? false,
     isLoading,
   };
@@ -94,6 +96,7 @@ export function usePublicBrand(): Brand & {
   faviconUrl: string | null;
   tenantSlug: string | null;
   approvalStatus: 'pending' | 'approved' | 'rejected' | null;
+  programTermsUrl: string | null;
 } {
   // api() scopes by the /t/<slug>/ URL prefix at call time — key the cache
   // by it too, or an SPA navigation from a platform page (nulls) into a
@@ -112,6 +115,7 @@ export function usePublicBrand(): Brand & {
     brandColor: data?.brandColor ?? null,
     tenantSlug: data?.tenantSlug ?? null,
     approvalStatus: data?.approvalStatus ?? null,
+    programTermsUrl: data?.programTermsUrl ?? null,
     isLoading,
   };
 }

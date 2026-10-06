@@ -11,12 +11,13 @@
  */
 
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
+import { ulid } from 'ulid';
 import { z } from 'zod';
 import { TABLES, type AttributionRow, type ProgramRow, type CommissionRow } from '@openpartner/db';
 import { grantScope, requireAdmin, requireAuth, requirePartnerOrAdmin } from '../auth.js';
 import { dispatchEvent } from '../webhook-dispatcher.js';
 import { tenantOf } from '../tenancy.js';
-import { interlockCommissionReversal, whereNotClaimedByOpenIntent } from '../funding/interlocks.js';
 
 const listQuerySchema = z.object({
   status: z.enum(['accrued', 'approved', 'paid', 'reversed']).optional(),
@@ -62,12 +63,18 @@ commissionsRouter.get('/commissions', requireAuth, grantScope('commissions:read'
 function listQueryBase(db: import('knex').Knex) {
   return db(`${TABLES.Commission} as c`)
     .leftJoin(`${TABLES.Attribution} as a`, 'a.id', 'c.attributionId')
+    .leftJoin(`${TABLES.Event} as ev`, 'ev.id', 'a.eventId')
     .leftJoin(`${TABLES.Program} as cp`, 'cp.id', 'a.programId')
     .leftJoin(`${TABLES.PartnerCommission} as pc`, 'pc.partnerId', 'c.partnerId')
     .select('c.*')
     .select(db.raw('coalesce("pc"."holdbackDays", "cp"."holdbackDays") as "_holdbackDays"'))
     .select('cp.id as _campaignId')
     .select('cp.name as _campaignName')
+    .select('ev.userId as _eventUserId')
+    .select('ev.type as _eventType')
+    .select('ev.value as _eventValue')
+    .select('ev.currency as _eventCurrency')
+    .select('ev.ts as _eventTs')
     .orderBy('c.accruedAt', 'desc');
 }
 
@@ -76,14 +83,24 @@ interface DecoratedCommission extends CommissionRow {
   programId: string | null;
   campaignName: string | null;
   matureAt: string | null;
+  customerLabel: string | null;
+  eventType: string | null;
+  paymentAmount: string | null;
+  paymentCurrency: string | null;
+  eventTs: string | null;
 }
 
 function decorateMaturity(row: CommissionRow & {
   _holdbackDays: number | null;
   _campaignId: string | null;
   _campaignName: string | null;
+  _eventUserId: string | null;
+  _eventType: string | null;
+  _eventValue: string | null;
+  _eventCurrency: string | null;
+  _eventTs: Date | string | null;
 }): DecoratedCommission {
-  const { _holdbackDays, _campaignId, _campaignName, ...c } = row;
+  const { _holdbackDays, _campaignId, _campaignName, _eventUserId, _eventType, _eventValue, _eventCurrency, _eventTs, ...c } = row;
   let matureAt: string | null = null;
   if (_holdbackDays && _holdbackDays > 0) {
     const m = new Date(c.accruedAt);
@@ -96,8 +113,44 @@ function decorateMaturity(row: CommissionRow & {
     programId: _campaignId,
     campaignName: _campaignName,
     matureAt,
+    customerLabel: _eventUserId
+      ? `Клиент-${createHash('sha256').update(_eventUserId).digest('hex').slice(0, 8)}`
+      : null,
+    eventType: _eventType ?? null,
+    paymentAmount: _eventValue ?? null,
+    paymentCurrency: _eventCurrency ?? null,
+    eventTs: _eventTs ? new Date(_eventTs).toISOString() : null,
   };
 }
+
+const adjustmentSchema = z.object({
+  amount: z.number().finite(),
+  reason: z.string().trim().min(3).max(500),
+  currency: z.string().length(3).optional(),
+});
+
+/** Append an auditable manual correction. The original commission row is
+ * never rewritten, which keeps refunds and operator decisions reversible. */
+commissionsRouter.post('/commissions/:id/adjust', requireAuth, grantScope('commissions:write'), requireAdmin, async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  const body = adjustmentSchema.safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: 'invalid_body', detail: body.error.flatten() });
+  const commission = await db<CommissionRow>(TABLES.Commission).where({ id: req.params.id }).first();
+  if (!commission) return res.status(404).json({ error: 'not_found' });
+  const [adjustment] = await db(TABLES.CommissionAdjustment)
+    .insert({
+      id: ulid(),
+      tenantId,
+      commissionId: commission.id,
+      amount: body.data.amount.toFixed(2),
+      currency: (body.data.currency ?? commission.currency).toUpperCase(),
+      reason: 'admin_correction',
+      actorAdminId: req.principal?.source === 'db' ? req.principal.apiKeyId : null,
+      metadata: { reasonText: body.data.reason },
+    })
+    .returning('*');
+  res.status(201).json({ adjustment });
+});
 
 commissionsRouter.post('/commissions/:id/approve', requireAuth, requireAdmin, async (req, res) => {
   const { db, tenantId } = tenantOf(req);
@@ -146,40 +199,14 @@ commissionsRouter.post('/commissions/:id/approve', requireAuth, requireAdmin, as
 
 commissionsRouter.post('/commissions/:id/reverse', requireAuth, requireAdmin, async (req, res) => {
   const { db, tenantId } = tenantOf(req);
-  // Funding interlock (spec §8): a commission whose money is mid-transfer
-  // cannot be flipped; one still in a reserved allocation gets the
-  // allocation canceled first so no charge/transfer fires for it.
-  const interlock = await interlockCommissionReversal(db, [req.params.id!]);
-  if (interlock.held.length > 0) {
-    return res.status(409).json({
-      error: 'commission_in_transfer',
-      detail:
-        'a payout for this commission is in flight (funding transfer, or a committed Connect payout intent); retry once it settles, then claw back via adjustment',
-    });
-  }
-  // Re-assert the interlock INSIDE the update. The check above is a
-  // separate statement, and between the two the payout planner can commit
-  // an intent and claim this commission — after which reversing it would
-  // let the transfer go out for the frozen amount with the commission
-  // never marked paid.
-  const updated = await whereNotClaimedByOpenIntent(
-    db,
-    db<CommissionRow>(TABLES.Commission)
-      .where({ [`${TABLES.Commission}.id`]: req.params.id })
-      .whereIn('status', ['accrued', 'approved']),
-  )
+  // Payouts in the local build are manual ledger entries. Reverse only an
+  // accrued or approved row before the manual payout is planned.
+  const updated = await db<CommissionRow>(TABLES.Commission)
+    .where({ id: req.params.id })
+    .whereIn('status', ['accrued', 'approved'])
     .update({ status: 'reversed' })
     .returning('*');
   if (updated.length === 0) {
-    const current = await db<CommissionRow>(TABLES.Commission).where({ id: req.params.id }).first();
-    if (current && ['accrued', 'approved'].includes(current.status)) {
-      // Status was fine, so the guard is what refused: a payout intent
-      // claimed it in the gap.
-      return res.status(409).json({
-        error: 'commission_in_transfer',
-        detail: 'a payout intent claimed this commission while the request was in flight; retry once it settles',
-      });
-    }
     return res.status(409).json({ error: 'not_reversible', detail: 'only accrued or approved commissions' });
   }
   const c = updated[0]!;

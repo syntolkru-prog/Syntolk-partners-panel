@@ -37,26 +37,36 @@ function EarningsBlock({ aff }: { aff: Affiliation }) {
   });
 
   if (!enabled) {
-    return <p style={{ color: theme.textMuted, fontSize: 13 }}>Earnings appear once the partnership is active.</p>;
+    return <p style={{ color: theme.textMuted, fontSize: 13 }}>Начисления появятся после активации партнёрства.</p>;
   }
-  if (isLoading) return <p style={{ color: theme.textMuted, fontSize: 13 }}>Loading earnings…</p>;
+  if (isLoading) return <p style={{ color: theme.textMuted, fontSize: 13 }}>Загрузка начислений…</p>;
   if (error) {
     if (error.status === 502) {
-      return <p style={{ color: theme.textMuted, fontSize: 13 }}>Vendor instance unreachable — earnings will refresh when it&apos;s back.</p>;
+      return <p style={{ color: theme.textMuted, fontSize: 13 }}>Сервис компании недоступен — начисления обновятся после восстановления.</p>;
     }
-    return <p style={{ color: theme.textMuted, fontSize: 13 }}>Couldn&apos;t load earnings.</p>;
+    return <p style={{ color: theme.textMuted, fontSize: 13 }}>Не удалось загрузить начисления.</p>;
   }
   if (!data) return null;
   return (
     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 12 }}>
-      <Stat label="Clicks (30d)" value={data.clicks.toLocaleString()} />
-      <Stat label="Attributed events" value={data.attributedEvents.toLocaleString()} />
-      <Stat label="Revenue" value={money(data.attributedRevenue, 'USD')} />
+      <Stat label="Клики (30 дн.)" value={data.clicks.toLocaleString()} />
+      <Stat label="Атрибуцированные события" value={data.attributedEvents.toLocaleString()} />
+      <Stat label="Выручка" value={money(data.attributedRevenue, 'RUB')} />
       {Object.entries(data.commissionByStatus ?? {}).map(([status, amount]) => (
-        <Stat key={status} label={`${status} commission`} value={money(amount, 'USD')} />
+        <Stat key={status} label={`${commissionStatusLabel(status)} комиссия`} value={money(amount, 'RUB')} />
       ))}
     </div>
   );
+}
+
+function commissionStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    accrued: 'начисленная',
+    approved: 'подтверждённая',
+    paid: 'выплаченная',
+    reversed: 'отменённая',
+  };
+  return labels[status] ?? status;
 }
 
 export function MyAffiliationsPage() {
@@ -67,14 +77,14 @@ export function MyAffiliationsPage() {
   });
 
   return (
-    <Page title="My partnerships" subtitle="Programs across the Network you&rsquo;re actively partnered with.">
+    <Page title="Мои партнёрства" subtitle="Программы сети, в которых вы участвуете.">
       <ErrorBanner error={error} />
       {isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : !data || data.affiliations.length === 0 ? (
         <EmptyState
-          title="No partnerships yet"
-          hint="Browse and apply to programs to get started."
+          title="Партнёрств пока нет"
+          hint="Найдите программу и подайте заявку, чтобы начать."
           icon={<Globe size={28} strokeWidth={1.25} />}
         />
       ) : (
@@ -86,7 +96,7 @@ export function MyAffiliationsPage() {
               </h3>
               <StatusPill status={a.status} />
             </div>
-            <p style={{ color: theme.textMuted, fontSize: 13 }}>Joined {formatDate(a.joinedVendorAt, { relative: true })}</p>
+            <p style={{ color: theme.textMuted, fontSize: 13 }}>Подключено {formatDate(a.joinedVendorAt, { relative: true })}</p>
             <EarningsBlock aff={a} />
           </Card>
         ))

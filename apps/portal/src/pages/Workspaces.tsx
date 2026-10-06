@@ -82,11 +82,11 @@ export function WorkspacesPage() {
       <div style={{ maxWidth: 460, width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
           <Logo />
-          <div style={{ fontSize: 16, fontWeight: 600 }}>OpenPartner</div>
+          <div style={{ fontSize: 16, fontWeight: 600 }}>Syntolk</div>
         </div>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', letterSpacing: '-0.01em' }}>Pick a workspace</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', letterSpacing: '-0.01em' }}>Выберите рабочее пространство</h1>
         <p style={{ color: theme.textMuted, fontSize: 14, marginTop: 0, marginBottom: 20 }}>
-          {data ? `Signed in as ${data.email}.` : null}
+          {data ? `Вход выполнен как ${data.email}.` : null}
         </p>
         {err && <div style={{ color: theme.danger, fontSize: 13, marginBottom: 12 }}>{err}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -113,18 +113,18 @@ export function WorkspacesPage() {
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{w.tenantDisplayName}</div>
                 <div style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
-                  /t/{w.tenantSlug}/{!w.activated && ' · activates on entry'}
+                  /t/{w.tenantSlug}/{!w.activated && ' · активируется при входе'}
                 </div>
               </div>
               <span style={{ color: theme.accent, fontSize: 13 }}>
-                {busySlug === w.tenantSlug ? 'Entering…' : 'Enter →'}
+                {busySlug === w.tenantSlug ? 'Вход…' : 'Войти →'}
               </span>
             </button>
           ))}
         </div>
         {data?.workspaces.length === 0 && (
           <div style={{ color: theme.textMuted, fontSize: 14 }}>
-            You don&rsquo;t have any brand workspaces. <a href="/brands/new" style={{ color: theme.accent }}>Create one →</a>
+            У вас пока нет рабочих пространств компаний. <a href="/brands/new" style={{ color: theme.accent }}>Создать →</a>
           </div>
         )}
       </div>

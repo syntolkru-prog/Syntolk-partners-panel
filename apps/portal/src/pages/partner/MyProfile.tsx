@@ -56,51 +56,51 @@ export function MyProfilePage() {
   });
 
   return (
-    <Page title="Network profile" subtitle="How vendors see you across the OpenPartner Network.">
+    <Page title="Профиль в сети" subtitle="Так компании видят вас в сети Syntolk.">
       <ErrorBanner error={error} />
       <ErrorBanner error={save.error} />
       {isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : data?.notFederated ? (
         <Card>
           <div style={{ fontSize: 14 }}>
-            Your brand hasn&rsquo;t pushed you to the Network yet. Ask the brand admin to enable
-            <strong> auto-enroll</strong> on Settings → Network and run <strong>Backfill</strong>;
-            once that&rsquo;s done your Network profile will appear here.
+            Компания ещё не добавила вас в сеть. Попросите администратора включить
+            <strong> автоматическое добавление</strong> в разделе «Настройки → Сеть» и запустить <strong>Заполнение профилей</strong>;
+            после этого ваш профиль появится здесь.
           </div>
         </Card>
       ) : data ? (
         <Card>
           <div style={{ display: 'grid', gap: 12, maxWidth: 520 }}>
             <div>
-              <Label>Email</Label>
+              <Label>Электронная почта</Label>
               <Input value={data.email} disabled readOnly />
-              <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>Email is the join key across vendors and can&rsquo;t be changed here.</p>
+              <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>Электронная почта используется как ключ подключения и здесь не изменяется.</p>
             </div>
             <div>
-              <Label>Display name</Label>
+              <Label>Отображаемое имя</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
-              <Label>Handle</Label>
+              <Label>Идентификатор</Label>
               <Input
                 value={handle}
                 onChange={(e) => setHandle(e.target.value)}
                 placeholder="your-handle"
               />
-              <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>Used as your default share-link slug.</p>
+              <p style={{ color: theme.textMuted, fontSize: 12, marginTop: 4 }}>Используется как идентификатор ваших партнёрских ссылок.</p>
             </div>
             <div>
-              <Label>Avatar URL</Label>
+              <Label>URL аватара</Label>
               <Input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://…" />
             </div>
             <div>
-              <Label>Bio</Label>
+              <Label>О себе</Label>
               <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} />
             </div>
             <div>
               <Button onClick={() => save.mutate()} disabled={save.isPending}>
-                {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved' : 'Save changes'}
+                {save.isPending ? 'Сохраняем…' : save.isSuccess ? 'Сохранено' : 'Сохранить изменения'}
               </Button>
             </div>
           </div>

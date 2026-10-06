@@ -348,7 +348,7 @@ function OfferingDetailBody({
             </h2>
             <p style={{ fontSize: 14, color: theme.textMuted, lineHeight: 1.55, margin: '0 0 16px' }}>
               Share {offering.vendorName} with your audience. For each customer you refer,
-              you earn the commission below — paid directly to your Stripe account.
+      вы получите указанную комиссию после подтверждения начисления и выплаты по правилам программы.
             </p>
 
             <ApplyOrStatusCard

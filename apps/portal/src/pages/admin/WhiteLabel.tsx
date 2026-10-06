@@ -51,12 +51,12 @@ export function AdminWhiteLabel() {
 
   return (
     <Page
-      title="White label"
-      subtitle="Serve your partner portal from your own domain, with your brand only."
+      title="Белая метка"
+      subtitle="Открывайте кабинет партнёров на собственном домене только с вашим брендом."
     >
       <ErrorBanner error={billing.error} />
       {billing.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : billing.data ? (
         <>
           <AddOnCard billing={billing.data} />
@@ -87,9 +87,9 @@ function AddOnCard({ billing }: { billing: WhiteLabelBilling }) {
       if (err instanceof ApiError && String(err.message).includes('subscription_required')) {
         // Shouldn't happen (the button routes unsubscribed tenants through
         // Checkout instead) — but a race with a just-cancelled sub can.
-        setError('Your plan subscription is inactive — use the subscribe button to restart it with white-label included.');
+        setError('Подписка на тариф неактивна — используйте кнопку подписки, чтобы возобновить её вместе с белой меткой.');
       } else {
-        setError(err instanceof ApiError ? err.message : 'Could not enable the add-on.');
+        setError(err instanceof ApiError ? err.message : 'Не удалось включить дополнение.');
       }
       refresh();
     },
@@ -97,7 +97,7 @@ function AddOnCard({ billing }: { billing: WhiteLabelBilling }) {
   const disable = useMutation({
     mutationFn: () => api<{ ok: boolean }>('/billing/white-label', { method: 'DELETE' }),
     onSuccess: refresh,
-    onError: (err) => setError(err instanceof ApiError ? err.message : 'Could not disable the add-on.'),
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Не удалось отключить дополнение.'),
   });
   // No active subscription: don't bounce the admin to Billing and back —
   // one Checkout with the plan AND the add-on bundled (the webhook flips
@@ -117,9 +117,9 @@ function AddOnCard({ billing }: { billing: WhiteLabelBilling }) {
     },
     onError: (err) => {
       if (err instanceof ApiError && String(err.message).includes('no_plan_chosen')) {
-        setError('Pick a plan on the Billing page first — then subscribing here bundles the add-on in.');
+        setError('Сначала выберите тариф на странице оплаты — затем здесь можно подключить дополнение вместе с подпиской.');
       } else {
-        setError(err instanceof ApiError ? err.message : 'Could not start checkout.');
+        setError(err instanceof ApiError ? err.message : 'Не удалось открыть оплату.');
       }
     },
   });
@@ -139,7 +139,7 @@ function AddOnCard({ billing }: { billing: WhiteLabelBilling }) {
               onClick={() => {
                 if (
                   window.confirm(
-                    'Disable white-label? Your custom domain will stop resolving and platform branding returns. The add-on is removed from your subscription with a prorated credit.',
+                    'Отключить белую метку? Собственный домен перестанет открываться, а брендинг платформы вернётся. Дополнение будет удалено из подписки с пропорциональным перерасчётом.',
                   )
                 ) {
                   disable.mutate();
@@ -147,48 +147,46 @@ function AddOnCard({ billing }: { billing: WhiteLabelBilling }) {
               }}
               disabled={disable.isPending}
             >
-              {disable.isPending ? 'Disabling…' : 'Disable add-on'}
+              {disable.isPending ? 'Отключаем…' : 'Отключить дополнение'}
             </Button>
           ) : needsCheckout ? (
             <Button
               onClick={() => subscribeWithAddOn.mutate()}
               disabled={subscribeWithAddOn.isPending || !billing.priceConfigured}
             >
-              {subscribeWithAddOn.isPending ? 'Opening checkout…' : 'Subscribe with white-label included'}
+              {subscribeWithAddOn.isPending ? 'Открываем оплату…' : 'Оформить подписку с белой меткой'}
             </Button>
           ) : (
             <Button onClick={() => enable.mutate()} disabled={enable.isPending || !billing.priceConfigured}>
-              {enable.isPending ? 'Enabling…' : 'Enable white-label add-on'}
+              {enable.isPending ? 'Включаем…' : 'Включить белую метку'}
             </Button>
           )
         }
       >
-        White-label add-on
+        Дополнение «Белая метка»
       </SectionHeading>
       {error && <div style={{ color: theme.danger, fontSize: 13, marginBottom: 10 }}>{error}</div>}
       <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.6 }}>
         {selfhost ? (
-          <>Self-hosted installs are always white-label entitled — configure your brand under Settings and skip this page.</>
+          <>В локальных установках белая метка доступна всегда — настройте бренд в разделе «Настройки» и пропустите эту страницу.</>
         ) : billing.effective ? (
           <>
-            <StatusPill status="active" /> Add-on active. Platform branding is removed, Network surfaces are
-            hidden, and you can serve the portal from your own domain below.
+            <StatusPill status="active" /> Дополнение активно. Брендинг платформы удалён, разделы сети скрыты,
+            а кабинет можно открыть на собственном домене ниже.
           </>
         ) : billing.provisioned ? (
           <>
-            <StatusPill status="warning" /> Add-on is provisioned but not currently entitled — check that your
-            subscription is active on the Billing page. Your custom domain will stop resolving until billing is
-            restored.
+            <StatusPill status="warning" /> Дополнение подготовлено, но пока недоступно — проверьте активность
+            подписки на странице оплаты. Собственный домен не будет открываться до восстановления оплаты.
           </>
         ) : (
           <>
-            Removes OpenPartner branding from your partner portal and emails, hides the shared Network, and
-            serves everything from your own domain (e.g. <code>partners.yourbrand.com</code>). Billed monthly as
-            an add-on to your plan subscription{billing.priceConfigured ? '' : ' — pricing not yet configured on this deployment; contact support'}.
+            Убирает брендинг Syntolk из кабинета партнёра и писем, скрывает общую сеть и
+            кабинет открывается на вашем домене (например, <code>partners.syntolk.ru</code>). Дополнение оплачивается
+            ежемесячно вместе с тарифом{billing.priceConfigured ? '' : ' — стоимость ещё не настроена в этой установке; обратитесь в поддержку'}.
             {needsCheckout && billing.priceConfigured && (
               <>
-                {' '}Your plan subscription isn&rsquo;t active yet — one checkout starts it with the add-on
-                included.
+                {' '}Подписка на тариф ещё не активна — одна оплата запустит её вместе с дополнением.
               </>
             )}
           </>
@@ -219,11 +217,11 @@ function DomainsCard({ rows, loading }: { rows: DomainRow[]; loading: boolean })
 
   return (
     <Card>
-      <SectionHeading>Custom domain</SectionHeading>
+      <SectionHeading>Собственный домен</SectionHeading>
       {rows.length === 0 && (
         <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 12, lineHeight: 1.6 }}>
-          Use a subdomain you own, like <code>partners.yourbrand.com</code>. After registering you&rsquo;ll get
-          two DNS records to publish; once they resolve, hit Verify and TLS is provisioned automatically.
+          Используйте принадлежащий вам поддомен, например <code>partners.syntolk.ru</code>. После регистрации
+          появятся две DNS-записи; когда они обновятся, нажмите «Проверить», и TLS настроится автоматически.
         </div>
       )}
       <form
@@ -236,15 +234,15 @@ function DomainsCard({ rows, loading }: { rows: DomainRow[]; loading: boolean })
         <Input
           value={domain}
           onChange={(e) => setDomain(e.target.value)}
-          placeholder="partners.yourbrand.com"
+          placeholder="partners.syntolk.ru"
           style={{ flex: 1 }}
         />
         <Button type="submit" disabled={register.isPending || !domain.trim()}>
-          {register.isPending ? 'Registering…' : 'Register'}
+          {register.isPending ? 'Регистрируем…' : 'Зарегистрировать'}
         </Button>
       </form>
       {error && <div style={{ color: theme.danger, fontSize: 13, marginBottom: 10 }}>{error}</div>}
-      {loading && <div style={{ fontSize: 13, color: theme.textMuted }}>Loading…</div>}
+      {loading && <div style={{ fontSize: 13, color: theme.textMuted }}>Загрузка…</div>}
       {rows.map((row) => (
         <DomainRowView key={row.id} row={row} onChanged={refresh} />
       ))}
@@ -262,8 +260,8 @@ function DomainRowView({ row, onChanged }: { row: DomainRow; onChanged: () => vo
       setError(null);
       setVerifyNote(
         r.edge === 'skipped' || r.edge === 'failed'
-          ? 'Verified — but the edge registration needs an operator (DO automation unavailable). Support has been signalled via logs.'
-          : 'Verified. TLS is being provisioned — the domain typically goes live within a few minutes.',
+          ? 'Проверено, но регистрацию на edge нужно выполнить оператору. Поддержка получила сигнал в журнале.'
+          : 'Проверено. TLS настраивается — обычно домен становится доступен через несколько минут.',
       );
       onChanged();
     },
@@ -272,8 +270,8 @@ function DomainRowView({ row, onChanged }: { row: DomainRow; onChanged: () => vo
       setError(
         err instanceof ApiError && String(err.message).includes('verification_failed')
           ? row.status === 'verified'
-            ? 'Ownership record not visible right now — the domain stays active, and ownership is re-checked daily.'
-            : 'DNS records not visible yet — propagation can take a few minutes. The values below are unchanged; retry shortly.'
+            ? 'Запись подтверждения владения пока не видна — домен остаётся активным, проверка повторится завтра.'
+            : 'DNS-записи пока не видны — обновление может занять несколько минут. Значения не изменились, повторите попытку позже.'
           : friendlyDomainError(err),
       );
     },
@@ -299,12 +297,12 @@ function DomainRowView({ row, onChanged }: { row: DomainRow; onChanged: () => vo
         <StatusPill status={row.status === 'verified' ? 'active' : row.status} />
         <span style={{ flex: 1 }} />
         <Button variant="ghost" onClick={() => verify.mutate()} disabled={verify.isPending}>
-          <RefreshCw size={13} /> {verify.isPending ? 'Checking…' : row.status === 'verified' ? 'Re-verify' : 'Verify'}
+          <RefreshCw size={13} /> {verify.isPending ? 'Проверяем…' : row.status === 'verified' ? 'Проверить повторно' : 'Проверить'}
         </Button>
         <Button
           variant="ghost"
           onClick={() => {
-            if (window.confirm(`Remove ${row.domain}? The portal stops serving from this domain immediately.`)) {
+            if (window.confirm(`Удалить ${row.domain}? Кабинет сразу перестанет открываться на этом домене.`)) {
               remove.mutate();
             }
           }}
@@ -316,13 +314,13 @@ function DomainRowView({ row, onChanged }: { row: DomainRow; onChanged: () => vo
       {error && <div style={{ color: theme.danger, fontSize: 13, marginTop: 8 }}>{error}</div>}
       {verifyNote && <div style={{ color: theme.success, fontSize: 13, marginTop: 8 }}>{verifyNote}</div>}
       <div style={{ marginTop: 12 }}>
-        <Label>DNS records to publish (the TXT must stay in place permanently)</Label>
+        <Label>DNS-записи для публикации (TXT-запись должна оставаться постоянно)</Label>
         <DnsRecord kind="CNAME" name={row.dnsInstructions.cname.name} value={row.dnsInstructions.cname.target} />
         <DnsRecord kind="TXT" name={row.dnsInstructions.txt.name} value={row.dnsInstructions.txt.value} />
       </div>
       {row.status === 'verified' && row.verifiedAt && (
         <div style={{ fontSize: 12, color: theme.textDim, marginTop: 8 }}>
-          Verified {new Date(row.verifiedAt).toLocaleString()} · ownership re-checked daily
+          Проверено {new Date(row.verifiedAt).toLocaleString()} · проверка владения выполняется ежедневно
         </div>
       )}
     </div>
@@ -366,7 +364,7 @@ function CopyChunk({ text, copied, onCopy }: { text: string; copied: boolean; on
     <button
       type="button"
       onClick={onCopy}
-      title="Copy"
+      title="Скопировать"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -389,10 +387,10 @@ function CopyChunk({ text, copied, onCopy }: { text: string; copied: boolean; on
 
 function friendlyDomainError(err: unknown): string {
   const code = err instanceof ApiError ? String(err.message) : '';
-  if (code.includes('domain_taken')) return 'That domain is already registered to another workspace.';
-  if (code.includes('subdomain_required')) return 'Apex domains aren’t supported yet — use a subdomain like partners.yourbrand.com.';
-  if (code.includes('reserved_host')) return 'That hostname is reserved.';
-  if (code.includes('invalid_domain')) return 'That doesn’t look like a valid hostname.';
-  if (code.includes('white_label_not_entitled')) return 'The white-label add-on isn’t active — enable it above first.';
-  return code || 'Something went wrong.';
+  if (code.includes('domain_taken')) return 'Этот домен уже зарегистрирован в другой компании.';
+  if (code.includes('subdomain_required')) return 'Корневые домены пока не поддерживаются — используйте поддомен, например partners.syntolk.ru.';
+  if (code.includes('reserved_host')) return 'Это имя хоста зарезервировано.';
+  if (code.includes('invalid_domain')) return 'Имя хоста не похоже на корректный домен.';
+  if (code.includes('white_label_not_entitled')) return 'Дополнение «Белая метка» не активно — сначала включите его выше.';
+  return code || 'Произошла ошибка.';
 }

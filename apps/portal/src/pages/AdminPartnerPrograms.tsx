@@ -57,20 +57,20 @@ export function AdminPartnerPrograms() {
 
   return (
     <Page
-      title={`Programs · ${partnerName}`}
-      subtitle="Toggle which programs this partner can create share-links for. Revoking a program doesn't remove existing links — those keep working until the partner deletes them."
+      title={`Кампании · ${partnerName}`}
+      subtitle="Выберите, для каких кампаний партнёр может создавать ссылки. Отзыв доступа не удаляет существующие ссылки — они продолжат работать, пока партнёр не удалит их."
     >
       <div style={{ marginBottom: 14 }}>
         <TenantLink to="/admin/partners" style={{ color: theme.textMuted, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <ArrowLeft size={14} /> Back to Partners
+          <ArrowLeft size={14} /> К партнёрам
         </TenantLink>
       </div>
       <ErrorBanner error={partner.error ?? grants.error ?? add.error ?? remove.error} />
       <Card>
         {grants.isLoading ? (
-          <div style={{ color: theme.textMuted }}>Loading…</div>
+          <div style={{ color: theme.textMuted }}>Загрузка…</div>
         ) : !grants.data || grants.data.programs.length === 0 ? (
-          <div style={{ color: theme.textMuted }}>No campaigns exist yet — create one in Campaigns.</div>
+          <div style={{ color: theme.textMuted }}>Кампаний пока нет — создайте первую в разделе «Кампании».</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {grants.data.programs.map((c) => {
@@ -102,7 +102,7 @@ export function AdminPartnerPrograms() {
                   </div>
                   {c.grantSource === 'offering' && !whiteLabel && (
                     <span style={{ fontSize: 11, color: theme.accent, padding: '3px 8px', background: `${theme.accentA15}`, borderRadius: 12 }}>
-                      via Network
+                      через сеть
                     </span>
                   )}
                 </label>

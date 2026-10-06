@@ -46,17 +46,17 @@ export function AdminReview() {
 
   return (
     <Page
-      title="Review queue"
-      subtitle={`${rows.length} commission${rows.length === 1 ? '' : 's'} awaiting your decision.`}
+      title="Очередь проверки"
+      subtitle={`${rows.length} ${rows.length === 1 ? 'комиссия ожидает' : 'комиссий ожидают'} вашего решения.`}
     >
       <ErrorBanner error={pending.error ?? approve.error ?? reverse.error} />
       {pending.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : rows.length === 0 ? (
-        <EmptyState title="Queue's clear" hint="New commissions will land here as events attribute." icon={<ShieldCheck size={28} strokeWidth={1.25} />} />
+        <EmptyState title="Очередь пуста" hint="Новые комиссии появятся здесь после атрибуции событий." icon={<ShieldCheck size={28} strokeWidth={1.25} />} />
       ) : (
         <Table
-          columns={['Partner', { label: 'Amount', align: 'right' }, 'Status', 'Accrued', 'Actions']}
+          columns={['Партнёр', { label: 'Сумма', align: 'right' }, 'Статус', 'Начислено', 'Действия']}
           rows={rows.map((c) => {
             const inHoldback = c.matureAt ? Date.parse(c.matureAt) > Date.now() : false;
             const daysLeft = c.matureAt ? daysFromNow(c.matureAt) : 0;
@@ -75,26 +75,26 @@ export function AdminReview() {
                     padding: '3px 9px',
                     whiteSpace: 'nowrap',
                   }}
-                  title={`Holdback policy: ${c.holdbackDays} days. Auto-approves on ${new Date(c.matureAt!).toLocaleDateString()}.`}
+                  title={`Отсрочка: ${c.holdbackDays} дн. Автоматическое подтверждение — ${new Date(c.matureAt!).toLocaleDateString()}.`}
                 >
-                  Holdback · {daysLeft}d left
+                  Отсрочка · осталось {daysLeft} дн.
                 </span>
               ) : (
                 <StatusPill status={c.status} />
               ),
               <span style={{ color: theme.textMuted }}>{formatDate(c.accruedAt, { relative: true })}</span>,
               <div style={{ display: 'flex', gap: 6 }}>
-                <span title={inHoldback ? `In holdback until ${new Date(c.matureAt!).toLocaleDateString()}` : ''}>
+                <span title={inHoldback ? `В отсрочке до ${new Date(c.matureAt!).toLocaleDateString()}` : ''}>
                   <Button
                     size="sm"
                     onClick={() => approve.mutate(c.id)}
                     disabled={approve.isPending || inHoldback}
                   >
-                    Approve
+                    Подтвердить
                   </Button>
                 </span>
                 <Button size="sm" variant="danger" onClick={() => reverse.mutate(c.id)} disabled={reverse.isPending}>
-                  Reverse
+                  Отменить
                 </Button>
               </div>,
             ];

@@ -54,7 +54,7 @@ export function CreatorSignupPage() {
       });
       setSent(true);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Something went wrong.');
+      setErr(e instanceof ApiError ? e.message : 'Что-то пошло не так.');
     } finally {
       setBusy(false);
     }
@@ -62,11 +62,11 @@ export function CreatorSignupPage() {
 
   if (sent) {
     return (
-      <AuthFrame title="Check your inbox" subtitle={`We just emailed ${email} a sign-in link.`}>
+      <AuthFrame title="Проверьте входящие" subtitle={`Ссылка для входа отправлена на ${email}.`}>
         <div style={{ background: theme.successSoft, border: `1px solid ${theme.success}55`, padding: 14, borderRadius: theme.radiusSm, fontSize: 13, color: theme.success }}>
-          <div style={{ fontWeight: 500, marginBottom: 6 }}>Account created.</div>
+          <div style={{ fontWeight: 500, marginBottom: 6 }}>Аккаунт создан.</div>
           <div style={{ color: `${theme.success}cc` }}>
-            Click the link in the email to finish signing in. It&rsquo;s good for 15 minutes.
+            Перейдите по ссылке в письме, чтобы завершить вход. Ссылка действует 15 минут.
           </div>
         </div>
       </AuthFrame>
@@ -74,22 +74,22 @@ export function CreatorSignupPage() {
   }
 
   return (
-    <AuthFrame title="Sign up as a creator" subtitle="Browse and apply to partner programs across the OpenPartner Network.">
+    <AuthFrame title="Регистрация автора" subtitle="Просматривайте программы и подавайте заявки в сети Syntolk.">
       <SignupTabs active="creator" />
       <form onSubmit={submit}>
-        <Field label="Your name">
+        <Field label="Ваше имя">
           <input name="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ada Lovelace" required style={inputStyle} />
         </Field>
-        <Field label="Email" hint="We'll send your sign-in link here.">
+        <Field label="Email" hint="Сюда будет отправлена ссылка для входа.">
           <input type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ada@example.com" required style={inputStyle} />
         </Field>
         <Field
-          label="Handle (optional)"
+          label="Идентификатор (необязательно)"
           hint={
-            handleStatus === 'checking' ? <span style={{ color: theme.textMuted }}>Checking…</span>
-            : handleStatus === 'available' ? <span style={{ color: theme.success }}>✓ Available</span>
-            : handleStatus === 'taken' ? <span style={{ color: theme.danger }}>✗ Already taken — pick another</span>
-            : 'Letters, numbers, hyphens. Used as your default share-link slug.'
+            handleStatus === 'checking' ? <span style={{ color: theme.textMuted }}>Проверяем…</span>
+            : handleStatus === 'available' ? <span style={{ color: theme.success }}>✓ Доступно</span>
+            : handleStatus === 'taken' ? <span style={{ color: theme.danger }}>✗ Уже занято — выберите другое</span>
+            : 'Буквы, цифры и дефисы. Используется как идентификатор партнёрских ссылок.'
           }
         >
           <input
@@ -108,10 +108,10 @@ export function CreatorSignupPage() {
           disabled={busy || handleStatus === 'taken' || handleStatus === 'checking'}
           style={primaryBtnStyle(busy || handleStatus === 'taken' || handleStatus === 'checking')}
         >
-          {busy ? 'Creating creator…' : 'Become a creator'}
+          {busy ? 'Создаём аккаунт…' : 'Стать автором'}
         </button>
         <div style={{ marginTop: 12, fontSize: 12, color: theme.textDim, textAlign: 'center' }}>
-          Already have an account? <Link to="/creator/login" style={{ color: theme.accent }}>Sign in</Link>
+          Уже есть аккаунт? <Link to="/creator/login" style={{ color: theme.accent }}>Войти</Link>
         </div>
       </form>
     </AuthFrame>

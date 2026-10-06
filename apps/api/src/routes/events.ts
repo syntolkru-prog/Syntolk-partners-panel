@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { ulid } from 'ulid';
-import { TABLES, type EventRow } from '@openpartner/db';
-import { attributeEvent } from '../attribution.js';
 import { grantScope, requireAdmin, requireAuth } from '../auth.js';
+import { ingestPaymentEvent } from '../payment-events.js';
 import { tenantOf } from '../tenancy.js';
 
 const schema = z.object({
@@ -11,6 +9,7 @@ const schema = z.object({
   type: z.string().min(1),
   value: z.number().nonnegative().optional(),
   currency: z.string().length(3).optional(),
+  externalEventId: z.string().min(1).max(120).optional(),
   metadata: z.record(z.unknown()).optional(),
   ts: z.string().datetime().optional(),
 });
@@ -26,22 +25,18 @@ eventsRouter.post('/attribution/events', requireAuth, grantScope('events:write')
   const body = schema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: 'invalid_body', detail: body.error.flatten() });
 
-  const eventId = ulid();
-  const { userId, type, value, currency, metadata, ts } = body.data;
-
-  const [event] = await db<EventRow>(TABLES.Event)
-    .insert({
-      id: eventId,
-      tenantId,
-      userId,
-      type,
-      value: value != null ? value.toFixed(2) : null,
-      currency: currency ?? 'USD',
-      metadata: metadata ?? {},
-      ts: ts ? new Date(ts) : new Date(),
-    })
-    .returning('*');
-
-  const result = await attributeEvent(db, event as EventRow);
-  res.json({ ok: true, eventId, attribution: result });
+  const result = await ingestPaymentEvent(db, tenantId, {
+    ...body.data,
+    currency: body.data.currency ?? 'USD',
+    ts: body.data.ts ? new Date(body.data.ts) : undefined,
+  });
+  // Keep the original Syntolk conversion-event contract stable: callers use
+  // the response body to inspect `replayed`, so both a first delivery and an
+  // idempotent retry remain HTTP 200.
+  res.status(200).json({
+    ok: true,
+    eventId: result.event.id,
+    replayed: result.replayed,
+    attribution: result.attribution,
+  });
 });

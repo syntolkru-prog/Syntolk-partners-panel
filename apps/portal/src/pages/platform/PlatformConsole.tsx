@@ -102,7 +102,7 @@ function TopNav({ operator, onSignOut }: { operator: PlatformOperator; onSignOut
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Logo size={22} />
           <div style={{ fontSize: 14, fontWeight: 600 }}>
-            OpenPartner <span style={{ color: theme.textDim, fontWeight: 500 }}>ops</span>
+            Syntolk <span style={{ color: theme.textDim, fontWeight: 500 }}>ops</span>
           </div>
         </div>
 

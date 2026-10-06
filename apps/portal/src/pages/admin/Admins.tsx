@@ -23,11 +23,11 @@ export function AdminAdmins() {
 
   return (
     <Page
-      title="Admins"
-      subtitle="People who can manage this partner program. Invited via email, they set up their own credentials."
+      title="Администраторы"
+      subtitle="Пользователи, которые могут управлять этой партнёрской программой. Они получают приглашение по электронной почте и самостоятельно активируют доступ."
       actions={
         <Button icon={<Plus size={14} />} onClick={() => setShowInvite(true)}>
-          Invite admin
+          Пригласить администратора
         </Button>
       }
     >
@@ -42,12 +42,12 @@ export function AdminAdmins() {
         />
       )}
       {admins.isLoading ? (
-        <Card>Loading…</Card>
+        <Card>Загрузка…</Card>
       ) : (admins.data?.admins ?? []).length === 0 ? (
-        <EmptyState title="No admins yet" hint="Invite your team." icon={<UserCog size={28} strokeWidth={1.25} />} />
+        <EmptyState title="Администраторов пока нет" hint="Пригласите свою команду." icon={<UserCog size={28} strokeWidth={1.25} />} />
       ) : (
         <Table
-          columns={['Admin', 'Email', 'Status', 'Last sign-in', 'Created', 'Actions']}
+          columns={['Администратор', 'Электронная почта', 'Статус', 'Последний вход', 'Создан', 'Действия']}
           rows={(admins.data?.admins ?? []).map((a) => [
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Avatar name={a.name} size={28} />
@@ -81,26 +81,26 @@ function InviteAdmin({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   return (
     <Card style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Invite an admin</div>
+      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Пригласить администратора</div>
       <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 14 }}>
-        They'll get an email with a one-time link to activate their account.
+        Пользователь получит письмо с одноразовой ссылкой для активации аккаунта.
       </div>
       <ErrorBanner error={mut.error} />
       <div className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
         <div>
-          <Label>Name</Label>
+          <Label>Имя</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Taylor Admin" />
         </div>
         <div>
-          <Label>Email</Label>
+          <Label>Электронная почта</Label>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="taylor@example.com" />
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <Button onClick={() => mut.mutate()} disabled={!name || !email || mut.isPending}>
-          {mut.isPending ? 'Sending…' : 'Send invite'}
+          {mut.isPending ? 'Отправляем…' : 'Отправить приглашение'}
         </Button>
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant="secondary" onClick={onClose}>Отмена</Button>
       </div>
     </Card>
   );
@@ -129,7 +129,7 @@ function AdminActions({ admin }: { admin: Admin }) {
   const isPending = !admin.activatedAt && !admin.revokedAt;
 
   function confirmRevoke() {
-    const ok = window.confirm(`Revoke ${admin.name}? They'll be signed out and lose admin access.`);
+    const ok = window.confirm(`Отозвать доступ у ${admin.name}? Пользователь будет выведен из системы и потеряет права администратора.`);
     if (ok) revoke.mutate();
   }
 
@@ -142,7 +142,7 @@ function AdminActions({ admin }: { admin: Admin }) {
             disabled={resend.isPending}
             style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: theme.accent, cursor: 'pointer' }}
           >
-            {sent ? 'Sent' : resend.isPending ? 'Sending…' : 'Resend invite'}
+            {sent ? 'Отправлено' : resend.isPending ? 'Отправляем…' : 'Отправить повторно'}
           </button>
           <span style={{ color: theme.border }}>·</span>
         </>
@@ -153,7 +153,7 @@ function AdminActions({ admin }: { admin: Admin }) {
           disabled={reinstate.isPending}
           style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: theme.accent, cursor: 'pointer' }}
         >
-          {reinstate.isPending ? '…' : 'Reinstate'}
+          {reinstate.isPending ? '…' : 'Восстановить доступ'}
         </button>
       ) : (
         <button
@@ -161,7 +161,7 @@ function AdminActions({ admin }: { admin: Admin }) {
           disabled={revoke.isPending}
           style={{ background: 'none', border: 'none', padding: 0, fontSize: 13, color: theme.danger, cursor: 'pointer' }}
         >
-          {revoke.isPending ? '…' : 'Revoke'}
+          {revoke.isPending ? '…' : 'Отозвать доступ'}
         </button>
       )}
     </div>

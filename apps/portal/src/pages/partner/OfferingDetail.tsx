@@ -51,9 +51,9 @@ export function OfferingDetailPage({ principal }: { principal: Principal }) {
   const canApply = principal.role === 'partner';
 
   return (
-    <Page title={offering?.title ?? 'Program'} subtitle={offering?.vendorName}>
+    <Page title={offering?.title ?? 'Программа'} subtitle={offering?.vendorName}>
       <ErrorBanner error={error} />
-      {isLoading && <Card>Loading…</Card>}
+      {isLoading && <Card>Загрузка…</Card>}
       {offering && (
         <>
           <Card>
@@ -65,24 +65,24 @@ export function OfferingDetailPage({ principal }: { principal: Principal }) {
             {offering.description && <p style={{ marginTop: 8 }}>{offering.description}</p>}
             <p style={{ marginTop: 12 }}>
               <a href={offering.productUrl} target="_blank" rel="noopener noreferrer">
-                View product →
+                Открыть сайт →
               </a>
             </p>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 12, color: theme.textMuted, fontSize: 13 }}>
               {offering.terms.cookieWindowDays != null && (
-                <span>Cookie window: {offering.terms.cookieWindowDays} days</span>
+                <span>Окно cookie: {offering.terms.cookieWindowDays} дн.</span>
               )}
-              {offering.terms.payoutCadence && <span>Payouts: {offering.terms.payoutCadence}</span>}
+              {offering.terms.payoutCadence && <span>Выплаты: {offering.terms.payoutCadence}</span>}
             </div>
           </Card>
 
           <div style={{ height: 18 }} />
 
           <Card>
-            <h3 style={{ marginTop: 0 }}>Apply to promote</h3>
+            <h3 style={{ marginTop: 0 }}>Подать заявку на продвижение</h3>
             {!canApply ? (
               <p style={{ color: theme.textMuted }}>
-                Only partner accounts can apply. <TenantLink to="/login">Switch accounts</TenantLink>?
+                Подавать заявки могут только аккаунты партнёров. <TenantLink to="/login">Сменить аккаунт</TenantLink>?
               </p>
             ) : (
               <>
@@ -91,11 +91,11 @@ export function OfferingDetailPage({ principal }: { principal: Principal }) {
                   'detail' in (apply.error.detail as { detail?: { detail?: string } }) &&
                   (apply.error.detail as { detail?: string }).detail === 'request_already_exists' && (
                   <p style={{ color: theme.textMuted, fontSize: 13 }}>
-                    You already have a pending or active request for this program.
+                    У вас уже есть ожидающая или активная заявка на эту программу.
                   </p>
                 )}
                 <div style={{ marginTop: 8 }}>
-                  <Label>Preferred share-link slug (optional)</Label>
+                  <Label>Предпочтительный идентификатор ссылки (необязательно)</Label>
                   <Input
                     placeholder="your-handle"
                     value={preferredSlug}
@@ -103,17 +103,17 @@ export function OfferingDetailPage({ principal }: { principal: Principal }) {
                   />
                 </div>
                 <div style={{ marginTop: 12 }}>
-                  <Label>Message to the vendor (optional)</Label>
+                  <Label>Сообщение компании (необязательно)</Label>
                   <Textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     rows={4}
-                    placeholder="Why you'd be a great partner…"
+                    placeholder="Почему вы подходите для партнёрства…"
                   />
                 </div>
                 <div style={{ marginTop: 12 }}>
                   <Button onClick={() => apply.mutate()} disabled={apply.isPending}>
-                    {apply.isPending ? 'Applying…' : 'Submit application'}
+                    {apply.isPending ? 'Отправляем…' : 'Подать заявку'}
                   </Button>
                 </div>
               </>

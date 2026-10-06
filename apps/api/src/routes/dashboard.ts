@@ -4,6 +4,7 @@ import { TABLES, type ClickRow, type LinkRow } from '@openpartner/db';
 import { grantScope, requireAuth, requirePartnerOrAdmin } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
 import { parseUserAgent } from '../ua-parse.js';
+import { adjustmentTotalsByCommission, netCommissionAmount } from '../commission-net.js';
 
 export const dashboardRouter = Router();
 
@@ -47,16 +48,43 @@ dashboardRouter.get('/partners/:id/dashboard', requireAuth, grantScope('partners
     .andWhere(`${TABLES.Attribution}.computedAt`, '>=', since)
     .select(
       db.raw(`COUNT(DISTINCT "Attribution"."eventId") as events`),
+      db.raw(`COUNT(DISTINCT CASE WHEN "Event"."type" = 'signup' THEN "Event"."userId" END) as registrations`),
+      db.raw(`COUNT(DISTINCT CASE WHEN "Event"."type" IN ('invoice_paid','recurring_payment') AND COALESCE("Event"."value", 0) > 0 THEN "Event"."userId" END) as "payingClients"`),
       db.raw(`COALESCE(SUM("Event".value * "Attribution".weight), 0) as revenue`),
     )
-    .first<{ events: string; revenue: string }>();
+    .first<{ events: string; registrations: string; payingClients: string; revenue: string }>();
 
-  const commissionByStatus = (await db(TABLES.Commission)
+  const commissionRows = (await db(TABLES.Commission)
     .where({ partnerId })
     .andWhere('accruedAt', '>=', since)
-    .groupBy('status')
-    .select('status')
-    .sum({ amount: 'amount' })) as Array<{ status: string; amount: string | null }>;
+    .select('id', 'status', 'amount')) as Array<{ id: string; status: string; amount: string }>;
+  const adjustments = await adjustmentTotalsByCommission(db, commissionRows.map((c) => c.id));
+  const commissionByStatus = new Map<string, number>();
+  for (const row of commissionRows) {
+    commissionByStatus.set(
+      row.status,
+      (commissionByStatus.get(row.status) ?? 0) + netCommissionAmount(row, adjustments, row.id),
+    );
+  }
+
+  // Balances are lifetime ledger totals, intentionally independent from the
+  // selected dashboard period. "Available" means approved and not clawed
+  // back; paid is retained as a separate historical total.
+  const lifetimeRows = (await db(TABLES.Commission)
+    .where({ partnerId })
+    .select('id', 'status', 'amount')) as Array<{ id: string; status: string; amount: string }>;
+  const lifetimeAdjustments = await adjustmentTotalsByCommission(db, lifetimeRows.map((c) => c.id));
+  const balances = { accrued: 0, available: 0, paid: 0, total: 0 };
+  for (const row of lifetimeRows) {
+    const amount = netCommissionAmount(row, lifetimeAdjustments, row.id);
+    if (row.status === 'accrued') balances.accrued += amount;
+    if (row.status === 'approved') balances.available += amount;
+    if (row.status === 'paid') balances.paid += amount;
+    if (row.status !== 'reversed') balances.total += amount;
+  }
+  for (const key of Object.keys(balances) as Array<keyof typeof balances>) {
+    balances[key] = Math.round(balances[key] * 100) / 100;
+  }
 
   let links: Array<{
     linkKey: string;
@@ -122,10 +150,14 @@ dashboardRouter.get('/partners/:id/dashboard', requireAuth, grantScope('partners
     since: since.toISOString(),
     clicks: Number(clicksRow?.count ?? 0),
     attributedEvents: Number(attributedRow?.events ?? 0),
+    registrations: Number(attributedRow?.registrations ?? 0),
+    payingClients: Number(attributedRow?.payingClients ?? 0),
+    conversionRate: Number(clicksRow?.count ?? 0) > 0
+      ? Number(attributedRow?.payingClients ?? 0) / Number(clicksRow?.count ?? 0)
+      : 0,
     attributedRevenue: Number(attributedRow?.revenue ?? 0),
-    commissionByStatus: Object.fromEntries(
-      commissionByStatus.map((r) => [r.status, Number(r.amount ?? 0)]),
-    ),
+    commissionByStatus: Object.fromEntries(commissionByStatus),
+    balances,
     ...(links !== undefined ? { links } : {}),
   });
 });
