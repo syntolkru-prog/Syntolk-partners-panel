@@ -32,7 +32,7 @@ interface PartnerDashboard {
   conversionRate: number;
   attributedRevenue: number;
   commissionByStatus: Record<string, number>;
-  balances: { accrued: number; available: number; paid: number; total: number };
+  balances: { accrued: number; available: number; pending: number; paid: number; total: number };
   links?: Array<{ linkKey: string; clicks: number; attributedEvents: number; attributedRevenue: number }>;
 }
 
@@ -130,12 +130,13 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             <Stat label="Переходы" value={data.clicks} icon={<MousePointerClick size={16} />} />
-            <Stat label="Регистрации и события" value={data.attributedEvents} icon={<Receipt size={16} />} />
+            <Stat label="Регистрации" value={data.registrations} icon={<Receipt size={16} />} />
             <Stat label="Платящие клиенты" value={data.payingClients} icon={<CreditCard size={16} />} />
             <Stat label="Конверсия" value={`${(data.conversionRate * 100).toFixed(1)}%`} icon={<CreditCard size={16} />} />
             <Stat label="Доход от клиентов" value={money(data.attributedRevenue)} icon={<Wallet size={16} />} />
             <Stat label="Начислено всего" value={money(data.balances.total)} icon={<Wallet size={16} />} />
             <Stat label="Доступно к выплате" value={money(data.balances.available)} icon={<Wallet size={16} />} />
+            <Stat label="Ожидает выплаты" value={money(data.balances.pending ?? 0)} icon={<Wallet size={16} />} />
             <Stat label="Выплачено" value={money(data.balances.paid)} icon={<Wallet size={16} />} />
           </div>
 
@@ -167,7 +168,7 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {(['accrued', 'approved', 'paid', 'reversed'] as const).map((status) => {
+                {(['accrued', 'approved', 'pending', 'paid', 'reversed'] as const).map((status) => {
                   const amount = data.commissionByStatus[status] ?? 0;
                   if (amount === 0) return null;
                   return (
@@ -325,6 +326,7 @@ interface AdminOverview {
     attributedEvents: number;
     commissionAccrued: number;
     commissionApproved: number;
+    commissionPending: number;
     commissionPaid: number;
     netRevenue: number;
   };
@@ -362,7 +364,7 @@ function AdminDashboard() {
             <Stat
               label="Ожидает подтверждения"
               value={money(data.totals.commissionAccrued)}
-              hint={`${money(data.totals.commissionApproved)} подтверждено, ${money(data.totals.commissionPaid)} выплачено`}
+              hint={`${money(data.totals.commissionApproved)} доступно, ${money(data.totals.commissionPending ?? 0)} ожидает, ${money(data.totals.commissionPaid)} выплачено`}
               icon={<Receipt size={16} />}
             />
           </div>

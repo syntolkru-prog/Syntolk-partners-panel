@@ -1,22 +1,7 @@
 /**
- * Payout PLANNER.
- *
+ * Syntolk manual payout planner. No external payment API is called here.
  * Finds approved commissions, groups by (partner, currency), and writes a
- * Payout row per group. Manual-rail payouts are complete when this returns
- * (the operator owns the transfer). Connect-rail payouts are written as
- * durable *intents* — `metadata.transferState = 'intent'` — and the money
- * is moved later by `executePayoutTransfers` (payout-transfers.ts), which
- * runs OUTSIDE any transaction.
- *
- * Why the split (audit #10): this function runs inside the caller's tenant
- * transaction (scheduler tick / request middleware). Calling Stripe from
- * in here meant a transfer could succeed and the surrounding commit then
- * fail — the Payout row rolled back, the money gone, and the next run
- * minted a NEW payoutId, hence a NEW idempotency key, hence a DUPLICATE
- * transfer. Same for an ambiguous (timeout) Stripe error. The fix mirrors
- * `funding/executor.ts`: freeze the intent (its id, and with it its
- * idempotency key `payout_<payoutId>`) and its commission set in the DB,
- * COMMIT, and only then talk to Stripe.
+ * pending Payout per group. Completion requires the admin confirmation.
  *
  * The commission set is frozen by claiming the rows — `Commission.payoutId`
  * is stamped while `status` stays 'approved'. Claimed rows are invisible to
@@ -80,7 +65,7 @@ export interface PayoutRunResult {
   }>;
 }
 
-export async function runPayouts(db: Knex, tenantId: string): Promise<PayoutRunResult> {
+export async function runPayouts(db: Knex, tenantId: string, partnerId?: string): Promise<PayoutRunResult> {
   // Serialize every payout actor for this tenant — the weekly scheduler
   // tick, the admin run-payouts endpoint, and funding reservation — on one
   // advisory xact lock (audit: concurrent runs could double-transfer).
@@ -116,6 +101,7 @@ export async function runPayouts(db: Knex, tenantId: string): Promise<PayoutRunR
   // executor when an intent is abandoned.
   const groups = (await db(TABLES.Commission)
     .where({ status: 'approved' })
+    .modify((query) => { if (partnerId) query.andWhere({ partnerId }); })
     .whereNull('payoutId')
     .groupBy('partnerId', 'currency')
     .select('partnerId', 'currency')) as Array<{ partnerId: string; currency: string }>;
@@ -162,7 +148,7 @@ export async function runPayouts(db: Knex, tenantId: string): Promise<PayoutRunR
     // contract. Until then every payout is an auditable manual ledger entry;
     // no third-party payout API is called from the local Syntolk build.
     const method: PayoutMethod = 'manual';
-    const finalStatus: 'pending' = 'pending';
+    const finalStatus = 'pending' as const;
 
     await db(TABLES.Payout).insert({
       id: payoutId,
@@ -181,10 +167,10 @@ export async function runPayouts(db: Knex, tenantId: string): Promise<PayoutRunR
     });
     await db(TABLES.Commission)
       .whereIn('id', payableCommissions.map((c) => c.id))
-      .update({ status: 'paid', paidAt: new Date(), payoutId });
+      .update({ payoutId });
 
-    // Manual path: commissions are already marked paid in the tx above.
-    // Fire webhooks now — the operator owns the out-of-band transfer.
+    // Reserve only. Completion and commission.paid belong to confirmation,
+    // not to creation of a pending manual payout.
     dispatchEvent(tenantId, 'payout.created', {
         payoutId,
         partnerId: partner.id,
@@ -194,16 +180,6 @@ export async function runPayouts(db: Knex, tenantId: string): Promise<PayoutRunR
         commissionIds: payableCommissions.map((c) => c.id),
         platformFee: platformFee || undefined,
       });
-    for (const c of payableCommissions) {
-      const netAmount = netCommissionAmount(c, adjustments, c.id);
-      dispatchEvent(tenantId, 'commission.paid', {
-          commissionId: c.id,
-          partnerId: c.partnerId,
-          amount: netAmount.toFixed(2),
-          currency: c.currency,
-          payoutId,
-        });
-    }
     results.push({
         payoutId,
         partnerId: partner.id,

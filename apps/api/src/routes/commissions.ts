@@ -18,6 +18,8 @@ import { TABLES, type AttributionRow, type ProgramRow, type CommissionRow } from
 import { grantScope, requireAdmin, requireAuth, requirePartnerOrAdmin } from '../auth.js';
 import { dispatchEvent } from '../webhook-dispatcher.js';
 import { tenantOf } from '../tenancy.js';
+import { tryTenantPayoutLock } from '../payout-lock.js';
+import type { Knex } from 'knex';
 
 const listQuerySchema = z.object({
   status: z.enum(['accrued', 'approved', 'paid', 'reversed']).optional(),
@@ -66,7 +68,9 @@ function listQueryBase(db: import('knex').Knex) {
     .leftJoin(`${TABLES.Event} as ev`, 'ev.id', 'a.eventId')
     .leftJoin(`${TABLES.Program} as cp`, 'cp.id', 'a.programId')
     .leftJoin(`${TABLES.PartnerCommission} as pc`, 'pc.partnerId', 'c.partnerId')
+    .leftJoin(`${TABLES.Payout} as po`, 'po.id', 'c.payoutId')
     .select('c.*')
+    .select('po.status as payoutStatus')
     .select(db.raw('coalesce("pc"."holdbackDays", "cp"."holdbackDays") as "_holdbackDays"'))
     .select('cp.id as _campaignId')
     .select('cp.name as _campaignName')
@@ -135,6 +139,7 @@ commissionsRouter.post('/commissions/:id/adjust', requireAuth, grantScope('commi
   const { db, tenantId } = tenantOf(req);
   const body = adjustmentSchema.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: 'invalid_body', detail: body.error.flatten() });
+  if (!(await tryTenantPayoutLock(db as Knex.Transaction, tenantId))) return res.status(409).json({ error: 'payout_busy' });
   const commission = await db<CommissionRow>(TABLES.Commission).where({ id: req.params.id }).first();
   if (!commission) return res.status(404).json({ error: 'not_found' });
   const [adjustment] = await db(TABLES.CommissionAdjustment)
@@ -199,11 +204,13 @@ commissionsRouter.post('/commissions/:id/approve', requireAuth, requireAdmin, as
 
 commissionsRouter.post('/commissions/:id/reverse', requireAuth, requireAdmin, async (req, res) => {
   const { db, tenantId } = tenantOf(req);
+  if (!(await tryTenantPayoutLock(db as Knex.Transaction, tenantId))) return res.status(409).json({ error: 'payout_busy' });
   // Payouts in the local build are manual ledger entries. Reverse only an
   // accrued or approved row before the manual payout is planned.
   const updated = await db<CommissionRow>(TABLES.Commission)
     .where({ id: req.params.id })
     .whereIn('status', ['accrued', 'approved'])
+    .whereNull('payoutId')
     .update({ status: 'reversed' })
     .returning('*');
   if (updated.length === 0) {

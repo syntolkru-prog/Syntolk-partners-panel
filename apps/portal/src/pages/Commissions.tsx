@@ -13,6 +13,8 @@ interface Commission {
   amount: string;
   currency: string;
   status: string;
+  payoutId: string | null;
+  payoutStatus: string | null;
   accruedAt: string;
   paidAt: string | null;
   customerLabel: string | null;
@@ -61,9 +63,9 @@ export function CommissionsPage({ principal }: { principal: Principal }) {
       <span style={{ color: theme.textMuted }}>{c.campaignName ?? eventLabel(c.eventType)}</span>,
       <span style={{ color: theme.textMuted }}>{c.paymentAmount ? money(c.paymentAmount, c.paymentCurrency ?? c.currency) : '—'}</span>,
       <span style={{ fontWeight: 500 }}>{money(c.amount, c.currency)}</span>,
-      <StatusPill status={c.status} />,
+      <StatusPill status={c.payoutId && c.payoutStatus !== 'paid' && ['approved', 'paid'].includes(c.status) ? 'pending' : c.status} />,
       <span style={{ color: theme.textMuted }}>{formatDate(c.accruedAt, { relative: true })}</span>,
-      <span style={{ color: theme.textMuted }}>{formatDate(c.paidAt, { relative: true })}</span>,
+      <span style={{ color: theme.textMuted }}>{formatDate(c.payoutId && c.payoutStatus !== 'paid' ? null : c.paidAt, { relative: true })}</span>,
     ];
     return base.filter((x) => x !== null) as React.ReactNode[];
   });

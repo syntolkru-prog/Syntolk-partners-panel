@@ -31,6 +31,7 @@ Ingress rules fan incoming traffic out: `/api/*` → `api`, everything else → 
    - `POSTMARK_SERVER_TOKEN`, `MAIL_FROM` (or `SMTP_HOST` + SMTP vars, or neither) — mail provider fallback. You can skip these entirely and let the admin configure mail from the Settings UI after install; these env vars win only when UI settings are empty.
    - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_FLAT_PRICE_ID` — only if running `flat` or `revshare` mode.
    - `COOKIE_DOMAIN` — `.yourdomain.com` so the router's `_cref` cookie covers your landing pages.
+   - `VITE_ROUTER_URL` — public HTTPS origin of the click router, for example `https://go.syntolk.ru`; it is embedded into the portal build so copied partner links are permanent full URLs.
    - `METRICS_TOKEN` — optional; set to require Bearer auth on `/metrics`.
 4. **Deploy.** The API container runs migrations on first boot via `apps/api/docker-entrypoint.sh`, so an empty Postgres bootstraps automatically. Subsequent deploys re-run and are idempotent against `knex_migrations`.
 5. **Wire custom domains.** In the App Platform UI → Settings → Domains:

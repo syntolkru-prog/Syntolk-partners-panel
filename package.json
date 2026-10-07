@@ -9,6 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "local:demo": "tsx apps/api/scripts/local-demo.mts",
     "build": "pnpm -r run build",
     "lint": "eslint apps packages",
     "test": "pnpm -r run test",

@@ -18,6 +18,7 @@ interface Payout {
   providerStatus: string | null;
   partnerName?: string | null;
   partnerEmail?: string | null;
+  metadata?: { cancellationReason?: string };
 }
 
 export function PayoutsPage({ principal }: { principal: Principal }) {
@@ -32,11 +33,13 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
         runId: string;
         payouts: unknown[];
         skippedBelowThreshold: Array<{ partnerId: string; currency: string; amount: number }>;
-      }>('/payouts/run', { method: 'POST' }),
+      }>('/payouts/run', { method: 'POST', body: partnerId ? { partnerId } : {} }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payouts'] });
       qc.invalidateQueries({ queryKey: ['commissions'] });
       qc.invalidateQueries({ queryKey: ['admin-overview'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['partner-detail-dashboard'] });
     },
   });
 
@@ -44,6 +47,20 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
     mutationFn: (payoutId: string) => api(`/payouts/${payoutId}/confirm`, { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payouts'] });
+      qc.invalidateQueries({ queryKey: ['admin-overview'] });
+      qc.invalidateQueries({ queryKey: ['commissions'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['partner-detail-dashboard'] });
+    },
+  });
+
+  const cancelPayout = useMutation({
+    mutationFn: (payoutId: string) => api(`/payouts/${payoutId}/cancel`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payouts'] });
+      qc.invalidateQueries({ queryKey: ['commissions'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.invalidateQueries({ queryKey: ['partner-detail-dashboard'] });
       qc.invalidateQueries({ queryKey: ['admin-overview'] });
     },
   });
@@ -75,7 +92,10 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
 
   return (
     <Page title="Выплаты" subtitle={subtitle} actions={actions}>
-      <ErrorBanner error={runPayouts.error ?? confirmPayout.error ?? payouts.error} />
+      <ErrorBanner error={runPayouts.error ?? confirmPayout.error ?? cancelPayout.error ?? payouts.error} />
+      <Card style={{ marginBottom: 14, fontSize: 13, color: theme.textMuted }}>
+        {isAdmin ? 'Расчёт создаёт ожидающую заявку, а «Подтвердить» фиксирует её завершение. В локальной версии деньги не переводятся. При выборе партнёра расчёт касается только его.' : 'Ожидающая заявка ещё не считается выплаченной. В локальной версии это имитация, без банковского перевода.'}
+      </Card>
 
       {runPayouts.data && (
         <Card style={{ marginBottom: 14, borderColor: `${theme.accentA55}` }}>
@@ -147,13 +167,16 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
             <code style={{ color: theme.textDim, fontSize: 12 }}>{shortId(p.id)}</code>,
             <span style={{ fontWeight: 500 }}>{money(p.amount, p.currency)}</span>,
             <span style={{ color: theme.textMuted }}>{p.method === 'manual' ? 'Вручную' : p.method}</span>,
-            <StatusPill status={p.status} />,
+            p.metadata?.cancellationReason === 'manual_cancel'
+              ? <span style={{ color: theme.textMuted }}>отменена</span>
+              : <StatusPill status={p.status} />,
             <code style={{ color: theme.textMuted, fontSize: 11 }}>{p.providerOperationId ?? '—'}</code>,
             <span style={{ color: theme.textMuted }}>{formatDate(p.createdAt, { relative: true })}</span>,
             <span style={{ color: theme.textMuted }}>{formatDate(p.completedAt, { relative: true })}</span>,
             ...(isAdmin
               ? [
                   p.method === 'manual' && p.status === 'pending' ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
                     <Button
                       size="sm"
                       variant="secondary"
@@ -163,6 +186,8 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
                     >
                       Подтвердить
                     </Button>
+                    <Button size="sm" variant="ghost" onClick={() => cancelPayout.mutate(p.id)} disabled={cancelPayout.isPending || confirmPayout.isPending}>Отменить заявку</Button>
+                    </div>
                   ) : (
                     <span style={{ color: theme.textDim, fontSize: 12 }}>—</span>
                   ),

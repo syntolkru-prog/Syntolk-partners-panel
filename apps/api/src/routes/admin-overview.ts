@@ -35,9 +35,11 @@ adminOverviewRouter.get('/admin/overview', requireAuth, requireAdmin, async (req
       db.raw('COUNT(*) as events'),
     )) as Array<{ partnerId: string; revenue: string; events: string }>;
 
-  const commissionRows = (await db(TABLES.Commission)
-    .where('accruedAt', '>=', since)
-    .select('id', 'partnerId', 'status', 'amount')) as Array<{
+  const commissionRows = (await db(`${TABLES.Commission} as c`)
+    .leftJoin(`${TABLES.Payout} as p`, 'p.id', 'c.payoutId')
+    .where('c.accruedAt', '>=', since)
+    .select('c.id', 'c.partnerId', 'c.amount')
+    .select(db.raw(`CASE WHEN "c"."payoutId" IS NOT NULL AND "c"."status" IN ('approved','paid') AND COALESCE("p"."status", 'pending') <> 'paid' THEN 'pending' ELSE "c"."status" END as status`))) as Array<{
     id: string;
     partnerId: string;
     status: string;
@@ -72,6 +74,7 @@ adminOverviewRouter.get('/admin/overview', requireAuth, requireAdmin, async (req
     attributedEvents: Array.from(rev.values()).reduce((a, b) => a + b.events, 0),
     commissionAccrued: partnerRows.reduce((a, p) => a + (p.commission.accrued ?? 0), 0),
     commissionApproved: partnerRows.reduce((a, p) => a + (p.commission.approved ?? 0), 0),
+    commissionPending: partnerRows.reduce((a, p) => a + (p.commission.pending ?? 0), 0),
     commissionPaid: partnerRows.reduce((a, p) => a + (p.commission.paid ?? 0), 0),
     netRevenue: partnerRows.reduce((a, p) => a + p.netRevenue, 0),
   };

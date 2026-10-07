@@ -175,7 +175,8 @@ describe.skipIf(skipIntegration)('webhooks', () => {
     await request(app)
       .post(`/commissions/${accrued!.id}/approve`)
       .set('Authorization', `Bearer ${ADMIN_KEY}`);
-    await request(app).post('/payouts/run').set('Authorization', `Bearer ${ADMIN_KEY}`);
+    const planned = await request(app).post('/payouts/run').set('Authorization', `Bearer ${ADMIN_KEY}`);
+    await request(app).post(`/payouts/${planned.body.payouts[0].payoutId}/confirm`).set('Authorization', `Bearer ${ADMIN_KEY}`);
 
     // Wait until the receiver logged a commission.paid capture.
     const capture = await waitFor(async () => receiver.captures.find((c) => c.headers['x-openpartner-event'] === 'commission.paid') ?? null);

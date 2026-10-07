@@ -18,24 +18,37 @@ import { Avatar, Button, Card, EmptyState, ErrorBanner, Input, Label, Page, Sele
 function useShareUrlBase(): string | null {
   const pathSlug = currentTenantSlug();
   const { tenantSlug } = usePublicBrand();
+  const configuredRouter = (import.meta.env.VITE_ROUTER_URL as string | undefined)?.replace(/\/$/, '');
+  if (configuredRouter) return pathSlug ? `${configuredRouter}/r/${pathSlug}` : `${configuredRouter}/r`;
   if (pathSlug) return `${window.location.origin}/r/${pathSlug}`;
   if (tenantSlug && tenantSlug !== 'default') return `${window.location.origin}/r`;
-  return null;
+  if (import.meta.env.DEV) return `${window.location.origin}/r`;
+  // Self-host deployments route /r to the click router on the same public
+  // origin. A separate router hostname should be supplied with
+  // VITE_ROUTER_URL at build time.
+  return `${window.location.origin}/r`;
 }
 
 function CopyableShareLink({ linkKey, base }: { linkKey: string; base: string | null }) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   if (!base) return <code style={{ color: theme.accent }}>/r/{linkKey}</code>;
   const url = `${base}/${linkKey}`;
   return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+    <a href={url} target="_blank" rel="noreferrer" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
+      {url.replace(/^https?:\/\//, '')}
+    </a>
     <button
       type="button"
-      title="Скопировать партнёрскую ссылку"
+      title={copyError ? 'Браузер не разрешил копирование. Скопируйте адрес самой ссылки.' : 'Скопировать партнёрскую ссылку'}
+      aria-label="Скопировать партнёрскую ссылку"
       onClick={() => {
         void navigator.clipboard.writeText(url).then(() => {
+          setCopyError(false);
           setCopied(true);
           setTimeout(() => setCopied(false), 1500);
-        });
+        }).catch(() => setCopyError(true));
       }}
       style={{
         display: 'inline-flex',
@@ -51,9 +64,9 @@ function CopyableShareLink({ linkKey, base }: { linkKey: string; base: string | 
         whiteSpace: 'nowrap',
       }}
     >
-      {url.replace(/^https?:\/\//, '')}
       {copied ? <Check size={13} style={{ color: theme.success }} /> : <Copy size={13} style={{ color: theme.textDim }} />}
     </button>
+    </span>
   );
 }
 

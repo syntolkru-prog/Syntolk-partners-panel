@@ -54,10 +54,14 @@ dashboardRouter.get('/partners/:id/dashboard', requireAuth, grantScope('partners
     )
     .first<{ events: string; registrations: string; payingClients: string; revenue: string }>();
 
-  const commissionRows = (await db(TABLES.Commission)
-    .where({ partnerId })
-    .andWhere('accruedAt', '>=', since)
-    .select('id', 'status', 'amount')) as Array<{ id: string; status: string; amount: string }>;
+  const ledgerQuery = () => db(`${TABLES.Commission} as c`)
+    .leftJoin(`${TABLES.Payout} as p`, 'p.id', 'c.payoutId')
+    .where('c.partnerId', partnerId)
+    .select('c.id', 'c.amount')
+    // Also interpret old pending payouts correctly, without rewriting
+    // historical records belonging to the user's existing partners.
+    .select(db.raw(`CASE WHEN "c"."payoutId" IS NOT NULL AND "c"."status" IN ('approved','paid') AND COALESCE("p"."status", 'pending') <> 'paid' THEN 'pending' ELSE "c"."status" END as status`));
+  const commissionRows = (await ledgerQuery().andWhere('c.accruedAt', '>=', since)) as Array<{ id: string; status: string; amount: string }>;
   const adjustments = await adjustmentTotalsByCommission(db, commissionRows.map((c) => c.id));
   const commissionByStatus = new Map<string, number>();
   for (const row of commissionRows) {
@@ -70,15 +74,14 @@ dashboardRouter.get('/partners/:id/dashboard', requireAuth, grantScope('partners
   // Balances are lifetime ledger totals, intentionally independent from the
   // selected dashboard period. "Available" means approved and not clawed
   // back; paid is retained as a separate historical total.
-  const lifetimeRows = (await db(TABLES.Commission)
-    .where({ partnerId })
-    .select('id', 'status', 'amount')) as Array<{ id: string; status: string; amount: string }>;
+  const lifetimeRows = (await ledgerQuery()) as Array<{ id: string; status: string; amount: string }>;
   const lifetimeAdjustments = await adjustmentTotalsByCommission(db, lifetimeRows.map((c) => c.id));
-  const balances = { accrued: 0, available: 0, paid: 0, total: 0 };
+  const balances = { accrued: 0, available: 0, pending: 0, paid: 0, total: 0 };
   for (const row of lifetimeRows) {
     const amount = netCommissionAmount(row, lifetimeAdjustments, row.id);
     if (row.status === 'accrued') balances.accrued += amount;
     if (row.status === 'approved') balances.available += amount;
+    if (row.status === 'pending') balances.pending += amount;
     if (row.status === 'paid') balances.paid += amount;
     if (row.status !== 'reversed') balances.total += amount;
   }

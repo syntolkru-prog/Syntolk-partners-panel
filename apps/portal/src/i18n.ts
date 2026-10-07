@@ -164,6 +164,7 @@ const exact: Record<string, string> = {
   'LAST SIGN-IN': 'ПОСЛЕДНИЙ ВХОД',
   'TABLE': 'ТАБЛИЦА',
   'Partner': 'Партнёр',
+  'PARTNER': 'Партнёр',
   'Click': 'Клик',
   'Identity': 'Идентификатор',
   'PortalCustomDomain': 'Пользовательский домен портала',
@@ -576,7 +577,7 @@ export function installRussianUi(): void {
 
   const apply = (root: Node): void => {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const nodes: Text[] = [];
+    const nodes: Text[] = root.nodeType === Node.TEXT_NODE ? [root as Text] : [];
     let node: Node | null;
     while ((node = walker.nextNode())) nodes.push(node as Text);
     for (const textNode of nodes) {
@@ -586,7 +587,11 @@ export function installRussianUi(): void {
       if (translated !== textNode.nodeValue) textNode.nodeValue = translated;
     }
 
-    const elements = root instanceof Element ? [root, ...Array.from(root.querySelectorAll('*'))] : Array.from((root as Document).querySelectorAll('*'));
+    const elements = root instanceof Element
+      ? [root, ...Array.from(root.querySelectorAll('*'))]
+      : root instanceof Document || root instanceof DocumentFragment
+        ? Array.from(root.querySelectorAll('*'))
+        : [];
     for (const element of elements) {
       for (const attribute of ['aria-label', 'placeholder', 'title', 'alt']) {
         const current = element.getAttribute(attribute);

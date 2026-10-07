@@ -43,10 +43,11 @@ interface Partner {
 interface DashboardData {
   clicks: number;
   attributedEvents: number;
+  registrations: number;
   payingClients: number;
   conversionRate: number;
   attributedRevenue: number;
-  balances: { accrued: number; available: number; paid: number; total: number };
+  balances: { accrued: number; available: number; pending: number; paid: number; total: number };
   links?: Array<{ linkKey: string; clicks: number; attributedEvents: number; attributedRevenue: number }>;
 }
 
@@ -63,6 +64,8 @@ interface CommissionRow {
   amount: string;
   currency: string;
   status: string;
+  payoutId: string | null;
+  payoutStatus: string | null;
   customerLabel: string | null;
   eventType: string | null;
   paymentAmount: string | null;
@@ -78,6 +81,7 @@ interface PayoutRow {
   providerOperationId: string | null;
   createdAt: string;
   completedAt: string | null;
+  metadata?: { cancellationReason?: string };
 }
 
 export function AdminPartnerDetail() {
@@ -154,10 +158,12 @@ export function AdminPartnerDetail() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
         <Stat label="Переходы" value={d?.clicks ?? 0} />
+        <Stat label="Регистрации" value={d?.registrations ?? 0} />
         <Stat label="Платящие клиенты" value={d?.payingClients ?? 0} />
         <Stat label="Выручка" value={money(d?.attributedRevenue ?? 0)} />
         <Stat label="Начислено" value={money(d?.balances.total ?? 0)} />
         <Stat label="Доступно" value={money(d?.balances.available ?? 0)} />
+        <Stat label="Ожидает выплаты" value={money(d?.balances.pending ?? 0)} />
         <Stat label="Выплачено" value={money(d?.balances.paid ?? 0)} />
       </div>
 
@@ -191,7 +197,7 @@ export function AdminPartnerDetail() {
           eventLabel(c.eventType),
           c.paymentAmount ? money(c.paymentAmount, c.currency) : '—',
           money(c.amount, c.currency),
-          <StatusPill status={c.status} />,
+          <StatusPill status={c.payoutId && c.payoutStatus !== 'paid' && ['approved', 'paid'].includes(c.status) ? 'pending' : c.status} />,
           formatDate(c.accruedAt),
         ])}
       />
@@ -204,7 +210,9 @@ export function AdminPartnerDetail() {
           <code style={{ color: theme.textDim }}>{shortId(row.id)}</code>,
           money(row.amount, row.currency),
           row.method === 'manual' ? 'Вручную' : row.method,
-          <StatusPill status={row.status} />,
+          row.metadata?.cancellationReason === 'manual_cancel'
+            ? <span style={{ color: theme.textMuted }}>отменена</span>
+            : <StatusPill status={row.status} />,
           row.providerOperationId ?? '—',
           formatDate(row.createdAt),
           formatDate(row.completedAt),

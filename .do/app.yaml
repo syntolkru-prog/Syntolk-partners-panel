@@ -197,6 +197,11 @@ static_sites:
     output_dir: apps/portal/dist
     catchall_document: index.html
     envs:
+      # Full referral URLs are embedded into the static SPA at build time.
+      # Point this at the public hostname mapped to the router component.
+      - key: VITE_ROUTER_URL
+        scope: BUILD_TIME
+        value: https://go.syntolk.ru
       # PostHog product analytics. VITE_-prefixed so Vite inlines the
       # value into the static bundle at build time. BUILD_TIME scope is
       # required: the static site has no run-time process to read env

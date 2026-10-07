@@ -6,6 +6,7 @@ import {
   type EventRow,
 } from '@openpartner/db';
 import { attributeEvent, type AttributeResult } from './attribution.js';
+import { tryTenantPayoutLock } from './payout-lock.js';
 
 export interface PaymentEventInput {
   userId: string;
@@ -107,6 +108,9 @@ export async function recordPaymentRefund(
   tenantId: string,
   input: PaymentRefundInput,
 ): Promise<PaymentRefundResult> {
+  if (db.isTransaction && !(await tryTenantPayoutLock(db as Knex.Transaction, tenantId))) {
+    throw new PaymentEventError('payout_busy');
+  }
   const existingRefund = await db<EventRow>(TABLES.Event)
     .where({ tenantId, externalEventId: input.refundExternalEventId })
     .first();
@@ -215,7 +219,7 @@ export async function recordPaymentRefund(
 }
 
 export class PaymentEventError extends Error {
-  constructor(public code: 'original_payment_not_found' | 'original_payment_has_no_amount' | 'invalid_refund_amount' | 'invalid_payment_notification') {
+  constructor(public code: 'original_payment_not_found' | 'original_payment_has_no_amount' | 'invalid_refund_amount' | 'invalid_payment_notification' | 'payout_busy') {
     super(code);
   }
 }

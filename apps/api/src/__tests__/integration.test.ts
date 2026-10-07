@@ -152,9 +152,10 @@ describe.skipIf(skipIntegration)('api integration', () => {
     expect(payoutRes.body.payouts[0].status).toBe('pending');
     expect(payoutRes.body.payouts[0].amount).toBe(40);
 
-    // Commission now marked paid and linked to the payout.
+    // Planning reserves commissions, but is NOT a completed payment.
     const paidCommission = await db(TABLES.Commission).where({ partnerId }).first();
-    expect(paidCommission!.status).toBe('paid');
+    expect(paidCommission!.status).toBe('approved');
+    expect(paidCommission!.paidAt).toBeNull();
     expect(paidCommission!.payoutId).toBe(payoutRes.body.payouts[0].payoutId);
 
     // 10. Dashboard reflects the attributed revenue.
@@ -165,7 +166,12 @@ describe.skipIf(skipIntegration)('api integration', () => {
     expect(dashRes.body.clicks).toBe(1);
     expect(dashRes.body.attributedEvents).toBe(1);
     expect(dashRes.body.attributedRevenue).toBe(200);
-    expect(dashRes.body.commissionByStatus.paid).toBe(40);
+    expect(dashRes.body.commissionByStatus.pending).toBe(40);
+    expect(dashRes.body.balances).toMatchObject({ available: 0, pending: 40, paid: 0, total: 40 });
+    const confirm = await request(app).post(`/payouts/${payoutRes.body.payouts[0].payoutId}/confirm`).set('Authorization', `Bearer ${ADMIN_KEY}`);
+    expect(confirm.status).toBe(200);
+    const completed = await request(app).get(`/partners/${partnerId}/dashboard`).set('Authorization', `Bearer ${ADMIN_KEY}`);
+    expect(completed.body.balances).toMatchObject({ available: 0, pending: 0, paid: 40, total: 40 });
   });
 
   it('attribution is skipped for fraud-flagged clicks', async () => {

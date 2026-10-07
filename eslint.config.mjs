@@ -31,7 +31,7 @@ export default [
     // Node globals everywhere — process, console, Buffer, __dirname,
     // fetch (Node 18+), etc. Without this, no-undef fires on every
     // console.log() across server code + scripts.
-    files: ['**/*.{ts,tsx,js,mjs,cjs}'],
+    files: ['**/*.{ts,tsx,mts,js,mjs,cjs}'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -60,7 +60,7 @@ export default [
     },
   },
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ['**/*.ts', '**/*.tsx', '**/*.mts'],
     rules: {
       // Catch the most common async/await footguns.
       '@typescript-eslint/no-floating-promises': 'off', // requires type info; skip for speed
