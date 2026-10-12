@@ -9,6 +9,9 @@
     "node": ">=22"
   },
   "scripts": {
+    "coach:test": "node node_modules/tsx/dist/cli.mjs scripts/coach-test.mts",
+    "coach:test-db": "node node_modules/tsx/dist/cli.mjs scripts/coach-test-db.mts",
+    "dev:coach": "node node_modules/tsx/dist/cli.mjs apps/api/src/coach-worker.ts",
     "local:demo": "tsx apps/api/scripts/local-demo.mts",
     "build": "pnpm -r run build",
     "lint": "eslint apps packages",

@@ -102,13 +102,13 @@ describe.skipIf(skipIntegration)('Syntolk payment events and refunds', () => {
     const payment = await request(app)
       .post('/payments/simulate')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ partnerId, linkKey, userId: 'refund-user', amount: 100, currency: 'RUB', externalEventId: 'payment-001' });
+      .send({ partnerId, linkKey, userId: 'refund-user', amount: 1000, currency: 'RUB', externalEventId: 'payment-001' });
     expect(payment.status).toBe(201);
 
     const refund = await request(app)
       .post('/payments/refunds')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ originalExternalEventId: 'payment-001', refundExternalEventId: 'refund-001', amount: 50, currency: 'RUB' });
+      .send({ originalExternalEventId: 'payment-001', refundExternalEventId: 'refund-001', amount: 250, currency: 'RUB' });
     expect(refund.status).toBe(201);
     expect(refund.body.fullRefund).toBe(false);
     expect(refund.body.adjustmentCount).toBe(1);
@@ -116,12 +116,14 @@ describe.skipIf(skipIntegration)('Syntolk payment events and refunds', () => {
     const commission = await db<CommissionRow>(TABLES.Commission).where({ partnerId }).first();
     const adjustment = await db<CommissionAdjustmentRow>(TABLES.CommissionAdjustment).where({ commissionId: commission!.id }).first();
     expect(commission?.status).toBe('accrued');
-    expect(adjustment?.amount).toBe('-10.00');
+    expect(commission?.amount).toBe('200.00');
+    expect(adjustment?.amount).toBe('-50.00');
+    expect(Number(commission!.amount)+Number(adjustment!.amount)).toBe(150);
 
     const replay = await request(app)
       .post('/payments/refunds')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ originalExternalEventId: 'payment-001', refundExternalEventId: 'refund-001', amount: 50, currency: 'RUB' });
+      .send({ originalExternalEventId: 'payment-001', refundExternalEventId: 'refund-001', amount: 250, currency: 'RUB' });
     expect(replay.status).toBe(200);
     expect(replay.body.replayed).toBe(true);
     expect(await db(TABLES.CommissionAdjustment).where({ commissionId: commission!.id })).toHaveLength(1);
@@ -169,6 +171,9 @@ describe.skipIf(skipIntegration)('Syntolk payment events and refunds', () => {
     expect(first.status).toBe(200);
     expect(first.body.code).toBe(0);
 
+    const duplicate = await request(app).post('/webhooks/cloudpayments/pay').set('Content-Type','application/json').set('X-Content-HMAC',signature).send(payload);
+    expect(duplicate.status).toBe(200);
+
     const retry = await request(app)
       .post('/webhooks/cloudpayments/recurrent')
       .set('Content-Type', 'application/json')
@@ -178,7 +183,7 @@ describe.skipIf(skipIntegration)('Syntolk payment events and refunds', () => {
     expect(await db(TABLES.Event).where({ externalEventId: 'cloud_pay_TX-001' })).toHaveLength(1);
   });
 
-  it('acknowledges signed Fail, Cancel, and Confirm notifications without creating earnings', async () => {
+  it('acknowledges signed Fail, Cancel, Confirm and subscription Recurrent without creating earnings', async () => {
     await fixture();
     const payload = JSON.stringify({
       TransactionId: 'TX-STATE-001',
@@ -190,7 +195,7 @@ describe.skipIf(skipIntegration)('Syntolk payment events and refunds', () => {
     const signature = createHmac('sha256', CLOUD_SECRET).update(payload).digest('base64');
     const beforeEvents = await db(TABLES.Event).select('id');
 
-    for (const kind of ['fail', 'cancel', 'confirm'] as const) {
+    for (const kind of ['fail', 'cancel', 'confirm', 'recurrent'] as const) {
       const response = await request(app)
         .post(`/webhooks/cloudpayments/${kind}`)
         .set('Content-Type', 'application/json')

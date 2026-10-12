@@ -13,6 +13,7 @@ import type { Knex } from 'knex';
 import { sslFromConnectionString } from './ssl.js';
 
 export * from './types.js';
+export * from './coach.js';
 export { sslFromConnectionString } from './ssl.js';
 export { renderCommissionSummary } from './commission-summary.js';
 export type {

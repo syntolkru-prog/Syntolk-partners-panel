@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { cloudPaymentsSecret, verifyCloudPaymentsNotification } from '../cloudpayments.js';
 import { ingestPaymentEvent, PaymentEventError, recordPaymentRefund } from '../payment-events.js';
@@ -35,7 +35,7 @@ cloudPaymentsWebhookRouter.post('/webhooks/cloudpayments/:kind', async (req, res
   if (!body.success) return res.status(400).json({ code: 13, error: 'invalid_notification' });
 
   try {
-    if (kind === 'pay' || kind === 'recurrent') await handlePay(req, body.data, kind);
+    if (kind === 'pay') await handlePay(req, body.data);
     else if (kind === 'refund') await handleRefund(req, body.data);
     // Fail/Cancel/Confirm/Recurrent update payment state in the future, but
     // never create a commission by themselves. Acknowledge them now so Cloud
@@ -50,7 +50,7 @@ cloudPaymentsWebhookRouter.post('/webhooks/cloudpayments/:kind', async (req, res
   }
 });
 
-async function handlePay(req: Request, payload: z.infer<typeof payloadSchema>, kind: 'pay' | 'recurrent'): Promise<void> {
+async function handlePay(req: Request, payload: z.infer<typeof payloadSchema>): Promise<void> {
   const { db, tenantId } = tenantOf(req);
   const data = parseData(payload.Data);
   const userId = payload.AccountId ?? stringValue(data.userId);
@@ -61,16 +61,15 @@ async function handlePay(req: Request, payload: z.infer<typeof payloadSchema>, k
 
   await ingestPaymentEvent(db, tenantId, {
     userId,
-    // Both Pay and Recurrent are successful-payment notifications. They use
-    // one idempotency key because some CloudPayments configurations deliver
-    // both for the same transaction; this prevents a double commission.
+    // Recurrent describes a subscription status, not a successful charge.
+    // Only signed Pay enters the payment ledger; retries share this key.
     type: stringValue(data.eventType) ?? 'invoice_paid',
     value: payload.Amount,
     currency: payload.Currency ?? 'RUB',
     externalEventId: `cloud_pay_${transactionId}`,
     metadata: {
       source: 'cloudpayments',
-      notificationKind: kind,
+      notificationKind: 'pay',
       transactionId: payload.TransactionId ?? null,
       invoiceId: payload.InvoiceId ?? null,
       accountId: userId,

@@ -26,6 +26,8 @@ import {
   Palette,
   AlertTriangle,
   FlaskConical,
+  Calculator,
+  Bot,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { clearApiKey, api, type Principal } from './api.js';
@@ -36,6 +38,7 @@ import { useBrand, usePublicBrand } from './lib/useBrand.js';
 import { Dashboard } from './pages/Dashboard.js';
 import { LinksPage } from './pages/Links.js';
 import { ResourcesPage } from './pages/Resources.js';
+import { CoachPage } from './pages/coach/Coach.js';
 import { CommissionsPage } from './pages/Commissions.js';
 import { PayoutsPage } from './pages/Payouts.js';
 import { AdminPartners } from './pages/AdminPartners.js';
@@ -83,6 +86,7 @@ import { CreatorMagicLandingPage } from './pages/creator/CreatorMagicLanding.js'
 import { CreatorShell } from './pages/creator/CreatorShell.js';
 import { CreatorPublicProfilePage } from './pages/creator/CreatorPublicProfile.js';
 import { FraudReviewPage } from './pages/FraudReview.js';
+import { CalculatorPage } from './pages/Calculator.js';
 
 interface AuthState {
   loading: boolean;
@@ -244,8 +248,11 @@ function Shell() {
 
           <Route path="links" element={<LinksPage principal={auth.principal} />} />
           <Route path="resources" element={<ResourcesPage />} />
+          {auth.principal.role === 'partner' && <Route path="coach" element={<CoachPage principal={auth.principal} />} />}
           <Route path="commissions" element={<CommissionsPage principal={auth.principal} />} />
           <Route path="payouts" element={<PayoutsPage principal={auth.principal} />} />
+
+          {auth.principal.role === 'partner' && <Route path="calculator" element={<CalculatorPage principal={auth.principal} />} />}
 
           {/* Network discovery — open to anyone signed in (vendor admin can
               browse too). Hidden entirely for white-label tenants. */}
@@ -279,6 +286,8 @@ function Shell() {
               <Route path="admin/partners/:id/coupons" element={<AdminPartnerCoupons />} />
               <Route path="admin/partners/:id/commission" element={<AdminPartnerCommission />} />
               <Route path="admin/programs" element={<AdminPrograms />} />
+              <Route path="admin/calculator" element={<CalculatorPage principal={auth.principal} />} />
+              <Route path="admin/coach" element={<CoachPage principal={auth.principal} />} />
               <Route path="admin/review" element={<AdminReview />} />
               <Route path="admin/export" element={<AdminExport />} />
               <Route path="admin/fraud-review" element={<FraudReviewPage />} />
@@ -430,6 +439,8 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <NavItem to="/" icon={<LayoutDashboard size={16} />}>Главная</NavItem>
           <NavItem to="/links" icon={<Link2 size={16} />}>Ссылки</NavItem>
+          {principal.role === 'partner' && <NavItem to="/calculator" icon={<Calculator size={16} />}>Калькулятор</NavItem>}
+          {principal.role === 'partner' && <NavItem to="/coach" icon={<Bot size={16} />}>ИИ-куратор</NavItem>}
           {principal.role === 'partner' && <NavItem to="/resources" icon={<Megaphone size={16} />}>Материалы</NavItem>}
           <NavItem to="/commissions" icon={<Receipt size={16} />}>Комиссии</NavItem>
           <NavItem to="/payouts" icon={<Banknote size={16} />}>Выплаты</NavItem>
@@ -449,6 +460,8 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
           <NavSection title="Администрирование" collapsible storageKey="admin-admin">
             <NavItem to="/admin/partners" icon={<Users size={16} />}>Партнёры</NavItem>
             <NavItem to="/admin/programs" icon={<Tag size={16} />}>Программы</NavItem>
+            <NavItem to="/admin/calculator" icon={<Calculator size={16} />}>Калькулятор</NavItem>
+            <NavItem to="/admin/coach" icon={<Bot size={16} />}>ИИ-куратор</NavItem>
             <NavItem to="/admin/review" icon={<ShieldCheck size={16} />}>Очередь проверки</NavItem>
             <NavItem to="/admin/export" icon={<Download size={16} />}>Экспорт / импорт</NavItem>
             <NavItem to="/admin/fraud-review" icon={<ShieldCheck size={16} />}>Проверка мошенничества</NavItem>

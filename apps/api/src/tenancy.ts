@@ -81,6 +81,8 @@ declare global {
       tenantSlug?: string;
       /** Transaction-bound knex instance with app.tenant_id set. */
       db?: Knex;
+      /** Release the read/auth transaction before slow external I/O. Later writes need withTenantTransaction. */
+      releaseTenantTransaction?: () => Promise<void>;
       /** True when a platform admin is acting (rare; gated separately). */
       platformAdmin?: boolean;
       /** The tenant's verified custom domain, when it has one — set both
@@ -367,6 +369,7 @@ export async function tenantMiddleware(
     );
     return res;
   };
+  req.releaseTenantTransaction = () => finalize(true);
   res.send = function (body?: unknown) {
     const success = res.statusCode < 500;
     finalize(success).then(

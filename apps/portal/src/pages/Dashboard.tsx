@@ -17,6 +17,7 @@ import { api, type Principal } from '../api.js';
 import { useTenantBase } from '../tenant-base.js';
 import { TenantLink } from '../tenant-link.js';
 import { theme } from '../theme.js';
+import { CoachWelcome } from './coach/CoachWelcome.js';
 import { useBrand } from '../lib/useBrand.js';
 import { Avatar, Button, Card, EmptyState, ErrorBanner, Page, SectionHeading, Stat, StatusPill, money } from '../ui.js';
 
@@ -106,6 +107,7 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
       }
     >
       <ErrorBanner error={error} />
+      <CoachWelcome partnerId={partnerId} />
       {!profile.isLoading && profile.data && !profile.data.termsAcceptedAt && (
         <Card style={{ marginBottom: 14, borderColor: `${theme.warn}66`, background: theme.warnSoft }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 5 }}>Подтвердите условия партнёрской программы</div>

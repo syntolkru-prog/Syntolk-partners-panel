@@ -14,7 +14,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { ulid } from 'ulid';
-import { TABLES, DEFAULT_TENANT_ID } from '@openpartner/db';
+import { TABLES, DEFAULT_TENANT_ID, COACH_TABLES } from '@openpartner/db';
 import { db } from '../db.js';
 import { createApp } from '../app.js';
 import { generateApiKey } from '../auth.js';
@@ -189,6 +189,11 @@ async function seedEverything(): Promise<Seeded> {
     metadata: {},
   });
 
+  const coachPlanId=ulid(),coachTaskId=ulid(),coachRunId=ulid();
+  for(const table of COACH_TABLES){
+    const extra:Record<string,unknown> = table==='CoachPlan'?{weekStart:'2026-10-12'}:table==='CoachTask'?{planId:coachPlanId,minutes:30}:table==='CoachPlacement'?{taskId:coachTaskId,linkId}:table==='CoachRun'?{kind:'plan',dedupeKey:'export-fixture'}:table==='CoachMessage'?{role:'partner'}:table==='CoachReview'?{taskId:coachTaskId,runId:coachRunId}:table==='CoachNotification'?{dedupeKey:'export-fixture'}:{};
+    await db(table).insert({id:table==='CoachPlan'?coachPlanId:table==='CoachTask'?coachTaskId:table==='CoachRun'?coachRunId:ulid(),tenantId:TENANT,partnerId,programId,status:table==='CoachRun'?'cancelled':table==='CoachNotification'?'read':'draft',data:'{}',...extra});
+  }
   return {
     partnerId,
     programId,

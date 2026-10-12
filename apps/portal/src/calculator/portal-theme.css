@@ -1,0 +1,239 @@
+/* Portal skin only: scoped so the landing calculator and other pages keep
+   their own layout. All colors come from the existing portal theme. */
+.calculator-page {
+  min-width: 0;
+  color: var(--pf-text);
+  color-scheme: dark;
+}
+
+.calculator-page #rewards.pf-section {
+  padding: 0;
+  background: transparent;
+  color: var(--pf-text);
+}
+
+.calculator-page .pf-section .pf-container {
+  width: 100%;
+  max-width: none;
+}
+
+.calculator-page .pf-section .pf-app {
+  background: var(--pf-surface);
+  border-color: var(--pf-border);
+  border-radius: var(--pf-radius);
+  box-shadow: none;
+}
+
+.calculator-page .pf-section .pf-app::before {
+  display: none;
+}
+
+.calculator-page .pf-section :is(.pf-toolbar, .pf-under, .pf-mode-bar,
+  .pf-format-row, .pf-details, .pf-year-totals, .pf-chart, .pf-chart-track,
+  .pf-channel, .pf-table th, .pf-table td, .pf-tabs) {
+  border-color: var(--pf-border);
+}
+
+.calculator-page .pf-section :is(button, a, summary, input, select):focus-visible {
+  outline-color: var(--pf-accent);
+  outline-offset: 2px;
+}
+
+.calculator-page .pf-section :is(button, summary) {
+  cursor: pointer;
+}
+
+.calculator-page .pf-section :is(.pf-tabs, .pf-work, .pf-channel[open] > summary) {
+  background: var(--pf-surface-raised);
+}
+
+.calculator-page .pf-section .pf-tab {
+  color: var(--pf-muted);
+}
+
+.calculator-page .pf-section :is(.pf-tab[aria-selected="true"],
+  .pf-scenarios button[aria-pressed="true"]) {
+  background: var(--pf-accent-soft);
+  color: var(--pf-accent);
+  box-shadow: none;
+}
+
+.calculator-page .pf-section :is(.pf-field, .pf-format-row label,
+  .pf-check, .pf-details > summary, .pf-result .pf-details > summary,
+  .pf-result h4, .pf-repeat-labels strong, .pf-extra-metrics strong,
+  .pf-result .pf-table) {
+  color: var(--pf-text);
+}
+
+.calculator-page .pf-section :is(.pf-help, .pf-field small, .pf-input-wrap > span,
+  .pf-budget > span, .pf-row-head, .pf-format-row label small,
+  .pf-platform-tools > span, .pf-channel-summary, .pf-plan-head,
+  .pf-segment-label, .pf-work span, .pf-method, .pf-scenario-note,
+  .pf-income-top p, .pf-month-select, .pf-income-range, .pf-year-totals span,
+  .pf-chart-caption, .pf-chart-month, .pf-funnel span, .pf-repeat-labels,
+  .pf-extra-metrics div, .pf-table thead th, .pf-table th small,
+  .pf-quick-scenario, .pf-quick-disclaimer) {
+  color: var(--pf-muted);
+}
+
+.calculator-page .pf-section input[type="number"],
+.calculator-page .pf-section select {
+  background: var(--pf-surface-raised);
+  border-color: var(--pf-border);
+  border-radius: var(--pf-radius-sm);
+  color: var(--pf-text);
+}
+
+.calculator-page .pf-section input:invalid {
+  border-color: var(--pf-warning);
+}
+
+.calculator-page .pf-section .pf-check input {
+  accent-color: var(--pf-accent);
+}
+
+.calculator-page .pf-section :is(.pf-help a, .pf-method a,
+  .pf-is-selected .pf-channel-summary) {
+  color: var(--pf-accent);
+}
+
+.calculator-page .pf-section .pf-format-icon {
+  background: var(--pf-accent-soft);
+  color: var(--pf-accent);
+  border-radius: var(--pf-radius-sm);
+}
+
+.calculator-page .pf-section .pf-channel {
+  background: var(--pf-surface);
+}
+
+.calculator-page .pf-section .pf-channel.pf-is-selected {
+  border-color: var(--pf-border);
+}
+
+.calculator-page .pf-section :is(.pf-work.pf-over-budget, .pf-fit) {
+  background: var(--pf-warning-soft);
+  border-color: var(--pf-warning);
+  color: var(--pf-warning);
+}
+
+.calculator-page .pf-section .pf-warning {
+  color: var(--pf-warning);
+}
+
+.calculator-page .pf-section .pf-result {
+  background: var(--pf-bg);
+  color: var(--pf-text);
+  border-left: 1px solid var(--pf-border);
+  border-radius: 0;
+}
+
+.calculator-page .pf-section .pf-scenarios {
+  background: var(--pf-surface);
+}
+
+.calculator-page .pf-section .pf-scenarios button {
+  color: var(--pf-muted);
+}
+
+/* The selected rule must follow the neutral button rule. */
+.calculator-page .pf-section .pf-scenarios button[aria-pressed="true"] {
+  color: var(--pf-accent);
+}
+
+.calculator-page .pf-section .pf-chart-track > span {
+  background: var(--pf-info);
+}
+
+.calculator-page .pf-section .pf-active-month {
+  color: var(--pf-accent);
+}
+
+.calculator-page .pf-section .pf-active-month .pf-chart-track > span {
+  background: var(--pf-accent);
+}
+
+.calculator-page .pf-section .pf-repeat-bar {
+  background: var(--pf-info);
+}
+
+.calculator-page .pf-section .pf-repeat-bar > span {
+  background: var(--pf-accent);
+}
+
+.calculator-page .pf-section :is(.pf-text-button, .pf-export, .pf-mode-toggle) {
+  padding: 8px 12px;
+  border: 1px solid var(--pf-border);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-raised);
+  color: var(--pf-text);
+  text-decoration: none;
+  transition: background .15s, border-color .15s, color .15s;
+}
+
+.calculator-page .pf-section .pf-toolbar-actions {
+  gap: 8px;
+}
+
+.calculator-page .pf-section .pf-cta {
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  border-radius: var(--pf-radius-sm);
+  text-decoration: none;
+}
+
+.calculator-page .pf-section :is(.pf-channel-list, .pf-table-scroll) {
+  scrollbar-color: var(--pf-border) transparent;
+}
+
+/* The landing supplied this utility globally; the portal needs a scoped copy.
+   Status announcements and table captions must not become extra visible rows. */
+.calculator-page .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (hover: hover) {
+  .calculator-page .pf-section :is(.pf-text-button, .pf-export, .pf-mode-toggle):hover {
+    background: var(--pf-accent-soft);
+    border-color: var(--pf-accent);
+    color: var(--pf-accent);
+    text-decoration: none;
+  }
+  .calculator-page .pf-section .pf-tab:hover {
+    color: var(--pf-accent);
+  }
+  .calculator-page .pf-section .pf-cta:hover {
+    background: var(--pf-accent-hover);
+  }
+}
+
+@media (max-width: 960px) {
+  .calculator-page .pf-section .pf-result {
+    border-left: 0;
+    border-top: 1px solid var(--pf-border);
+  }
+}
+
+@media (max-width: 760px) {
+  .calculator-page .pf-section .pf-tab[aria-selected="true"] {
+    background: transparent;
+    border-bottom-color: var(--pf-accent);
+  }
+  .calculator-page .pf-section :is(.pf-text-button, .pf-export, .pf-mode-toggle) {
+    padding: 6px 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calculator-page .pf-section :is(.pf-text-button, .pf-export, .pf-mode-toggle) {
+    transition: none;
+  }
+}

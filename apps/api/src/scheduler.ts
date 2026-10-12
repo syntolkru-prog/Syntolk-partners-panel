@@ -34,7 +34,7 @@
 
 import { Cron } from 'croner';
 import type { Knex } from 'knex';
-import { TABLES, type PayoutCadence, type TenantRow } from '@openpartner/db';
+import { TABLES, COACH_TABLES, type PayoutCadence, type TenantRow } from '@openpartner/db';
 import { db } from './db.js';
 import { withTenantTransaction } from './tenancy.js';
 import { runPayouts } from './payouts.js';
@@ -170,6 +170,7 @@ async function hardDeleteExpiredTenants(): Promise<{ purged: number; tenantIds: 
   // Tenanted tables to wipe — order doesn't matter because they're
   // all tagged with tenantId. Tenant row is dropped last.
   const TENANTED_TABLES = [
+    ...[...COACH_TABLES].reverse(),
     TABLES.NetworkOutbox,
     TABLES.WebhookDelivery,
     TABLES.WebhookEndpoint,

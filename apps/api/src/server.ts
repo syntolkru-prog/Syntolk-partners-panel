@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { startScheduler } from './scheduler.js';
 import { outboundPolicy } from './outbound-guard.js';
+import { startCoachWorker } from './coach/worker.js';
 
 const PORT = Number(process.env.API_PORT ?? 4601);
 const MODE = process.env.OPENPARTNER_MODE ?? 'selfhost';
@@ -43,4 +44,5 @@ const app = createApp();
 app.listen(PORT, () => {
   console.log(`[api] listening on :${PORT} (mode=${MODE})`);
   startScheduler();
+  if (process.env.COACH_WORKER_ENABLED === '1') startCoachWorker();
 });

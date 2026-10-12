@@ -20,16 +20,16 @@
  */
 
 import type { Knex } from 'knex';
-import { DEFAULT_TENANT_ID, TABLES } from '@openpartner/db';
+import { DEFAULT_TENANT_ID, TABLES, COACH_TABLES } from '@openpartner/db';
 
 /** Bundle format version. Bumped when the table set or row shape changes.
  *  v1 → v2 (Aug 2026): added PartnerProgram, PartnerCommission, Coupon;
  *  every table now carries its real primary key instead of assuming `id`. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 /** Older bundles still import — a v1 bundle is a v2 bundle minus three
  *  tables. Dropping support for a version people hold on disk would break
  *  the portability promise, so this list only ever grows. */
-export const SUPPORTED_IMPORT_VERSIONS = [1, 2] as const;
+export const SUPPORTED_IMPORT_VERSIONS = [1, 2, 3] as const;
 
 export interface ExportTableSpec {
   table: string;
@@ -72,6 +72,7 @@ export const EXPORT_TABLES = [
   // commissions). Ordered after Commission for FK-safe import.
   { table: TABLES.CommissionAdjustment, primaryKey: 'id' },
   { table: TABLES.PartnerTermsAcceptance, primaryKey: 'id' },
+  ...COACH_TABLES.map(table => ({ table, primaryKey: 'id' as const })),
 ] as const satisfies readonly ExportTableSpec[];
 
 export type ExportableTable = (typeof EXPORT_TABLES)[number]['table'];
@@ -298,7 +299,7 @@ export function buildSqlDump(bundle: ImportBundle, opts: SqlDumpOptions = {}): s
   out.push('');
 
   for (const { table, primaryKey } of EXPORT_TABLES) {
-    const rows = (bundle[table] ?? []) as Record<string, unknown>[];
+    const rows = ((bundle[table] ?? []) as Record<string, unknown>[]).map(row => table === 'CoachRun' ? {...row,status:'cancelled',leaseUntil:null,lockedBy:null} : table === 'CoachNotification' ? {...row,status:'read'} : row);
     if (rows.length === 0) {
       out.push(`-- ${table}: no rows`);
       out.push('');
@@ -423,6 +424,8 @@ export async function importBundle(
     const normalized = rows.map((r) => ({
       ...normalizeRow(r as Record<string, unknown>, types),
       tenantId,
+      ...(table === 'CoachRun' ? {status:'cancelled',leaseUntil:null,lockedBy:null} : {}),
+      ...(table === 'CoachNotification' ? {status:'read'} : {}),
     }));
 
     // The conflict target has to be the table's REAL primary key —

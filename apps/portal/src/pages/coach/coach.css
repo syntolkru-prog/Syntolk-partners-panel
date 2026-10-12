@@ -1,0 +1,12 @@
+.coach{display:flex;flex-direction:column;gap:18px;color:var(--op-text,#e5e7eb)}
+.coach-connection-info{padding:14px 16px;background:#101e24;border:1px solid #28404b;border-radius:8px;margin:12px 0;overflow-wrap:anywhere}
+.coach h2{font-size:19px;margin:0 0 12px}.coach h3{font-size:16px;margin:0 0 10px}.coach p{line-height:1.6;margin:8px 0}
+.coach-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.coach-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.coach-field{display:flex;flex-direction:column;gap:7px;margin:12px 0;font-size:13px}.coach-field>span{color:#a6afbd}
+.coach select,.coach textarea{box-sizing:border-box;width:100%;background:#1a1e24;color:#e5e7eb;border:1px solid #30363f;border-radius:6px;font:inherit;padding:10px 12px}.coach textarea{resize:vertical;line-height:1.6}
+.coach input[type=checkbox]{accent-color:var(--op-accent,#2dd4bf);margin-right:7px}.coach input:focus-visible,.coach textarea:focus-visible,.coach select:focus-visible{outline:2px solid var(--op-accent,#2dd4bf);outline-offset:2px}
+.coach-tabs,.coach-actions{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}.coach-muted{color:#9ca3af;font-size:13px}.coach-warning{color:#fbbf24;font-size:13px}.coach-pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.coach-badge{font-size:12px;color:#a5ded7;background:#102925;padding:6px 10px;border-radius:20px}.coach-channel{border:1px solid #30363f;border-radius:8px;padding:16px;margin:14px 0}
+.coach-link{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:16px;margin:14px 0;background:#101e24;border:1px solid #28404b;border-radius:8px}.coach-link code{overflow-wrap:anywhere;word-break:break-word}.coach-link small{color:#9ca3af}
+.coach-messages{display:flex;flex-direction:column;gap:12px;max-height:600px;overflow:auto}.coach-message{padding:14px;border-radius:8px;background:#1b2027;border:1px solid #30363f}.coach-message--assistant{border-left:3px solid var(--op-accent,#2dd4bf)}.coach-message--admin{border-left:3px solid #60a5fa}.coach summary{cursor:pointer;padding:10px 0;color:#a6afbd}.coach li{line-height:1.7}
+@media(max-width:640px){.coach-grid{grid-template-columns:1fr}.coach-row{align-items:flex-start}.coach-tabs{gap:7px}.coach-link{padding:12px}}

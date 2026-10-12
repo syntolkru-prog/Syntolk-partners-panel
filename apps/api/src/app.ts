@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 import { ulid } from 'ulid';
 
 import { identifyRouter } from './routes/identify.js';
+import { coachRouter, adminCoachRouter } from './routes/coach.js';
 import { eventsRouter } from './routes/events.js';
 import { paymentsRouter } from './routes/payments.js';
 import { cloudPaymentsWebhookRouter } from './routes/cloudpayments-webhook.js';
@@ -171,6 +172,7 @@ export function createApp(options: { enableLogger?: boolean } = {}) {
     app.use(
       pinoHttp({
         genReqId: (req) => (req as Request & { id?: string }).id ?? ulid(),
+        redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
       }),
     );
   }
@@ -239,6 +241,8 @@ export function createApp(options: { enableLogger?: boolean } = {}) {
   app.use(trialGate);
 
   app.use(authRouter);
+  app.use(coachRouter);
+  app.use(adminCoachRouter);
   app.use(partnerAuthRouter);
   app.use(portalDomainsRouter);
   app.use(partnerSignupRouter);
