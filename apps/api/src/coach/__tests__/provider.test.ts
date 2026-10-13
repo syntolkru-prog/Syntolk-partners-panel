@@ -33,16 +33,26 @@ describe('OpenRouter adapter without any real network',()=>{
     const normalized=normalizeConversationOutput('message',{...output,tasks:[task]});
     expect(normalized.tasks).toEqual([]);expect(normalized.message).toContain(task.draft);
     expect(normalizeConversationOutput('plan',{...output,tasks:[task]}).tasks).toHaveLength(1);
+    expect(normalizeConversationOutput('message',{...output,verdict:'needs_human'}).verdict).toBe('not_applicable');
   });
   it('requires nonempty structured plans instead of relying only on the prompt',async()=>{
     configured();const fake=vi.fn().mockResolvedValue(answer());vi.stubGlobal('fetch',fake);
     await generateCoachOutput('openrouter','plan','Create a plan',context);
     const schema=JSON.parse(fake.mock.calls[0]![1].body).response_format.json_schema.schema;
     expect(schema.properties.tasks.minItems).toBe(1);expect(schema.properties.tasks.maxItems).toBe(3);
+    expect(JSON.parse(fake.mock.calls[0]![1].body).max_completion_tokens).toBe(8000);
   });
   const configured=()=>{vi.stubEnv('OPENROUTER_API_KEY','fake-openrouter-key');vi.stubEnv('OPENROUTER_MODEL_ID','test/model');};
   const answer=(body:unknown=output,reason='stop')=>new Response(JSON.stringify({choices:[{finish_reason:reason,message:{role:'assistant',content:JSON.stringify(body)}}],usage:{prompt_tokens:20,completion_tokens:10,cost:.001}}));
   const call=(name='get_metrics',args='{}')=>new Response(JSON.stringify({choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,reasoning_details:[{type:'reasoning.encrypted',data:'opaque'}],tool_calls:[{id:'call1',type:'function',function:{name,arguments:args}}]}}],usage:{prompt_tokens:20,completion_tokens:10,cost:.001}}));
+  it('reviews the latest evidence without anchoring to an earlier model mistake',async()=>{
+    configured();const fake=vi.fn().mockResolvedValue(answer({...output,verdict:'needs_human'}));vi.stubGlobal('fetch',fake);
+    const reviewContext={...context,messages:[{role:'assistant',body:'Ошибочное требование удалить рабочие дни'}],management:{nextTask:{id:'own'},recentReviews:[{feedback:'Старая ошибка модели'}]},evidence:{text:'10 рабочих дней и 30 рабочих дней',taskCriteria:'Сравнимые единицы'}};
+    await generateCoachOutput('openrouter','review','Проверь только текущий материал',reviewContext);
+    const payload=JSON.parse(JSON.parse(fake.mock.calls[0]![1].body).messages[1].content);
+    expect(payload.recentMessages).toEqual([]);expect(payload.availableFacts.get_management.recentReviews).toEqual([]);
+    expect(payload.evidence).toEqual(reviewContext.evidence);expect(reviewContext.messages).toHaveLength(1);
+  });
   it('requires separate server configuration',async()=>{vi.stubEnv('OPENROUTER_API_KEY','');vi.stubEnv('OPENROUTER_MODEL_ID','');await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('OPENROUTER_API_KEY');});
   it('uses the documented chat format, strict schema and privacy routing',async()=>{
     configured();const fake=vi.fn().mockResolvedValue(answer());vi.stubGlobal('fetch',fake);
@@ -63,7 +73,18 @@ describe('OpenRouter adapter without any real network',()=>{
     configured();vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(call('run_payout')).mockResolvedValueOnce(call('get_metrics','{"partnerId":"other"}')));await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('Недопустимый инструмент');await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('Недопустимый инструмент');
   });
   it('bounds tool loops',async()=>{configured();const fake=vi.fn().mockImplementation(async()=>call());vi.stubGlobal('fetch',fake);await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('предела');expect(fake).toHaveBeenCalledTimes(4);});
-  it('rejects malformed structured output and truncation',async()=>{configured();vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(answer({message:'missing fields'})).mockResolvedValueOnce(answer(output,'length')));await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('не прошёл проверку');await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('не завершил');});
+  it('reserves the fourth request for a real answer and supplies all scoped facts up front',async()=>{
+    configured();const fake=vi.fn().mockResolvedValueOnce(call('get_profile')).mockResolvedValueOnce(call('get_metrics')).mockResolvedValueOnce(call('get_approved_knowledge')).mockResolvedValueOnce(answer());vi.stubGlobal('fetch',fake);
+    const management={clock:{timezone:'Europe/Moscow'},nextTask:{id:'own-task',status:'in_progress'}};
+    const result=await generateCoachOutput('openrouter','message','Помоги начать',{...context,management,links:[]});
+    expect(result.output.message).toBe(output.message);expect(result.usage.api_requests).toBe(4);
+    const initial=JSON.parse(fake.mock.calls[0]![1].body);const facts=JSON.parse(initial.messages[1].content).availableFacts;
+    expect(facts.get_management).toEqual(management);expect(facts.get_profile).not.toHaveProperty('aiConsent');expect(facts.get_links).toEqual([]);
+    expect(initial.messages.at(-1)).toEqual({role:'user',content:'Помоги начать'});
+    expect(JSON.parse(fake.mock.calls[3]![1].body).tool_choice).toBe('none');
+    expect(initial).not.toHaveProperty('tool_choice');
+  });
+  it('rejects malformed structured output and classifies truncated model output',async()=>{configured();vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(answer({message:'missing fields'})).mockResolvedValueOnce(answer(output,'length')));await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('не прошёл проверку');await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toMatchObject({code:'provider_output_limit'});});
   it('reports rate limits without silent demo fallback or leaking provider error body',async()=>{configured();vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('private provider diagnostic',{status:429})));await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toMatchObject({code:'provider_rate_limited'});});
   for (const [status,code] of [[401,'provider_auth_failed'],[402,'provider_budget_exhausted'],[404,'provider_routing_failed'],[500,'provider_unavailable']] as const) it(`classifies HTTP ${status} without disclosing upstream diagnostics`,async()=>{
     configured();vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('secret-upstream-body',{status})));

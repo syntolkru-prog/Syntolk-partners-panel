@@ -1,14 +1,24 @@
 const KEY_STORAGE = 'op:apiKey';
 
 export function getApiKey(): string | null {
-  return localStorage.getItem(KEY_STORAGE);
+  // Each tab can inspect a different account without replacing the bearer
+  // credential of an already-open admin/partner cabinet. sessionStorage
+  // survives reloads. An empty value records an explicitly signed-out tab.
+  const key = sessionStorage.getItem(KEY_STORAGE);
+  if (key !== null) return key || null;
+  const legacyKey = localStorage.getItem(KEY_STORAGE);
+  sessionStorage.setItem(KEY_STORAGE, legacyKey ?? '');
+  localStorage.removeItem(KEY_STORAGE);
+  return legacyKey || null;
 }
 
 export function setApiKey(key: string): void {
-  localStorage.setItem(KEY_STORAGE, key);
+  sessionStorage.setItem(KEY_STORAGE, key);
+  localStorage.removeItem(KEY_STORAGE);
 }
 
 export function clearApiKey(): void {
+  sessionStorage.setItem(KEY_STORAGE, '');
   localStorage.removeItem(KEY_STORAGE);
 }
 
@@ -30,7 +40,7 @@ export async function api<T = unknown>(
 ): Promise<T> {
   const key = getApiKey();
   const headers = new Headers(init.headers);
-  if (key) headers.set('Authorization', `Bearer ${key}`);
+  if (key && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${key}`);
   // Blob/File bodies carry their own content-type and pass through as-is
   // (used by upload endpoints). Everything else gets JSON treatment.
   const isBinaryBody = init.body instanceof Blob;
@@ -55,7 +65,9 @@ export async function api<T = unknown>(
           : JSON.stringify(init.body),
   });
   if (res.status === 401) {
-    clearApiKey();
+    // A rejected candidate at login or a late response from a previous
+    // account must not sign out the current account.
+    if (key && headers.get('Authorization') === `Bearer ${key}` && getApiKey() === key) clearApiKey();
     throw new ApiError(res.status, 'unauthorized');
   }
   if (!res.ok) {

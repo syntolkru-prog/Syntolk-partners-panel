@@ -12,8 +12,8 @@ function setup(extra:object={},onAction?:ReturnType<typeof vi.fn>){
   render(<MemoryRouter><QueryClientProvider client={client}><CoachWelcome partnerId="p" onAction={onAction}/></QueryClientProvider></MemoryRouter>);
 }
 describe('entry assistant',()=>{
-  it('links to accompaniment on the dashboard without calling a model',()=>{setup();expect(screen.getByRole('link',{name:'Продолжить с помощником →'}).getAttribute('href')).toBe('/coach');});
-  it('offers a 20-minute conversation without silently sending or changing the profile',()=>{const action=vi.fn();setup({},action);fireEvent.click(screen.getByRole('button',{name:'У меня 20 минут'}));expect(action).toHaveBeenCalledWith('chat',20);});
-  it('respects pause',()=>{setup({paused:true},vi.fn());expect(screen.queryByRole('button',{name:'У меня 20 минут'})).toBeNull();expect(screen.getByRole('button',{name:'Настройки сопровождения'})).toBeTruthy();});
+  it('links to the work calendar without opening a chat',()=>{setup();expect(screen.getByRole('link',{name:'Открыть календарь работ →'}).getAttribute('href')).toBe('/plan');expect(screen.queryByText('Чат с куратором')).toBeNull();});
+  it('opens the work calendar from the optional action callback',()=>{const action=vi.fn();setup({},action);fireEvent.click(screen.getByRole('button',{name:'Перейти к календарю работ'}));expect(action).toHaveBeenCalledWith('plan');});
+  it('keeps the calendar action available when accompaniment is paused',()=>{const action=vi.fn();setup({paused:true},action);expect(screen.queryByRole('button',{name:'У меня 20 минут'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Открыть календарь работ'}));expect(action).toHaveBeenCalledWith('plan');});
   it('does not interfere when the module is disabled',()=>{setup({enabled:false});expect(screen.queryByText('Твой помощник Syntolk')).toBeNull();});
 });

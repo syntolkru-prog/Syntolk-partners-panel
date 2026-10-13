@@ -12,11 +12,6 @@ export function CoachWelcome({partnerId,prefix='/coach/me',onAction}:{partnerId:
   if(!data?.enabled)return null;
   return <section className="coach" aria-label="Ваш помощник Syntolk"><Card style={{marginBottom:14}}>
     <h2>Твой помощник Syntolk</h2><p className="coach-pre">{data.message}</p>
-    {onAction?<div className="coach-actions">
-      {data.needsOnboarding?<Button onClick={()=>onAction('profile')}>Давай познакомимся</Button>:data.paused?<Button variant="secondary" onClick={()=>onAction('profile')}>Настройки сопровождения</Button>:<>
-        <Button onClick={()=>onAction('chat')}>{data.takeover?'Написать менеджеру':'Продолжить вместе'}</Button>
-        {!data.takeover&&[20,30,60].map(minutes=><Button key={minutes} variant="secondary" onClick={()=>onAction('chat',minutes)}>У меня {minutes} минут</Button>)}
-      </>}
-    </div>:<TenantLink to="/coach">{data.needsOnboarding?'Познакомиться с помощником':data.paused?'Открыть настройки сопровождения':'Продолжить с помощником →'}</TenantLink>}
+    {onAction?<div className="coach-actions"><Button variant={data.paused?'secondary':'primary'} onClick={()=>onAction('plan')}>{data.paused?'Открыть календарь работ':'Перейти к календарю работ'}</Button></div>:<TenantLink to="/plan">Открыть календарь работ →</TenantLink>}
   </Card></section>;
 }

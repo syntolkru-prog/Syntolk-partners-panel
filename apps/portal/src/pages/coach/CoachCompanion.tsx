@@ -86,7 +86,7 @@ export function CoachCompanion({ partnerId, prefix = '/coach/me' }: { partnerId:
           <CoachCreature size={42} />
           <div>
             <strong>{name}</strong>
-            <p>Подскажу следующий шаг по партнёрской программе.</p>
+            <p>Помогу с материалами из вашего калькулятора.</p>
             <button className="syntolk-coach-button syntolk-coach-button--link" type="button" onClick={openChat}>Открыть чат</button>
           </div>
         </aside>

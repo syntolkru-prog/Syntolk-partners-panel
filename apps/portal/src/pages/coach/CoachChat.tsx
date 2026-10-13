@@ -216,8 +216,8 @@ export function CoachChat({
   const assistantName = me.data?.assistant?.name || 'Синти';
   const greeting = me.data?.assistant?.greeting || 'Я рядом и помогу выбрать следующий посильный шаг.';
   const profileHref = prefix.startsWith('/admin/')
-    ? `${tenantBase}/admin/coach?tab=partners&partnerId=${encodeURIComponent(partnerId)}`
-    : `${tenantBase}/coach?tab=profile`;
+    ? `${tenantBase}/admin/calculator?partnerId=${encodeURIComponent(partnerId)}`
+    : `${tenantBase}/calculator`;
 
   useEffect(() => {
     if (draft !== undefined) setLocalDraft(draft);
@@ -349,17 +349,17 @@ export function CoachChat({
       {!profileComplete && (
         <div className="syntolk-coach-onboarding">
           <div className="syntolk-coach-onboarding__avatar"><CoachCreature size={58} /></div>
-          <h3>{welcome.data?.needsOnboarding ? 'Давайте познакомимся' : 'Сначала настроим сопровождение'}</h3>
+          <h3>Начните с калькулятора</h3>
           <p>{welcome.data?.message || greeting}</p>
-          <a className="syntolk-coach-button" href={profileHref}>Открыть знакомство</a>
-          <small>{takeover ? 'Менеджер может продолжить диалог до завершения профиля.' : 'Заполните профиль, чтобы открыть чат.'}</small>
+          <a className="syntolk-coach-button" href={profileHref}>Открыть калькулятор</a>
+          <small>{takeover ? 'Менеджер может продолжить диалог до создания календаря.' : 'Создайте календарь из калькулятора, чтобы открыть чат.'}</small>
         </div>
       )}
 
       {paused && (
         <div className="syntolk-coach-chat__paused" role="status">
           <strong>Сопровождение приостановлено</strong>
-          <span>Отправка сообщений временно отключена. Настройки можно изменить в профиле.</span>
+          <span>Отправка сообщений временно отключена. Для возобновления обратитесь к менеджеру Syntolk.</span>
         </div>
       )}
 
@@ -428,7 +428,7 @@ export function CoachChat({
           </label>
         )}
         {!selectedProgram && <p className="syntolk-coach-chat__hint">Администратору нужно назначить вам партнёрскую программу.</p>}
-        {!canCompose && !paused && <p className="syntolk-coach-chat__hint">Заполните профиль, чтобы отправлять сообщения.</p>}
+        {!canCompose && !paused && <p className="syntolk-coach-chat__hint">Создайте календарь из калькулятора, чтобы отправлять сообщения.</p>}
         <textarea
           value={currentDraft}
           onChange={(event) => changeDraft(event.target.value)}

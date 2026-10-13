@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { TABLES, type LinkRow } from '@openpartner/db';
 import { grantScope, requireAuth, requirePartnerOrAdmin } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
-import { createLinkSchema, createPartnerLink, LinkError } from '../links-service.js';
+import { createLinkSchema, createPartnerLink, LinkError, listPartnerLinks } from '../links-service.js';
 
 export const linksRouter = Router();
 linksRouter.get('/partners/:id/links', requireAuth, requirePartnerOrAdmin('id'), async (req, res) => {
   const { db, tenantId } = tenantOf(req);
-  res.json({ links: await db<LinkRow>(TABLES.Link).where({ tenantId, partnerId: req.params.id }).orderBy('createdAt', 'desc') });
+  const {links,archivedCount}=await listPartnerLinks(db,tenantId,req.params.id!);
+  res.json({links:links.filter(link=>req.query.archived==='1'||!link.archived),archivedCount});
 });
 linksRouter.post('/partners/:id/links', requireAuth, grantScope('links:write'), requirePartnerOrAdmin('id'), async (req, res) => {
   const { db, tenantId } = tenantOf(req);

@@ -36,17 +36,17 @@ afterAll(async()=>{await db.destroy();await appDb.destroy();});
 
 describe('A02 and B01-B09: first vertical cycle',()=>{
   it('keeps core health, links and existing permissions',async()=>{expect((await get('/health')).status).toBe(200);expect((await get(`/partners/${partnerId}/links`)).status).toBe(200);expect((await get(`/partners/${partnerId}/links`,otherKey)).status).toBe(403);});
-  it('saves onboarding, validates plan, accepts once and creates one real own link',async()=>{
+  it('saves onboarding, validates plan, accepts once and leaves link creation to the partner',async()=>{
     const task=await acceptPlan();
     const plans=(await get('/coach/me/plans')).body.plans;
     expect((await post(`/coach/me/plans/${plans[0].id}/accept`,{version:1})).body.replayed).toBe(true);
     const before=await db('CoachTask').where({partnerId}).count({count:'*'}).first();
     expect(Number(before!.count)).toBe(3);
-    const created=await post(`/coach/me/tasks/${task.id}/prepare-link`,{version:task.version});expect(created.status,created.text).toBe(200);
-    expect(created.body.link.partnerId).toBe(partnerId);expect(created.body.link.programId).toBe(programId);
-    const repeated=await post(`/coach/me/tasks/${task.id}/prepare-link`,{version:task.version});expect(repeated.body.replayed).toBe(true);
-    expect(Number((await db('CoachPlacement').where({taskId:task.id}).count({count:'*'}).first())!.count)).toBe(1);
-    expect((await get(`/partners/${partnerId}/links`)).body.links.some((l:{id:string})=>l.id===created.body.link.id)).toBe(true);
+    expect((await post(`/coach/me/tasks/${task.id}/prepare-link`,{version:task.version})).status).toBe(404);
+    expect(Number((await db('CoachPlacement').where({taskId:task.id}).count({count:'*'}).first())!.count)).toBe(0);
+    const created=await post(`/partners/${partnerId}/links`,{programId,linkKey:`manual-${ulid().toLowerCase()}`,label:'Моя ссылка',channel:'telegram'});
+    expect(created.status,created.text).toBe(201);expect(created.body.partnerId).toBe(partnerId);expect(created.body.programId).toBe(programId);
+    expect((await get(`/partners/${partnerId}/links`)).body.links.some((l:{id:string})=>l.id===created.body.id)).toBe(true);
   });
   it('persists draft and rejects stale version',async()=>{const first=await request(app).patch('/coach/me/profile').set('Authorization',auth(key)).send({version:0,profile,complete:false});expect(first.status).toBe(200);expect((await get('/coach/me')).body.profile.status).toBe('draft');expect((await save()).status).toBe(409);});
   it('enforces grant even for admin coach actions on a partner',async()=>{await save();const r=await post('/coach/me/plans/generate',{programId:ulid(),requestId:ulid(),weekStart:'2026-10-12'});expect(r.status).toBe(403);});
@@ -83,9 +83,9 @@ describe('B15-B19: submission and review lifecycle',()=>{
 });
 describe('C11-C13 and D08: memory, calculator and provider boundary',()=>{
   it('welcomes using only the current owner and respects pause after reload',async()=>{
-    expect((await get('/coach/me/welcome')).body.needsOnboarding).toBe(true);
-    await save();const first=await get('/coach/me/welcome');expect(first.body.message).toContain('120 минут');expect(first.body.needsOnboarding).toBe(false);
-    expect((await get('/coach/me/welcome',otherKey)).body.needsOnboarding).toBe(true);
+    expect((await get('/coach/me/welcome')).body.message).toContain('калькуляторе');
+    await save();const first=await get('/coach/me/welcome');expect(first.body.message).toContain('календарь');expect(first.body.needsOnboarding).toBe(false);
+    expect((await get('/coach/me/welcome',otherKey)).body.message).toContain('калькуляторе');
     await request(app).patch('/coach/me/profile').set('Authorization',auth(key)).send({version:1,profile:{...profile,mode:'paused'},complete:true});
     expect((await get('/coach/me/welcome')).body.paused).toBe(true);
   });

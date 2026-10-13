@@ -10,3 +10,66 @@
 .coach-link{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:16px;margin:14px 0;background:#101e24;border:1px solid #28404b;border-radius:8px}.coach-link code{overflow-wrap:anywhere;word-break:break-word}.coach-link small{color:#9ca3af}
 .coach-messages{display:flex;flex-direction:column;gap:12px;max-height:600px;overflow:auto}.coach-message{padding:14px;border-radius:8px;background:#1b2027;border:1px solid #30363f}.coach-message--assistant{border-left:3px solid var(--op-accent,#2dd4bf)}.coach-message--admin{border-left:3px solid #60a5fa}.coach summary{cursor:pointer;padding:10px 0;color:#a6afbd}.coach li{line-height:1.7}
 @media(max-width:640px){.coach-grid{grid-template-columns:1fr}.coach-row{align-items:flex-start}.coach-tabs{gap:7px}.coach-link{padding:12px}}
+.coach-day{margin-bottom:20px}.coach-day__header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;flex-wrap:wrap}.coach-day__eyebrow{display:block;color:var(--op-accent,#2dd4bf);font-size:12px;letter-spacing:.04em;margin-bottom:8px}.coach-day__header h2{font-size:25px;margin-bottom:4px}
+.coach-day__progress{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:22px}.coach-day__stars{display:flex;gap:6px;color:#46505e}.coach-day__stars .is-earned{fill:#facc15;color:#facc15}.coach-day__track{height:8px;border-radius:10px;background:#242a32;overflow:hidden;margin-top:14px}.coach-day__track>span{display:block;height:100%;background:var(--op-accent,#2dd4bf);transition:width .3s ease}
+.coach-day__tasks{list-style:none;padding:0;margin:18px 0 0;display:flex;flex-direction:column;gap:10px}.coach-day__tasks>li{display:flex;align-items:center;gap:14px;padding:16px;background:#191e25;border:1px solid #30363f;border-radius:10px}.coach-day__tasks>li>div{flex:1;min-width:0}.coach-day__tasks strong{display:block;font-size:14px;line-height:1.5}.coach-day small{display:block;color:#9ca3af;font-size:12px;margin-top:5px}.coach-day__step{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border:1px solid #46505e;border-radius:50%;color:#cbd5e1}.coach-day__tasks .is-submitted{border-color:#28534c}.coach-day__tasks .is-submitted .coach-day__step{border-color:transparent;color:#2dd4bf}
+.coach-day__empty{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:18px 0;padding:18px;border:1px dashed #3b4654;border-radius:10px}.coach-day__empty>div{flex:1;min-width:180px}.coach-day__empty>svg{color:#2dd4bf}.coach-day__editor{border-top:1px solid #30363f;margin-top:20px;padding-top:20px}.coach-day__editor input[type=number]{max-width:180px;padding:10px;background:#1a1e24;border:1px solid #30363f;border-radius:6px;color:#e5e7eb;font:inherit}.coach-day__choice{display:flex;align-items:flex-start;gap:10px;padding:12px 0;cursor:pointer}.coach-day__choice input{margin-top:4px}.coach-day__success{color:#5eead4}.coach-tabs a{color:inherit;text-decoration:none}.coach-task--selected{border:1px solid var(--op-accent,#2dd4bf)!important;scroll-margin-top:20px}.coach-day__results{margin-bottom:12px}
+@media(max-width:640px){.coach-day__tasks>li{flex-wrap:wrap}.coach-day__tasks>li>button{width:100%}.coach-day__header>button{width:100%}.coach-day__stars{gap:4px}.coach-day__header h2{font-size:22px}}
+@media(prefers-reduced-motion:reduce){.coach-day__track>span{transition:none}}
+.calculator-connection { margin-top: 16px; }
+.calculator-intro { margin-bottom:16px; }
+.calculator-planning { margin-bottom:18px; }
+.calculator-planning .coach-field { margin:0; }
+.calculator-planning input { box-sizing:border-box; min-width:0; width:100%; padding:10px 12px; border:1px solid #30363f; border-radius:6px; background:#1a1e24; color:#e5e7eb; font:inherit; }
+.calculator-scenario-picker,.calculator-work-scenario-picker { display:flex; align-items:end; gap:12px; flex-wrap:wrap; margin:12px 0; }
+.calculator-scenario-picker .coach-field,.calculator-work-scenario-picker .coach-field { flex:1 1 260px; margin:0; }
+.calculator-scenario-picker .coach-actions { margin:0; }
+.calculator-scenario-picker input,.calculator-work-scenario-picker select { box-sizing:border-box; min-width:0; width:100%; padding:10px 12px; border:1px solid #30363f; border-radius:6px; background:#1a1e24; color:#e5e7eb; font:inherit; }
+.calculator-new-scenario { display:flex; flex-direction:column; gap:5px; margin:12px 0; padding:12px 14px; border:1px solid #28534c; border-radius:8px; background:#102522; }
+.calculator-new-scenario strong { color:#d7fff7; font-size:14px; }
+.calculator-new-scenario span { color:#a5ded7; font-size:13px; }
+.calculator-scenario-dialog-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(4,7,10,.72); }
+.calculator-scenario-dialog { box-sizing:border-box; width:min(460px,100%); padding:22px; border:1px solid #3a4652; border-radius:10px; background:#151a20; box-shadow:0 18px 60px rgba(0,0,0,.42); }
+.calculator-scenario-dialog h2 { margin:0 0 8px; }
+.calculator-scenario-dialog .coach-field { margin:18px 0 10px; }
+.calculator-scenario-dialog input { box-sizing:border-box; width:100%; padding:10px 12px; border:1px solid #30363f; border-radius:6px; background:#1a1e24; color:#e5e7eb; font:inherit; }
+.calculator-scenario-dialog-actions { justify-content:flex-end; margin-bottom:0; }
+.calculator-work-scenario-picker { justify-content:space-between; padding:12px 14px; border:1px solid #30363f; border-radius:8px; background:#14181e; }
+.calculator-preview ul { list-style:none; padding:0; margin:12px 0; }
+.calculator-preview li { display:flex; gap:16px; padding:10px 0; border-bottom:1px solid #242a32; font-size:13px; }
+.calculator-preview li>span { min-width:65px; color:#9ca3af; }
+.calculator-preview li small { display:block; margin-top:4px; color:#9ca3af; }
+.coach-summary-link,.coach-home-links a { color:var(--op-accent,#2dd4bf); text-decoration:none; font-size:13px; }
+.coach-summary-link:hover,.coach-home-links a:hover { text-decoration:underline; }
+.coach-home-tasks { list-style:none; display:flex; flex-direction:column; gap:7px; padding:0; margin:14px 0 0; }
+.coach-home-tasks>li { display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid #2a323d; border-radius:7px; background:#11151a; }
+.coach-home-tasks>li>span { flex:0 0 20px; color:var(--op-accent,#2dd4bf); font-size:18px; line-height:1; text-align:center; }
+.coach-home-tasks>li>div { min-width:0; }
+.coach-home-tasks strong { display:block; font-size:13px; line-height:1.4; }
+.coach-home-tasks small { display:block; margin-top:2px; color:#9ca3af; font-size:12px; }
+.coach-home-tasks .is-completed { opacity:.7; }
+.coach-home-summary h2 { margin:0 0 8px; font-size:18px; }
+.coach-home-summary p { margin:0; }
+.coach-home-links { display:flex; flex-wrap:wrap; gap:20px; margin-top:14px; }
+.calculator-week-picker label { color:#a6afbd; display:flex; align-items:center; gap:10px; }
+.calculator-week-picker select { background:#1a1e24; color:#e5e7eb; border:1px solid #30363f; border-radius:6px; padding:8px; }
+.calculator-task-details>summary { font-size:13px; }
+.calculator-work-check { display:flex; align-items:center; gap:12px; cursor:pointer; }
+.calculator-work-check input { accent-color:var(--accent,#22cbbb); width:20px; height:20px; }
+.calculator-work-check small { display:block; margin-top:5px; color:var(--text-muted,#9099a6); }
+.calculator-work-link { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-top:12px; }
+.calculator-work-link code { overflow-wrap:anywhere; }
+.calculator-work-link a { overflow-wrap:anywhere; }
+.calculator-work-day { margin-top:20px; }
+.calculator-work-day h3 { margin-bottom:12px; }
+.calculator-work-task--compact { padding:10px 0; border-bottom:1px solid #242a32; }
+.calculator-work-task--compact:last-child { border-bottom:0; }
+.calculator-work-task { padding:16px; border:1px solid #242a32; border-radius:10px; margin-bottom:10px; background:#14181d; }
+.calculator-work-results { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+.calculator-work-results td,.calculator-work-results th { padding:10px 8px; border-bottom:1px solid #242a32; text-align:left; }
+.calculator-work-results-wrap { overflow-x:auto; }
+.coach-plan-summary{padding:10px 12px;border:1px solid #28404b;border-radius:8px;background:#101e24;color:#b7c2cf;font-size:13px}
+.calculator-work-task--guided{overflow:hidden}.calculator-work-tip{margin:12px 0!important;padding:11px 13px;border-left:3px solid var(--op-accent,#2dd4bf);background:#102522;color:#c8d6d4;font-size:13px}
+.calculator-work-platforms{display:flex;flex-direction:column;gap:10px;margin-top:13px}.calculator-work-platforms>strong{font-size:13px;color:#d7dde5}.calculator-work-platform{padding:12px;border:1px solid #2a323d;border-radius:8px;background:#11151a}.calculator-work-platform>div:first-child{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.calculator-work-platform b{font-size:13px}.calculator-work-platform a{color:var(--op-accent,#2dd4bf);font-size:12px}.calculator-work-platform small{display:block;flex-basis:100%;color:#9ca3af;font-size:12px}
+.calculator-work-suggestions{margin-top:12px;border-top:1px solid #242a32}.calculator-work-suggestions>summary{font-size:13px;color:#a5ded7}.calculator-work-resource-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}.calculator-work-resource-grid>div{display:flex;flex-direction:column;gap:4px;padding:10px;border:1px solid #2a323d;border-radius:8px;background:#11151a}.calculator-work-resource-grid strong{font-size:13px}.calculator-work-resource-grid span{color:#9ca3af;font-size:12px;line-height:1.4}.calculator-work-resource-grid a{color:var(--op-accent,#2dd4bf);font-size:12px}
+@media(max-width:640px){.calculator-work-platform>div:first-child{align-items:flex-start}.calculator-work-link{align-items:stretch}.calculator-work-link button{width:100%}.calculator-work-resource-grid{grid-template-columns:1fr}}

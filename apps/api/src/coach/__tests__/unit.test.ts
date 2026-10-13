@@ -43,7 +43,7 @@ describe('D03-D04: consent and quiet hours',()=>{
   });
 });
 describe('A03: original forecast adapter',()=>{
-  it('matches baseline and stores three scenarios',async()=>{const r=await calculateCoachForecast({});expect(r.scenarios).toHaveLength(3);expect(r.scenarios[1].result.months[2].reward).toBeCloseTo(3965.015028199679,8);expect(r.commission).toBe(.2);});
+  it('matches the direct conversion model and stores three scenarios',async()=>{const r=await calculateCoachForecast({});expect(r.scenarios).toHaveLength(3);expect(r.scenarios[1].result.months[2].reward).toBeCloseTo(6157.988227123199,8);expect(r.commission).toBe(.2);expect(r.settings.conversionVersion).toBe(2);expect(r.settings.paymentDelayEnabled).toBe(false);expect(r.settings).not.toHaveProperty('personalPaid');});
 });
 describe('input validation',()=>{
   it('rejects unsafe protocols and credentials',()=>{for(const url of ['http://example.com','file:///secret','https://a:b@example.com'])expect(()=>safePublicationUrl(url)).toThrow();});

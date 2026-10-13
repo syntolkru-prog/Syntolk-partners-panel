@@ -174,7 +174,7 @@ describe('admin context scoping and calculator evidence', () => {
     await saveProfile();
 
     const planId = ulid();
-    await db('CoachPlan').insert({ id: planId, tenantId, partnerId, programId, status: 'active', weekStart: '2026-10-12', data: JSON.stringify({ message: 'Активный план', plannedMinutes: 30 }) });
+    await db('CoachPlan').insert({ id: planId, tenantId, partnerId, programId, status: 'active', weekStart: '2026-10-12', data: JSON.stringify({ source:'calculator_schedule_v1',timezone:'Europe/Moscow',message: 'Активный план', plannedMinutes: 30 }) });
     await db('CoachTask').insert({
       id: ulid(), tenantId, partnerId, programId, planId, status: 'submitted', version: 2, minutes: 30,
       dueAt: new Date(), data: JSON.stringify({ title: 'Опубликовать кейс', format: 'post', platform: 'telegram', submission: { text: 'Текст отправленного партнёром материала', publicationUrl: 'https://t.me/syntolk/1' } }),

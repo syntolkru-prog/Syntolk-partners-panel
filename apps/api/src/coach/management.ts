@@ -31,9 +31,10 @@ export function summarizeManagement(tasks: ManagedTask[], policy: ManagementPoli
   return { generatedAt: at.toISOString(), policy, counts: { open: open.length, overdue: open.filter(t => t.overdue).length, waitingReview: items.filter(t => reviewStatuses.includes(t.status)).length, completed: items.filter(t => t.status === 'completed').length, needsManager: items.filter(t => t.needsManager).length }, nextTask: priority[0] ?? null, tasks: items };
 }
 
-export async function managementSnapshot(db: Knex, tenantId: string, partnerId: string, programId?: string, at = new Date()) {
+export async function managementSnapshot(db: Knex, tenantId: string, partnerId: string, programId?: string, at = new Date(), planId?:string) {
   const query = db('CoachTask').where({ tenantId, partnerId }).where(q => q.whereNotIn('status', ['completed', 'cancelled', 'skipped']).orWhere('updatedAt', '>=', new Date(at.getTime() - 30 * 86400000))).orderBy('dueAt');
   if (programId) query.andWhere({ programId });
+  if (planId) query.andWhere({planId});
   const [tasks, policy] = await Promise.all([query, managementPolicy(db, tenantId, partnerId)]);
   const summary = summarizeManagement(tasks, policy, at);
   return { ...summary, completedPeriodDays: 30 };

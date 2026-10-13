@@ -8,16 +8,14 @@ import {
   Users,
   UserCheck,
   CreditCard,
-  Link2,
   CheckCircle2,
   Circle,
   ArrowRight,
 } from 'lucide-react';
 import { api, type Principal } from '../api.js';
 import { useTenantBase } from '../tenant-base.js';
-import { TenantLink } from '../tenant-link.js';
 import { theme } from '../theme.js';
-import { CoachWelcome } from './coach/CoachWelcome.js';
+import { CoachDay } from './coach/CoachDay.js';
 import { useBrand } from '../lib/useBrand.js';
 import { Avatar, Button, Card, EmptyState, ErrorBanner, Page, SectionHeading, Stat, StatusPill, money } from '../ui.js';
 
@@ -58,6 +56,7 @@ interface Funnel {
 }
 
 function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string }) {
+  const tenantBase = useTenantBase();
   const { programTermsUrl } = useBrand();
   const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'all'>('30d');
   const since = period === 'today'
@@ -67,16 +66,15 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
       : period === 'all' ? '2000-01-01T00:00:00.000Z' : undefined;
   const { data, error, isLoading } = useQuery({
     queryKey: ['dashboard', partnerId, period],
-    queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard${since ? `?since=${encodeURIComponent(since)}&includeLinks=true` : '?includeLinks=true'}`),
+    queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard${since ? `?since=${encodeURIComponent(since)}` : ''}`),
   });
   const funnel = useQuery({
     queryKey: ['funnel', partnerId],
     queryFn: () => api<Funnel>(`/partners/${partnerId}/funnel`),
   });
-  const links = useQuery({
-    queryKey: ['links', partnerId],
-    queryFn: () => api<{ links: unknown[] }>(`/partners/${partnerId}/links`),
-  });
+  const coach = useQuery({queryKey:['coach-home-gate',partnerId],queryFn:()=>api<{programs:Array<{id:string}>}>('/coach/me'),staleTime:30000});
+  const coachProgramId=coach.data?.programs?.[0]?.id??'';
+  const calendar=useQuery({queryKey:['coach-home-calendar',partnerId,coachProgramId],queryFn:()=>api<{plan:unknown|null}>(`/coach/me/calculator-plan?programId=${encodeURIComponent(coachProgramId)}`),enabled:!!coachProgramId,staleTime:30000});
   const profile = useQuery({
     queryKey: ['partner-profile', partnerId],
     queryFn: () => api<PartnerProfile>(`/partners/${partnerId}`),
@@ -89,9 +87,7 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
     onSuccess: () => profile.refetch(),
   });
 
-  const linkCount = links.data?.links.length ?? 0;
-  const hasLink = linkCount > 0;
-  const showGettingStarted = !links.isLoading && !hasLink;
+  if(coach.isLoading||(coachProgramId&&calendar.isLoading))return <Page title="Партнёрский кабинет"><Card>Загружаем ваш сценарий…</Card></Page>;
 
   return (
     <Page
@@ -107,7 +103,7 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
       }
     >
       <ErrorBanner error={error} />
-      <CoachWelcome partnerId={partnerId} />
+      <CoachDay partnerId={partnerId} />
       {!profile.isLoading && profile.data && !profile.data.termsAcceptedAt && (
         <Card style={{ marginBottom: 14, borderColor: `${theme.warn}66`, background: theme.warnSoft }}>
           <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 5 }}>Подтвердите условия партнёрской программы</div>
@@ -123,12 +119,9 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
           </Button>
         </Card>
       )}
-      {showGettingStarted && (
-        <GettingStarted hasLink={hasLink} />
-      )}
-      {isLoading || !data ? (
+      {isLoading ? (
         <Card>Загрузка…</Card>
-      ) : (
+      ) : data ? (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             <Stat label="Переходы" value={data.clicks} icon={<MousePointerClick size={16} />} />
@@ -143,24 +136,6 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
           </div>
 
           {funnel.data && <FunnelChart funnel={funnel.data} />}
-
-          {(data.links ?? []).length > 0 && (
-            <>
-              <SectionHeading>Эффективность ссылок</SectionHeading>
-              <Card>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                  {data.links!.map((link) => (
-                    <div key={link.linkKey} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) 80px 100px 130px', gap: 10, alignItems: 'center', fontSize: 13 }}>
-                      <code style={{ color: theme.accent }}>{link.linkKey}</code>
-                      <span style={{ color: theme.textMuted }}>{link.clicks} переходов</span>
-                      <span style={{ color: theme.textMuted }}>{link.attributedEvents} событий</span>
-                      <span style={{ fontWeight: 500 }}>{money(link.attributedRevenue)}</span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </>
-          )}
 
           <SectionHeading>Начисления</SectionHeading>
           <Card>
@@ -186,75 +161,8 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
             )}
           </Card>
         </>
-      )}
+      ) : null}
     </Page>
-  );
-}
-
-function GettingStarted({ hasLink }: { hasLink: boolean }) {
-  return (
-    <Card>
-      <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>Начало работы</div>
-      <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
-        Два простых шага — и вы сможете зарабатывать. Карточка исчезнет после выполнения обоих.
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <ChecklistRow
-          done={hasLink}
-          icon={<Link2 size={16} />}
-           title="Создайте первую партнёрскую ссылку"
-           hint="Выберите короткий идентификатор — каждый клик по ссылке будет учтён за вами."
-           cta="Создать ссылку"
-          to="/links"
-        />
-      </div>
-    </Card>
-  );
-}
-
-function ChecklistRow({
-  done,
-  icon,
-  title,
-  hint,
-  cta,
-  to,
-}: {
-  done: boolean;
-  icon: React.ReactNode;
-  title: string;
-  hint: string;
-  cta: string;
-  to: string;
-}) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '12px 14px',
-        background: done ? theme.successSoft : theme.surface2,
-        border: `1px solid ${done ? `${theme.success}44` : theme.borderSubtle}`,
-        borderRadius: theme.radiusSm,
-      }}
-    >
-      <div style={{ color: done ? theme.success : theme.textDim, display: 'inline-flex' }}>
-        {done ? <CheckCircle2 size={18} /> : <Circle size={18} />}
-      </div>
-      <div style={{ color: theme.textMuted, display: 'inline-flex' }}>{icon}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: theme.text, textDecoration: done ? 'line-through' : 'none' }}>
-          {title}
-        </div>
-        <div style={{ fontSize: 12, color: theme.textDim, marginTop: 2 }}>{hint}</div>
-      </div>
-      {!done && (
-        <TenantLink to={to} style={{ textDecoration: 'none' }}>
-          <Button size="sm">{cta}</Button>
-        </TenantLink>
-      )}
-    </div>
   );
 }
 
@@ -354,9 +262,9 @@ function AdminDashboard() {
     <Page title="Партнёрская программа" subtitle="Обзор всех партнёров и привлечённой ими атрибуцированной выручки.">
       <ErrorBanner error={error} />
       <BrandOnboarding />
-      {isLoading || !data ? (
+      {isLoading ? (
         <Card>Загрузка…</Card>
-      ) : (
+      ) : data ? (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             <Stat label="Партнёры" value={data.totals.partners} icon={<Users size={16} />} />
@@ -386,7 +294,7 @@ function AdminDashboard() {
             </div>
           )}
         </>
-      )}
+      ) : null}
     </Page>
   );
 }

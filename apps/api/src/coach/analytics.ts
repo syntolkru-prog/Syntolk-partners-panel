@@ -1,9 +1,9 @@
 import type { Knex } from 'knex';
 
 /** Read-only facts. Never infers views, unique visitors or unobserved retention. */
-export async function coachMetrics(db: Knex, tenantId: string, partnerId: string, programId?: string, days=30) {
-  const since = new Date(Date.now() - Math.min(90,Math.max(1,days)) * 86400000);
-  const until = new Date();
+export async function coachMetrics(db: Knex, tenantId: string, partnerId: string, programId?: string, days=30, window?: { since: Date; until: Date }) {
+  const since = window?.since ?? new Date(Date.now() - Math.min(90,Math.max(1,days)) * 86400000);
+  const until = window?.until ?? new Date();
   const base = db('Attribution as a').join('Event as e', 'e.id', 'a.eventId').join('Program as p', 'p.id', 'a.programId').join('Click as cl', 'cl.id', 'a.clickId')
     .where({ 'a.tenantId': tenantId, 'a.partnerId': partnerId, 'e.tenantId': tenantId, 'p.tenantId': tenantId, 'cl.tenantId': tenantId })
     .whereRaw('?? = ??', ['a.model', 'p.attributionModel']).whereNull('cl.fraudFlag')
@@ -22,7 +22,7 @@ export async function coachMetrics(db: Knex, tenantId: string, partnerId: string
   const clickCount = await clicks.clone().count({ count: '*' }).first();
   const clicksByLink=await clicks.clone().groupBy('linkId').select('linkId').count({count:'*'}) as Array<{linkId:string;count:string|number}>;
   const eventsByLink=await period.clone().groupBy('cl.linkId').select('cl.linkId').select(db.raw(`COUNT(DISTINCT CASE WHEN e.type='signup' THEN e."userId" END)::int AS registrations,COUNT(DISTINCT CASE WHEN e.type IN ('invoice_paid','recurring_payment') AND e.value>0 AND e.currency='RUB' THEN e."userId" END)::int AS "payingCustomers"`));
-  const partnerLinks=await db('Link').where({tenantId,partnerId}).modify(q=>{if(programId)q.where({programId});}).select('id','linkKey','label','channel').limit(200) as Array<{id:string;linkKey:string;label:string|null;channel:string|null}>;
+  const partnerLinks=await db('Link').where({tenantId,partnerId}).modify(q=>{if(programId)q.where({programId});}).orderBy('createdAt','desc').select('id','linkKey','label','channel') as Array<{id:string;linkKey:string;label:string|null;channel:string|null}>;
   const ledger = base.clone().join('Commission as c', 'c.attributionId', 'a.id').leftJoin('Payout as pay', 'pay.id', 'c.payoutId').where('c.tenantId', tenantId).where('c.currency','RUB').select('c.id', 'c.status', 'c.amount', 'c.accruedAt', 'c.payoutId', 'pay.status as payoutStatus','cl.linkId');
   const rows = await ledger;
   const ids = rows.map((r: { id: string }) => r.id);

@@ -79,6 +79,7 @@ interface LinkRow {
   createdAt: string;
   label: string | null;
   channel: string | null;
+  archived?: boolean;
 }
 
 interface Program {
@@ -158,11 +159,12 @@ function AdminLinksHub() {
 function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: boolean }) {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
+  const [showArchived,setShowArchived]=useState(false);
   const shareBase = useShareUrlBase();
 
   const links = useQuery({
-    queryKey: ['links', partnerId],
-    queryFn: () => api<{ links: LinkRow[] }>(`/partners/${partnerId}/links`),
+    queryKey: ['links', partnerId,showArchived],
+    queryFn: () => api<{ links: LinkRow[];archivedCount:number }>(`/partners/${partnerId}/links${showArchived?'?archived=1':''}`),
   });
 
   // Partners need this too — they pick a Program when creating a link
@@ -190,6 +192,7 @@ function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: bo
       }
     >
       <ErrorBanner error={links.error} />
+      {(links.data?.archivedCount??0)>0&&<label style={{display:'flex',gap:8,alignItems:'center',marginBottom:16,color:theme.textMuted,fontSize:13}}><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/>Показать ссылки прежних сценариев ({links.data?.archivedCount})</label>}
       {showCreate && !readOnly && (
         <CreateLink
           partnerId={partnerId}
@@ -217,7 +220,7 @@ function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: bo
             const dest = l.destinationUrl ?? campaign?.destinationUrl ?? '—';
             return [
               <CopyableShareLink linkKey={l.linkKey} base={shareBase} />,
-              <span style={{ color: theme.textMuted, fontSize: 13 }}>{l.label || l.channel || '—'}</span>,
+              <span style={{ color: theme.textMuted, fontSize: 13 }}>{l.label || l.channel || '—'}{l.archived&&<small> · прежний сценарий</small>}</span>,
               <span style={{ color: theme.textMuted, fontSize: 13 }}>
                 {dest}
                 {l.destinationUrl && (

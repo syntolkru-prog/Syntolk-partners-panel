@@ -36,7 +36,7 @@ beforeEach(async()=>{
 afterAll(async()=>{await db.destroy();await appDb.destroy();});
 
 async function task(status='planned',extra:object={},ownerId=partnerId) {
-  const planId=ulid();await db('CoachPlan').insert({id:planId,tenantId,partnerId:ownerId,programId,status:'active',weekStart:'2026-10-13',data:JSON.stringify({profileVersion:1})});
+  const planId=ulid();await db('CoachPlan').insert({id:planId,tenantId,partnerId:ownerId,programId,status:'active',weekStart:'2026-10-13',data:JSON.stringify({source:'calculator_schedule_v1',profileVersion:1,timezone:'Europe/Moscow'})});
   const [row]=await db('CoachTask').insert({id:ulid(),tenantId,partnerId:ownerId,programId,planId,status,version:1,minutes:20,dueAt:new Date(Date.now()+86400000),data:JSON.stringify({title:'Снять и разместить кружочек',format:'circle',platform:'telegram',criteria:'Один полезный пример и своя ссылка',steps:[{title:'Записать',minutes:20}],...extra})}).returning('*');return row;
 }
 
@@ -74,15 +74,25 @@ describe('manager loop, interview and access',()=>{
     const context=await buildCoachContext(db,tenantId,partnerId,programId);
     expect(context.management.clock.timezone).toBe('Europe/Moscow');
     expect(context.management.clock.nowLocal).toContain('Europe/Moscow');
+    expect(context.management.clock.tomorrowLocalDate).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
     expect(context.management.nextTask?.dueAtLocal).toBe('14.10.2026, 03:20:24 (Europe/Moscow)');
     expect(context.management.tasks[0]?.dueAtLocal).toBe(context.management.nextTask?.dueAtLocal);
+    expect(context.capabilities.taskActions.complete).toBe('Готово');
+    expect(context.capabilities.automaticAudioVideoReview).toBe(false);
+    expect(context.program.attributionPolicy).toContain('recurring не отменяет проверку окна');
+  });
+  it('uses the current partners own commission snapshot rather than the default program rate',async()=>{
+    await db('PartnerCommission').insert({tenantId,partnerId,commissionType:'percent',commissionValue:'35.0000',recurring:false,source:'admin',snapshottedAt:new Date()});
+    const context=await buildCoachContext(db,tenantId,partnerId,programId);
+    expect(context.program.commissionSource).toBe('partner_snapshot');
+    expect(context.program.commissionRule).toEqual([{trigger:'every',type:'percent',value:35,recurring:false}]);
   });
   it('rejects past deadlines and unfinished work cannot be silently replaced',async()=>{
     const row=await task();expect((await post(`/coach/me/tasks/${row.id}/reschedule`,{version:1,dueAt:new Date(Date.now()-86400000).toISOString(),reason:'Некорректно'})).status).toBe(422);
     const planId=ulid();await db('CoachPlan').insert({id:planId,tenantId,partnerId,programId,status:'draft',weekStart:'2026-10-20',data:JSON.stringify({profileVersion:1,tasks:[{title:'Новый пост',format:'post',platform:'telegram',minutes:20,steps:[{title:'Написать',minutes:20}],draft:'Пример',criteria:'Текст и ссылка'}]})});
-    const accepted=await post(`/coach/me/plans/${planId}/accept`,{version:1});expect(accepted.status).toBe(409);expect(accepted.body.error).toBe('unfinished_work');
+    const accepted=await post(`/coach/me/plans/${planId}/accept`,{version:1});expect(accepted.status).toBe(410);expect(accepted.body.error).toBe('calculator_workflow');
     expect((await db('CoachTask').where({id:row.id}).first()).status).toBe('planned');
-    const queued=await post('/coach/me/plans/generate',{programId,requestId:ulid(),weekStart:'2026-10-20'});expect(queued.body.error).toBe('unfinished_work');expect(await db('CoachRun').where({partnerId})).toHaveLength(0);
+    const queued=await post('/coach/me/plans/generate',{programId,requestId:ulid(),weekStart:'2026-10-20'});expect(queued.body.error).toBe('calculator_workflow');expect(await db('CoachRun').where({partnerId})).toHaveLength(0);
   });
   it('gives accepted tasks a real future deadline rather than making them instantly overdue',async()=>{
     const planId=ulid();await db('CoachPlan').insert({id:planId,tenantId,partnerId,programId,status:'draft',weekStart:'2026-10-13',data:JSON.stringify({profileVersion:1,tasks:[{title:'Первый пост',format:'post',platform:'telegram',minutes:20,steps:[{title:'Написать',minutes:20}],draft:'Пример',criteria:'Текст и ссылка'}]})});
@@ -99,6 +109,15 @@ describe('manager loop, interview and access',()=>{
   it('does not let start or skip turn a submitted task back into unreviewed work',async()=>{
     const row=await task('needs_human',{submission:{receivedAt:new Date().toISOString(),text:'Готово'}});
     for(const action of ['start','skip','reschedule','check-in'])expect((await post(`/coach/me/tasks/${row.id}/${action}`,{version:1,reason:'Причина',state:'progress',text:'В работе'})).status).toBe(409);
+  });
+  it('replays the same submission but rejects changing its publication URL under the old request ID',async()=>{
+    const row=await task(),requestId=ulid();
+    const body={version:1,requestId,text:'Тестовый текст результата',publicationUrl:'https://t.me/example/10'};
+    const first=await post(`/coach/me/tasks/${row.id}/submit`,body);expect(first.status,first.text).toBe(202);
+    const replay=await post(`/coach/me/tasks/${row.id}/submit`,body);expect(replay.status).toBe(202);expect(replay.body.run.id).toBe(first.body.run.id);
+    const changed=await post(`/coach/me/tasks/${row.id}/submit`,{...body,publicationUrl:'https://t.me/example/11'});
+    expect(changed.status,changed.text).toBe(409);expect(changed.body.error).toBe('idempotency_conflict');
+    expect((await db('CoachTask').where({id:row.id}).first()).data.submission.publicationUrl).toBe(body.publicationUrl);
   });
   it('keeps cross-partner tasks, programs and admin control inaccessible',async()=>{
     await db('PartnerProgram').insert({id:ulid(),tenantId,partnerId:otherId,programId,source:'admin'});
@@ -118,7 +137,7 @@ describe('manager loop, interview and access',()=>{
     const row=await task();const before=Number((await db('Commission').count({n:'*'}).first())!.n);
     expect((await post(`/coach/me/tasks/${row.id}/start`,{version:1})).status).toBe(200);
     expect((await post(`/coach/me/tasks/${row.id}/check-in`,{version:2,state:'progress',text:'Записал первый дубль'})).status).toBe(200);
-    expect((await post(`/coach/me/tasks/${row.id}/prepare-link`,{version:3})).status).toBe(200);
+    expect((await post(`/coach/me/tasks/${row.id}/prepare-link`,{version:3})).status).toBe(404);
     expect((await post(`/coach/me/tasks/${row.id}/submit`,{version:3,requestId:ulid(),text:'Первый сценарий и описание'})).status).toBe(202);await processCoachJob();
     let current=await db('CoachTask').where({id:row.id}).first();expect(current.status).toBe('needs_human');
     expect((await post(`/admin/coach/tasks/${row.id}/resolve`,{version:current.version,verdict:'changes_requested',comment:'Добавьте понятный призыв и ссылку'},admin)).status).toBe(200);

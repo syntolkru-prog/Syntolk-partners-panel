@@ -5,6 +5,20 @@ import { TABLES, type LinkRow, type ProgramRow } from '@openpartner/db';
 import { campaignAcceptsNewActivity, campaignStatus } from './campaign-lifecycle.js';
 export const createLinkSchema = z.object({ linkKey: z.string().min(3).max(64).regex(/^[a-zA-Z0-9_-]+$/), programId: z.string().min(1), destinationUrl: z.string().url().optional(), label: z.string().trim().max(120).optional(), channel: z.string().trim().max(40).optional() });
 export class LinkError extends Error { constructor(public code: string, public status: number, message: string) { super(message); } }
+/** Technical links from superseded calculator calendars stay resolvable in history. */
+export async function listPartnerLinks(db:Knex,tenantId:string,partnerId:string,programId?:string):Promise<{links:Array<LinkRow&{archived:boolean}>;archivedCount:number}> {
+  const tasks=await db('CoachTask as t').join('CoachPlan as p','p.id','t.planId').where({'t.tenantId':tenantId,'t.partnerId':partnerId,'p.tenantId':tenantId,'p.partnerId':partnerId}).select('t.id','t.data','p.status as planStatus','p.data as planData');
+  const placements=await db('CoachPlacement').where({tenantId,partnerId}).select('taskId','linkId');
+  const generated=new Set<string>(),current=new Set<string>();
+  for(const task of tasks){
+    if(task.planData?.source!=='calculator_schedule_v1')continue;
+    const ids=[...(Array.isArray(task.data.generatedLinks)?task.data.generatedLinks:[]).map((link:{linkId:string})=>link.linkId),...placements.filter(p=>p.taskId===task.id).map(p=>p.linkId)];
+    for(const id of ids){generated.add(id);if(task.planStatus==='active')current.add(id);}
+  }
+  const rows:LinkRow[]=await db<LinkRow>(TABLES.Link).where({tenantId,partnerId}).modify(q=>{if(programId)q.where({programId});}).orderBy('createdAt','desc');
+  const links=rows.map(link=>({...link,archived:generated.has(link.id)&&!current.has(link.id)}));
+  return {links,archivedCount:links.filter(link=>link.archived).length};
+}
 /** Portal and coach share lifecycle, ownership and program-grant validation. */
 export async function createPartnerLink(db: Knex, tenantId: string, partnerId: string, isAdmin: boolean, body: z.infer<typeof createLinkSchema>): Promise<LinkRow> {
   const partner = await db(TABLES.Partner).where({ id: partnerId, tenantId }).first();

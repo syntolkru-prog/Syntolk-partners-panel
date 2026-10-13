@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Mail } from 'lucide-react';
-import { api, clearApiKey, setApiKey, ApiError, type Principal } from '../../api.js';
+import { api, setApiKey, ApiError, type Principal } from '../../api.js';
 import { useTenantBase } from '../../tenant-base.js';
 import { theme } from '../../theme.js';
 import { Logo, AuthFrame } from './Shared.js';
@@ -109,6 +110,7 @@ function EmailTab() {
 
 function KeyTab() {
   const nav = useNavigate();
+  const queryClient = useQueryClient();
   const tenantBase = useTenantBase();
   const [token, setToken] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -118,16 +120,18 @@ function KeyTab() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    setApiKey(token.trim());
     try {
-      await api<Principal>('/auth/whoami');
+      const credential = token.trim();
+      await api<Principal>('/auth/whoami', { headers: { Authorization: `Bearer ${credential}` } });
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      setApiKey(credential);
       // Land on the tenant root (admin dashboard for admin keys,
       // partner dashboard for partner keys) rather than '/' which
       // strips the tenant prefix and falls through to the marketing
       // landing page on multi-tenant deployments.
       nav(tenantBase || '/');
     } catch (e) {
-      clearApiKey();
       if (e instanceof ApiError) {
         if (e.status === 401) {
           setErr('Этот ключ не подошёл.');

@@ -28,6 +28,8 @@ import {
   FlaskConical,
   Calculator,
   Bot,
+  ListTodo,
+  ChartNoAxesCombined,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { clearApiKey, api, type Principal } from './api.js';
@@ -39,7 +41,7 @@ import { Dashboard } from './pages/Dashboard.js';
 import { LinksPage } from './pages/Links.js';
 import { ResourcesPage } from './pages/Resources.js';
 import { CoachPage } from './pages/coach/Coach.js';
-import { CoachCompanion } from './pages/coach/CoachCompanion.js';
+import { CalculatorWork } from './pages/coach/CalculatorWork.js';
 import { CommissionsPage } from './pages/Commissions.js';
 import { PayoutsPage } from './pages/Payouts.js';
 import { AdminPartners } from './pages/AdminPartners.js';
@@ -87,7 +89,7 @@ import { CreatorMagicLandingPage } from './pages/creator/CreatorMagicLanding.js'
 import { CreatorShell } from './pages/creator/CreatorShell.js';
 import { CreatorPublicProfilePage } from './pages/creator/CreatorPublicProfile.js';
 import { FraudReviewPage } from './pages/FraudReview.js';
-import { CalculatorPage } from './pages/Calculator.js';
+import { CalculatorWorkspace as CalculatorPage } from './pages/CalculatorWorkspace.js';
 
 interface AuthState {
   loading: boolean;
@@ -249,7 +251,9 @@ function Shell() {
 
           <Route path="links" element={<LinksPage principal={auth.principal} />} />
           <Route path="resources" element={<ResourcesPage />} />
-          {auth.principal.role === 'partner' && <Route path="coach" element={<CoachPage principal={auth.principal} />} />}
+          {auth.principal.role === 'partner' && <Route path="coach" element={<Navigate to="/plan" replace />} />}
+          {auth.principal.role === 'partner' && <Route path="plan" element={<CalculatorWork partnerId={auth.principal.partnerId!} />} />}
+          {auth.principal.role === 'partner' && <Route path="results" element={<CalculatorWork partnerId={auth.principal.partnerId!} view="results" />} />}
           <Route path="commissions" element={<CommissionsPage principal={auth.principal} />} />
           <Route path="payouts" element={<PayoutsPage principal={auth.principal} />} />
 
@@ -312,7 +316,6 @@ function Shell() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        {auth.principal.role === 'partner' && auth.principal.partnerId && <CoachCompanion partnerId={auth.principal.partnerId} />}
       </main>
     </div>
   );
@@ -440,9 +443,10 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
         {/* Top-level nav — no header, always visible. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <NavItem to="/" icon={<LayoutDashboard size={16} />}>Главная</NavItem>
-          <NavItem to="/links" icon={<Link2 size={16} />}>Ссылки</NavItem>
           {principal.role === 'partner' && <NavItem to="/calculator" icon={<Calculator size={16} />}>Калькулятор</NavItem>}
-          {principal.role === 'partner' && <NavItem to="/coach" icon={<Bot size={16} />}>ИИ-куратор</NavItem>}
+          {principal.role === 'partner' && <NavItem to="/plan" icon={<ListTodo size={16} />}>Календарь работ</NavItem>}
+          {principal.role === 'partner' && <NavItem to="/results" icon={<ChartNoAxesCombined size={16} />}>Результаты</NavItem>}
+          <NavItem to="/links" icon={<Link2 size={16} />}>Ссылки</NavItem>
           {principal.role === 'partner' && <NavItem to="/resources" icon={<Megaphone size={16} />}>Материалы</NavItem>}
           <NavItem to="/commissions" icon={<Receipt size={16} />}>Комиссии</NavItem>
           <NavItem to="/payouts" icon={<Banknote size={16} />}>Выплаты</NavItem>
@@ -1274,12 +1278,18 @@ function NavItem({
   // '/admin/network' doesn't accidentally match '/admin/network-foo'
   // or '/admin/network-archive'. `exact` opts out of prefix matching
   // entirely for routes whose children have their own nav entries.
-  const active =
-    location.pathname === href ||
-    (!exact && href !== '/' && location.pathname.startsWith(`${href}/`));
+  const [pathname, search = ''] = href.split('?');
+  const expectedParams = new URLSearchParams(search);
+  const actualParams = new URLSearchParams(location.search);
+  // Query-based sections share /coach, so compare their tab as well.
+  // The result period can be changed inside the section without losing its highlight.
+  const sameSection = !expectedParams.has('tab') || expectedParams.get('tab') === actualParams.get('tab');
+  const active = sameSection && (location.pathname === pathname ||
+    (!exact && pathname !== '/' && location.pathname.startsWith(`${pathname}/`)));
   return (
     <Link
       to={href}
+      aria-current={active ? 'page' : undefined}
       style={{
         display: 'flex',
         alignItems: 'center',

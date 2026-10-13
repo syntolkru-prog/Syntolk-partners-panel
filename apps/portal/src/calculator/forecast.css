@@ -54,6 +54,11 @@
 .pf-section .pf-platform-tools{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .pf-section .pf-platform-tools select{flex:1;font-size:13px}
 .pf-section .pf-platform-tools>span{white-space:nowrap;font-size:13px;color:#2b394c}
+.pf-section .pf-add-platform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end;padding:14px;margin:10px 0 14px;border:1px solid #dce4f0;border-radius:10px;background:#f7f9fc}
+.pf-section .pf-add-platform>div{grid-column:1/-1;align-self:center}.pf-section .pf-add-platform strong,.pf-section .pf-add-platform small{display:block}.pf-section .pf-add-platform strong{font-size:13px}.pf-section .pf-add-platform small{font-size:12px;line-height:1.4;margin-top:3px;color:#56657a}
+.pf-section .pf-add-platform label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#56657a}.pf-section .pf-add-platform input{box-sizing:border-box;width:100%;height:40px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#152033;padding:8px 10px;font:inherit}
+.pf-section .pf-add-platform button{grid-column:1/-1;min-height:40px;padding:8px 12px;border-radius:8px;background:#245cec;color:#fff;font-size:13px;font-weight:600;white-space:nowrap}
+.pf-section .pf-remove-platform{margin-top:8px;padding:6px 0;background:transparent;color:#9b3d48;font-size:12px;text-decoration:underline;text-underline-offset:3px}
 .pf-section .pf-channel-list{max-height:372px;overflow:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:#c9d4e7 transparent}
 .pf-section .pf-channel{border:1px solid #e3e8f1;border-radius:10px;overflow:hidden;margin-bottom:8px;background:#fff}
 .pf-section .pf-channel>summary{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;min-height:42px;list-style:none;cursor:pointer;font-size:13px;font-weight:500;line-height:1.4}
@@ -65,7 +70,6 @@
 .pf-section .pf-check{display:inline-flex;align-items:center;gap:7px;font-size:13px;line-height:1.35;min-height:34px;color:#243247;cursor:pointer}
 .pf-section .pf-check input{width:17px;height:17px;flex:0 0 17px;accent-color:#245cec;margin:0}
 .pf-section .pf-enable{font-weight:500}
-.pf-section .pf-format-checks{display:flex;gap:4px 12px;flex-wrap:wrap;margin:4px 0}
 .pf-section .pf-plan-head,.pf-section .pf-plan-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 70px;gap:10px;align-items:center;font-size:13px;margin-bottom:8px}
 .pf-section .pf-plan-head{color:#2b394c;font-size:13px}
 .pf-section .pf-segment-label{font-size:13px;font-weight:600;color:#2b394c;margin:14px 0 8px}
@@ -134,6 +138,7 @@
 .pf-section .pf-method ul{padding-left:18px;margin:8px 0}
 @media(hover:hover){.pf-section .pf-tab:hover{color:#245cec}.pf-section .pf-chart-month:hover .pf-chart-track>span{transform:translateY(-2px) scaleX(1.05);filter:brightness(1.12) saturate(1.06)}}
 @media(max-width:1000px){.pf-section .pf-container{width:calc(100% - 32px)}.pf-section .pf-toolbar{padding:12px 18px}.pf-section .pf-controls,.pf-section .pf-result{padding:16px 18px}.pf-section .pf-workspace{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}.pf-section .pf-format-row label small{display:none}.pf-section .pf-format-row{min-height:48px}.pf-section .pf-format-row label{font-size:13px}.pf-section .pf-income-top output{font-size:30px}.pf-section .pf-scenarios button{font-size:13px}.pf-section .pf-result-footer{align-items:stretch;flex-direction:column;gap:5px}.pf-section .pf-funnel{gap:8px}.pf-section .pf-funnel strong{font-size:13px}}
+@media(max-width:1000px){.pf-section .pf-add-platform{grid-template-columns:1fr 1fr}.pf-section .pf-add-platform>div{grid-column:1/-1}}
 
 
 @media(prefers-reduced-motion:reduce){.pf-section button{transition:none}.pf-section .pf-chart-track>span{transition:none;transform:none!important}}
@@ -200,6 +205,7 @@
   .pf-section .pf-check{min-height:32px}
   .pf-section .pf-platform-tools{gap:8px;margin-bottom:8px}
   .pf-section .pf-platform-tools select{font-size:16px}
+  .pf-section .pf-add-platform{grid-template-columns:1fr;padding:10px;gap:9px}.pf-section .pf-add-platform>div{grid-column:auto}.pf-section .pf-add-platform input{height:38px;font-size:16px}.pf-section .pf-add-platform button{width:100%}
   .pf-section .pf-plan-head,.pf-section .pf-plan-row{grid-template-columns:minmax(0,1fr) 80px 52px;gap:8px}
   .pf-section .pf-plan-row>span{min-width:0;overflow-wrap:anywhere}
   .pf-section .pf-work{margin-top:8px;padding:8px;gap:8px;border-radius:7px}
@@ -237,8 +243,6 @@
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-full-only{display:none!important}
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-quick-only{display:block}
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-extra-toggle{display:flex;width:auto;min-height:36px;text-align:left;white-space:normal;padding:4px 0}
-  .pf-section .pf-app[data-mobile-mode="compact"] #pf-quick-profile{margin-bottom:10px}
-  .pf-section .pf-app[data-mobile-mode="compact"] #pf-quick-profile .pf-field{gap:2px}
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-secondary-format{display:none}
   .pf-section .pf-app[data-mobile-mode="compact"][data-extra-formats="open"] .pf-secondary-format{display:flex}
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-format-icon{display:none}
@@ -249,3 +253,4 @@
 @media(max-width:360px){
   .pf-section .pf-format-icon{display:none}
 }
+.pf-section .pf-format-checks{display:flex;gap:4px 12px;flex-wrap:wrap;margin:4px 0}
