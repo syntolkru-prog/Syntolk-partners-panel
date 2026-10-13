@@ -1,9 +1,11 @@
 import {CoachError,validatePlan,type CoachProfile,type CoachOutput} from './schemas.js';
+import type { CoachBehavior } from './behavior.js';
 interface Generated {output:CoachOutput;usage:Record<string,unknown>;model:string}
-export function planSummary(tasks:CoachOutput['tasks'],profile:CoachProfile):string{
+export function planSummary(tasks:CoachOutput['tasks'],profile:CoachProfile,behavior?:CoachBehavior):string{
   const total=tasks.reduce((sum,t)=>sum+t.minutes,0);
   const noun=tasks.length===1?'задание':tasks.length<5?'задания':'заданий';
-  return `Давай начнём с посильного плана: ${tasks.length} ${noun}, ${total} из ${profile.weeklyMinutes} доступных минут в неделю. Каждое задание укладывается в сессию до ${profile.sessionMinutes} минут. Первый шаг — «${tasks[0]?.title??'выбрать задачу'}».\n\nОткрой «Мой план» и посмотри задания. Если план подходит, прими его — появятся подробные шаги и кнопка собственной ссылки. Сделаешь материал — пришли текст на разбор: вместе улучшим его. Если нагрузка неудобна, сначала изменим настройки; увеличивать её без твоего решения не будем.`;
+  const formal = behavior?.address === 'vy';
+  return `${formal ? 'Давайте' : 'Давай'} начнём: ${tasks.length} ${noun}, ${total} из ${profile.weeklyMinutes} доступных минут в неделю. Каждое задание — до ${profile.sessionMinutes} минут. Первый шаг — «${tasks[0]?.title??'выбрать задачу'}».\n\n${formal ? 'Откройте' : 'Открой'} «Мой план». ${formal ? 'Примите' : 'Прими'} его — появятся подробные шаги и кнопка собственной ссылки. ${formal ? 'Подготовите материал — пришлите' : 'Подготовишь материал — пришли'} текст на разбор: вместе улучшим его.`;
 }
 /** At most one repair. Invalid arithmetic never reaches an accepted plan. */
 export async function validateGeneratedPlan(result:Generated,profile:CoachProfile,repair?:(feedback:string)=>Promise<Generated>):Promise<Generated>{

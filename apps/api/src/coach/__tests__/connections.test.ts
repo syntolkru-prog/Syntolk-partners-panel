@@ -55,6 +55,32 @@ describe('OpenRouter admin configuration',()=>{
     for(const body of [{version:'env',apiKey:fakeKey,model:'test/model',url:'https://evil.test'}, {version:'env',apiKey:fakeKey+'\r\nx:1',model:'test/model'}, {version:'env',apiKey:fakeKey,model:'invalid model'}])expect((await put(body)).status).toBe(422);
     expect((await put({version:'env',apiKey:fakeKey,model:'~test/latest'})).status).toBe(200);
   });
+  it('persists manual model selection across reads without losing verification or enabled provider',async()=>{
+    await save();const before=await publicRouterConnection(db,tenantId);
+    await recordRouterVerification(db,tenantId,before.version,{ok:true,model:'test/model',detail:'Test'});
+    await request(app).patch('/admin/coach/settings').set(headers()).send({enabled:true,provider:'openrouter',dailyRuns:20});
+    const response=await put({version:before.version,model:'test/model',modelSelection:'manual'});
+    expect(response.status,response.text).toBe(200);expect(response.body.modelSelection).toBe('manual');
+    expect(response.body.version).toBe(before.version);expect(response.body.verification.ok).toBe(true);
+    expect((await request(app).get('/admin/coach/openrouter').set(headers())).body.modelSelection).toBe('manual');
+    expect((await db('Config').where({tenantId,key:'coach_settings'}).first()).value.provider).toBe('openrouter');
+    expect((await resolveRouterCredentials(db,tenantId)).key).toBe(fakeKey);
+  });
+  it.each([false,true])('does not rotate a verified connection on identical save (key repeated: %s)',async repeatKey=>{
+    await save();const before=await publicRouterConnection(db,tenantId);
+    await recordRouterVerification(db,tenantId,before.version,{ok:true,model:'test/model',detail:'Test'});
+    await request(app).patch('/admin/coach/settings').set(headers()).send({enabled:true,provider:'openrouter',dailyRuns:20});
+    const response=await put({version:before.version,model:'test/model',...(repeatKey?{apiKey:fakeKey}:{})});
+    expect(response.status,response.text).toBe(200);expect(response.body.version).toBe(before.version);
+    expect(response.body.verification.ok).toBe(true);
+    expect((await db('Config').where({tenantId,key:'coach_settings'}).first()).value.provider).toBe('openrouter');
+  });
+  it('allows the admin to disable AI even if the saved model is not verified',async()=>{
+    await save();
+    const response=await request(app).patch('/admin/coach/settings').set(headers()).send({enabled:false,provider:'openrouter',dailyRuns:20});
+    expect(response.status,response.text).toBe(200);
+    expect((await request(app).get('/admin/coach/overview').set(headers())).body.settings.enabled).toBe(false);
+  });
   it('requires secure master-key configuration for UI secrets',async()=>{
     vi.stubEnv('SECRETS_ENCRYPTION_KEY','');expect((await put({version:'env',apiKey:fakeKey,model:'test/model'})).status).toBe(503);
     expect(await db('Config').where({tenantId,key:CONNECTION_KEY}).first()).toBeUndefined();
@@ -96,13 +122,17 @@ describe('OpenRouter admin configuration',()=>{
     await save();const old=await publicRouterConnection(db,tenantId);const fake=vi.fn().mockImplementationOnce(async()=>{await db.transaction(trx=>saveRouterConnection(trx,tenantId,{version:old.version,model:'test/new'}));return new Response(JSON.stringify({data:{}}));}).mockResolvedValueOnce(answer());vi.stubGlobal('fetch',fake);
     const r=await request(app).post('/admin/coach/openrouter/test').set(headers()).send({version:old.version,acceptCost:true});expect(r.status,r.text).toBe(409);expect((await publicRouterConnection(db,tenantId)).verification).toBeNull();
   });
-  it('worker uses tenant UI credentials without putting them in run output',async()=>{
+  it('admin enables real AI for a partner with legacy consent off; worker uses saved credentials',async()=>{
     await save();const conn=await publicRouterConnection(db,tenantId);await recordRouterVerification(db,tenantId,conn.version,{ok:true,model:'test/model',detail:'Test'});
     await db('Config').where({tenantId,key:'coach_settings'}).update({value:JSON.stringify({enabled:true,provider:'openrouter',dailyRuns:20,takeover:[]})});
     const programId=ulid();await db('Program').insert({id:programId,tenantId,name:'Test',destinationUrl:'https://syntolk.ru',commissionRule:JSON.stringify({type:'percent',value:20})});await db('PartnerProgram').insert({id:ulid(),tenantId,partnerId,programId,source:'admin'});
-    const profile=profileSchema.parse({goalMinor:100,goalMetric:'monthly_net_accrual',targetDate:'2027-01-01',weeklyMinutes:30,sessionMinutes:30,daysPerWeek:1,timezone:'Europe/Moscow',channels:[],experience:'new',productUnderstanding:'',preferences:'',mode:'on_request',quietStart:21,quietEnd:9,proactiveConsent:false,aiConsent:true});
+    const profile=profileSchema.parse({goalMinor:100,goalMetric:'monthly_net_accrual',targetDate:'2027-01-01',weeklyMinutes:30,sessionMinutes:30,daysPerWeek:1,timezone:'Europe/Moscow',channels:[],experience:'new',productUnderstanding:'',preferences:'',mode:'on_request',quietStart:21,quietEnd:9,proactiveConsent:false,aiConsent:false});
     await db('CoachProfile').insert({id:ulid(),tenantId,partnerId,status:'complete',version:1,data:JSON.stringify(profile)});
-    const fake=vi.fn().mockResolvedValue(answer());vi.stubGlobal('fetch',fake);
+    const fake=vi.fn().mockImplementation(async()=>{
+      // An admin can revisit/save the same connection while a reply is running.
+      await db.transaction(trx=>saveRouterConnection(trx,tenantId,{version:conn.version,apiKey:fakeKey,model:'test/model',modelSelection:'manual'}));
+      return answer();
+    });vi.stubGlobal('fetch',fake);
     const r=await request(app).post('/coach/me/messages').set(headers(partnerKey)).send({programId,requestId:ulid(),text:'Помоги с постом'});expect(r.status,r.text).toBe(202);
     await processCoachJob();const run=await db('CoachRun').where({id:r.body.run.id}).first();expect(run.status).toBe('completed');expect(fake.mock.calls[0]![1].headers.Authorization).toBe(`Bearer ${fakeKey}`);expect(JSON.stringify(run)).not.toContain(fakeKey);
   });

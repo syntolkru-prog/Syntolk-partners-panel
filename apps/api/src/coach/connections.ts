@@ -10,10 +10,12 @@ export const connectionInput = z.object({
   version: z.string().max(80),
   apiKey: z.string().trim().min(16).max(512).regex(/^[\x21-\x7e]+$/).optional(),
   model: z.string().trim().min(3).max(200).regex(/^[~a-zA-Z0-9_.:/+-]+$/),
+  modelSelection: z.enum(['catalog', 'manual']).optional(),
 }).strict();
 interface StoredConnection {
   version: string; ciphertext: string | null; model: string;
   disabled?: boolean;
+  modelSelection?: 'catalog' | 'manual';
   verification?: { at: string; ok: boolean; detail: string; model: string };
 }
 /** Server-only. Never serialize this object or put it in a run/context/audit. */
@@ -28,7 +30,7 @@ export async function resolveRouterCredentials(db: Knex, tenantId: string): Prom
 export async function publicRouterConnection(db: Knex, tenantId: string) {
   const value = await stored(db, tenantId);
   const hasKey = !value?.disabled && !!(value?.ciphertext || process.env.OPENROUTER_API_KEY);
-  return { version: value?.version ?? 'env', hasKey, keySource: value?.ciphertext ? 'ui' : hasKey ? 'env' : 'none', model: value?.model ?? process.env.OPENROUTER_MODEL_ID ?? '', verification: value?.verification ?? null, secureStorage: !!process.env.SECRETS_ENCRYPTION_KEY };
+  return { version: value?.version ?? 'env', hasKey, keySource: value?.ciphertext ? 'ui' : hasKey ? 'env' : 'none', model: value?.model ?? process.env.OPENROUTER_MODEL_ID ?? '', modelSelection: value?.modelSelection ?? 'catalog', verification: value?.verification ?? null, secureStorage: !!process.env.SECRETS_ENCRYPTION_KEY };
 }
 export async function saveRouterConnection(db: Knex, tenantId: string, input: z.infer<typeof connectionInput>) {
   await db('Tenant').where({ id: tenantId }).forUpdate().first();
@@ -36,14 +38,22 @@ export async function saveRouterConnection(db: Knex, tenantId: string, input: z.
   if (input.version !== (old?.version ?? 'env')) throw new CoachError('version_conflict', 409, 'Настройки изменились в другой вкладке. Обновите страницу.');
   if (input.apiKey && !process.env.SECRETS_ENCRYPTION_KEY) throw new CoachError('secure_storage_required', 503, 'Для безопасного хранения ключей серверу нужен SECRETS_ENCRYPTION_KEY.');
   if (!input.apiKey && (old?.disabled || (!old?.ciphertext && !process.env.OPENROUTER_API_KEY))) throw new CoachError('key_required', 422, 'Вставьте API-ключ OpenRouter.');
-  const changed = !!input.apiKey || input.model !== old?.model;
-  const value: StoredConnection = { version: randomUUID(), ciphertext: input.apiKey ? encryptSecret(input.apiKey) : old?.ciphertext ?? null, model: input.model, verification: changed ? undefined : old?.verification };
+  const oldModel = old?.model ?? process.env.OPENROUTER_MODEL_ID ?? '';
+  const oldKey = input.apiKey ? (old?.ciphertext ? decryptSecret(old.ciphertext) : process.env.OPENROUTER_API_KEY ?? '') : undefined;
+  const keyRotated = !!input.apiKey && (old?.disabled === true || input.apiKey !== oldKey);
+  const changed = !old || keyRotated || input.model !== oldModel;
+  const modelSelection = input.modelSelection ?? old?.modelSelection ?? 'catalog';
+  // UI preferences and repeated saves must not invalidate a verified connection,
+  // switch its provider, or discard a reply already being generated.
+  if (old && !changed && modelSelection === (old.modelSelection ?? 'catalog')) return { changed: false, keyRotated: false };
+  const value: StoredConnection = { version: old && !changed ? old.version : randomUUID(), ciphertext: input.apiKey ? encryptSecret(input.apiKey) : old?.ciphertext ?? null, model: input.model, modelSelection, verification: changed ? undefined : old?.verification };
   await db('Config').insert({ tenantId, key: CONNECTION_KEY, value: JSON.stringify(value) }).onConflict(['tenantId', 'key']).merge({ value: JSON.stringify(value), updatedAt: new Date() });
   // A rotation must never silently route new partner data to an untested configuration.
   if (changed) {
     const row = await db('Config').where({ tenantId, key: 'coach_settings' }).first();
     if (row?.value?.provider === 'openrouter') await db('Config').where({ tenantId, key: 'coach_settings' }).update({ value: JSON.stringify({ ...row.value, provider: 'template' }), updatedAt: new Date() });
   }
+  return { changed, keyRotated };
 }
 export async function removeRouterConnection(db: Knex, tenantId: string, version: string) {
   await db('Tenant').where({ id: tenantId }).forUpdate().first();

@@ -5,10 +5,12 @@ import { db } from '../db.js';
 import { withTenantTransaction } from '../tenancy.js';
 import { getSettings, assertPartner, assertProgram, providerState } from './policy.js';
 import { publicRouterConnection, resolveRouterCredentials } from './connections.js';
-import { CoachError, profileSchema, shouldRemind } from './schemas.js';
-import { coachMetrics } from './analytics.js';
+import { CoachError, profileSchema, shouldRemind, canRunDailyReview } from './schemas.js';
 import { generateCoachOutput } from './provider.js';
 import { validateGeneratedPlan, planSummary } from './plan-validation.js';
+import { effectiveBehavior, getBehavior, getDirectives } from './behavior.js';
+import { buildCoachContext } from './context.js';
+import { scheduleDailyReviews } from './daily-reviews.js';
 
 export async function auditCoach(trx: Knex, tenantId: string, partnerId: string | null, action: string, details: unknown) {
   await trx('CoachAuditEvent').insert({ id: ulid(), tenantId, partnerId, status: action, data: JSON.stringify(details) });
@@ -41,23 +43,20 @@ export async function processCoachJob(): Promise<boolean> {
       if (!(await providerState(settings,trx,run.tenantId)).configured) throw new CoachError('provider_not_configured',503,'Подключение ИИ не настроено или не проверено.');
       const credentials=settings.provider==='openrouter'?await resolveRouterCredentials(trx,run.tenantId):undefined;
       const profileRow = await trx('CoachProfile').where({ tenantId: run.tenantId, partnerId: run.partnerId }).first();
+      if (!profileRow || profileRow.status !== 'complete') throw new CoachError('onboarding_incomplete', 409, 'Сначала подтвердите знакомство.');
       const profile = profileSchema.parse(profileRow.data);
-      if(settings.provider!=='template'&&!profile.aiConsent)throw new CoachError('ai_consent_required',403,'Нет согласия на обработку данных ИИ-провайдером.');
       if (profileRow.version !== run.data.profileVersion || ['off', 'paused'].includes(profile.mode)) throw new CoachError('context_changed', 409, 'Настройки изменены. Запросите новый ответ.');
       const program = await assertProgram(trx, run.tenantId, run.partnerId, run.programId);
-      const rawMessages = await trx('CoachMessage').where({ tenantId: run.tenantId, partnerId: run.partnerId }).orderBy('createdAt', 'desc').limit(8).select('role', 'data');
-      const messages = rawMessages.reverse().map(m=>({role:m.role,body:String(m.data.body??'').slice(0,1000)}));
-      const rawKnowledge = await trx('CoachKnowledgeItem').where({ tenantId: run.tenantId, status: 'approved' }).orderBy('updatedAt', 'desc').limit(6).select('id', 'version', 'data');
-      const knowledge = rawKnowledge.map(k=>({id:k.id,version:k.version,title:k.data.title,body:String(k.data.body??'').slice(0,1500),source:k.data.source}));
-      const snap=await trx('CoachForecastSnapshot').where({tenantId:run.tenantId,partnerId:run.partnerId,programId:run.programId,status:'confirmed'}).orderBy('createdAt','desc').first();
-      const forecast=snap?{source:'confirmed_forecast_not_actual',modelHash:snap.data.modelHash,verified:snap.data.verified,commission:snap.data.commission,createdAt:snap.createdAt,scenarios:snap.data.scenarios.map((s:{scenario:string;result:{months:Array<{reward:number;cumulative:number}>}})=>({scenario:s.scenario,month3:s.result.months[2]?.reward,month12:s.result.months[11]?.reward,yearTotal:s.result.months[11]?.cumulative}))}:null;
-      const tasks=await trx('CoachTask').where({tenantId:run.tenantId,partnerId:run.partnerId,programId:run.programId}).whereIn('status',['planned','in_progress','changes_requested','submitted','needs_human']).orderBy('dueAt').limit(10);
-      const currentTasks=tasks.map(t=>({status:t.status,minutes:t.minutes,dueAt:t.dueAt,title:String(t.data.title??'').slice(0,200),format:t.data.format,platform:t.data.platform,draft:String(t.data.draft??'').slice(0,1000),criteria:String(t.data.criteria??'').slice(0,300)}));
-      return { settings, credentials, profileVersion: profileRow.version, context: { profile, metrics: await coachMetrics(trx, run.tenantId, run.partnerId, run.programId,run.kind==='weekly'?7:30), messages, knowledge, forecast, currentTasks, program: { name: program.name, commissionRule: program.commissionRule, attributionWindowDays: program.attributionWindowDays }, evidence: run.data.evidence } };
+      const behavior = await getBehavior(trx, run.tenantId);
+      const directives = await getDirectives(trx, run.tenantId, run.partnerId);
+      if (run.kind === 'daily' && (!directives.directives.dailyReviewEnabled || !canRunDailyReview(profile, new Date()))) throw new CoachError('coach_paused', 409, 'Ежедневное сопровождение приостановлено.');
+      const context = await buildCoachContext(trx, run.tenantId, run.partnerId, program.id, ['weekly','daily'].includes(run.kind) ? 7 : 30);
+      return { settings, credentials, profileVersion: profileRow.version, behaviorVersion: behavior.version, directivesVersion: directives.version,
+        context: { ...context, profile, behavior: effectiveBehavior(behavior.behavior,directives.directives), directives: directives.directives, evidence: run.data.evidence } };
     });
     const contextSize = JSON.stringify(prepared.context).length;
-    if (contextSize > 50000) throw new CoachError('context_limit', 422, 'Контекст слишком большой. Сократите сообщение или материалы.');
-    const intent = run.data.message ?? (run.kind==='plan' ? 'Составь новый непустой недельный план по подтверждённому профилю: доступные площадки, форматы и время. Верни конкретные задания в tasks. Это запрос плана, не продолжение предыдущей реплики чата.' : run.kind==='weekly' ? 'Разбери результаты недели: наблюдаемый факт, осторожная гипотеза и один измеримый следующий шаг. Не меняй цель и бюджет времени.' : 'Проверь предоставленный материал по критериям задания.');
+    if (contextSize > 90000) throw new CoachError('context_limit', 422, 'Контекст слишком большой. Сократите инструкции или материалы.');
+    const intent = run.data.message ?? (run.kind==='plan' ? 'Составь новый непустой недельный план по подтверждённому профилю и свободным interviewAnswers: доступные площадки, любимые форматы, частота и время. Верни конкретные задания с проверяемым материалом в tasks. Это запрос плана, не продолжение предыдущей реплики чата.' : run.kind==='weekly' ? 'Разбери результаты недели: факт, проверяемая гипотеза и один измеримый следующий шаг. Прочитай management: вернись к незавершённому, отчётам о препятствиях и просрочкам.' : run.kind === 'daily' ? 'Проведи ежедневный управленческий разбор. Сначала прочитай get_management: ближайшая договорённость, срок, что сделано, что мешает, переносы, просрочки, ожидание проверки менеджером. Если работа не доведена до конца, не заменяй её новой: помоги закрыть недостающий шаг, запроси материал или причину невыполнения. Назови конкретное следующее действие, ожидаемый результат и срок; не заявляй, что сам изменил запись. Затем сопоставь ссылки и показатели за 7 дней. Учитывай стиль контроля и индивидуальные приоритеты. Дай короткое обращение с готовой идеей или сценарием по текущей работе. previousReview содержит предыдущий снимок скользящего периода: разница таких счётчиков не равна результату за отдельный день. Не создавай новый план: tasks=[].' : 'Проверь предоставленный материал по критериям задания: что выполнено, что отсутствует и что конкретно исправить.');
     const deadline=AbortSignal.timeout(110000);
     const invoke=async (instruction:string)=>{
       const output=await generateCoachOutput(prepared.settings.provider,run.kind,instruction,prepared.context,deadline,prepared.credentials);
@@ -71,16 +70,20 @@ export async function processCoachJob(): Promise<boolean> {
     // Numbers in free-form model prose may contradict validated tasks. Display
     // a computed summary, not an unchecked second source of plan arithmetic.
     const providerComment=run.kind==='plan'?result.output.message:undefined;
-    if(run.kind==='plan')result={...result,output:{...result.output,message:planSummary(result.output.tasks,prepared.context.profile)}};
+    if(run.kind==='plan')result={...result,output:{...result.output,message:planSummary(result.output.tasks,prepared.context.profile,prepared.context.behavior)}};
     await withTenantTransaction(run.tenantId, async trx => {
       const currentRun = await trx('CoachRun').where({ id: run.id, tenantId: run.tenantId, partnerId: run.partnerId, status: 'processing', lockedBy: token }).forUpdate().first();
       if (!currentRun) return;
       await assertPartner(trx, run.tenantId, run.partnerId);
       await assertProgram(trx, run.tenantId, run.partnerId, run.programId);
       const settings = await getSettings(trx, run.tenantId);
+      const behavior = await getBehavior(trx, run.tenantId);
+      const directives = await getDirectives(trx, run.tenantId, run.partnerId);
+      if (behavior.version !== prepared.behaviorVersion || directives.version !== prepared.directivesVersion) throw new CoachError('context_changed', 409, 'Указания куратора изменились во время ответа. Запросите новый ответ.');
       if(prepared.credentials&&(await publicRouterConnection(trx,run.tenantId)).version!==prepared.credentials.version)throw new CoachError('context_changed',409,'Подключение ИИ изменилось во время ответа. Запросите новый ответ.');
       const profile = await trx('CoachProfile').where({ tenantId: run.tenantId, partnerId: run.partnerId }).forUpdate().first();
       if (!settings.enabled || settings.provider !== prepared.settings.provider || settings.takeover.includes(run.partnerId) || profile.version !== prepared.profileVersion || ['paused', 'off'].includes(profile.data.mode)) throw new CoachError('context_changed', 409, 'Настройки или права изменились во время ответа.');
+      if (run.kind === 'daily' && (!directives.directives.dailyReviewEnabled || !canRunDailyReview(profileSchema.parse(profile.data), new Date()))) throw new CoachError('coach_paused', 409, 'Ежедневное сопровождение приостановлено.');
       let objectId: string | null = null;
       if (run.kind === 'plan') {
         objectId = ulid();
@@ -96,8 +99,8 @@ export async function processCoachJob(): Promise<boolean> {
         await trx('CoachTask').where({ id: task.id }).update({ status: next, version: task.version + 1, updatedAt: new Date() });
       }
       await trx('CoachMessage').insert({ id: ulid(), tenantId: run.tenantId, partnerId: run.partnerId, programId: run.programId, role: 'assistant', status: 'sent', data: JSON.stringify({ body: result.output.message, limitations: result.output.limitations, model: result.model, objectId, runId: run.id }) });
-      await trx('CoachRun').where({ id: run.id }).update({ status: 'completed', leaseUntil: null, updatedAt: new Date(), data: JSON.stringify({ ...run.data, output: result.output, providerComment, objectId, usage: result.usage, model: result.model }) });
-      await trx('CoachNotification').insert({ id: ulid(), tenantId: run.tenantId, partnerId: run.partnerId, programId: run.programId, status: 'unread', dedupeKey: `run:${run.id}`, data: JSON.stringify({ title: run.kind === 'plan' ? 'Ваш план готов' : run.kind === 'review' ? 'Проверка материала завершена' : 'Куратор ответил', body: result.output.message.slice(0, 500) }) }).onConflict(['tenantId', 'partnerId', 'dedupeKey']).ignore();
+      await trx('CoachRun').where({ id: run.id }).update({ status: 'completed', leaseUntil: null, updatedAt: new Date(), data: JSON.stringify({ ...run.data, output: result.output, providerComment, objectId, usage: result.usage, model: result.model, behaviorVersion: prepared.behaviorVersion, directivesVersion: prepared.directivesVersion, ...(run.kind === 'daily' ? { metrics: prepared.context.metrics } : {}) }) });
+      await trx('CoachNotification').insert({ id: ulid(), tenantId: run.tenantId, partnerId: run.partnerId, programId: run.programId, status: 'unread', dedupeKey: `run:${run.id}`, data: JSON.stringify({ title: run.kind === 'plan' ? 'Ваш план готов' : run.kind === 'review' ? 'Проверка материала завершена' : run.kind === 'daily' ? `${behavior.behavior.name}: шаг на сегодня` : 'Куратор ответил', body: result.output.message.slice(0, 500) }) }).onConflict(['tenantId', 'partnerId', 'dedupeKey']).ignore();
       await auditCoach(trx, run.tenantId, run.partnerId, 'run_completed', { runId: run.id, model: result.model, kind: run.kind });
     });
   } catch (error) {
@@ -140,7 +143,14 @@ export function startCoachWorker(): () => Promise<void> {
   let stopping = false, busy = false;
   const tick = async () => { if (stopping || busy) return; busy = true; try { await processCoachJob(); } catch { console.error('[coach] worker tick failed'); } finally { busy = false; } };
   const interval = setInterval(() => { void tick(); }, 1500);
-  const reminders = process.env.COACH_SCHEDULER_ENABLED === '1' ? setInterval(() => { void scheduleCoachReminders().catch(() => console.error('[coach] reminder tick failed')); }, 60000) : null;
+  let scheduling = false;
+  const schedule = async () => {
+    if (stopping || scheduling) return;
+    scheduling = true;
+    try { await scheduleDailyReviews(); await scheduleCoachReminders(); } catch { console.error('[coach] scheduler tick failed'); } finally { scheduling = false; }
+  };
+  const reminders = process.env.COACH_SCHEDULER_ENABLED === '1' ? setInterval(() => { void schedule(); }, 60000) : null;
+  if (reminders) void schedule();
   void tick();
-  return async () => { stopping = true; clearInterval(interval); if (reminders) clearInterval(reminders); while (busy) await new Promise(resolve => setTimeout(resolve, 50)); };
+  return async () => { stopping = true; clearInterval(interval); if (reminders) clearInterval(reminders); while (busy || scheduling) await new Promise(resolve => setTimeout(resolve, 50)); };
 }

@@ -90,16 +90,40 @@ describe('C11-C13 and D08: memory, calculator and provider boundary',()=>{
     expect((await get('/coach/me/welcome')).body.paused).toBe(true);
   });
   it('persists an explicitly requested seven-day review without changing the time budget',async()=>{await save();const r=await post('/coach/me/weekly-review',{programId,requestId:ulid()});expect(r.status).toBe(202);await processCoachJob();const run=(await get(`/coach/me/runs/${r.body.run.id}`)).body.run;expect(run.status).toBe('completed');expect(run.data.output.message).toContain('За последние 7 дней');expect((await get('/coach/me')).body.profile.data.weeklyMinutes).toBe(120);});
-  it('requires explicit consent for a configured external provider before sending anything',async()=>{
+  it('admin enablement authorizes external AI without a separate partner consent gate',async()=>{
     await save();vi.stubEnv('OPENROUTER_API_KEY','fake-test-secret');vi.stubEnv('OPENROUTER_MODEL_ID','test/model');
     const fake=vi.fn();vi.stubGlobal('fetch',fake);
-    try{await request(app).patch('/admin/coach/settings').set('Authorization',auth(admin)).send({enabled:true,provider:'openrouter',dailyRuns:20});const r=await post('/coach/me/messages',{programId,requestId:ulid(),text:'Привет'});expect(r.status).toBe(403);expect(r.body.error).toBe('ai_consent_required');expect(fake).not.toHaveBeenCalled();}finally{vi.unstubAllGlobals();vi.unstubAllEnvs();}
+    try{expect((await request(app).patch('/admin/coach/settings').set('Authorization',auth(admin)).send({enabled:true,provider:'openrouter',dailyRuns:20})).status).toBe(200);const r=await post('/coach/me/messages',{programId,requestId:ulid(),text:'Привет'});expect(r.status,r.text).toBe(202);expect(r.body.run.status).toBe('queued');expect(fake).not.toHaveBeenCalled();}finally{vi.unstubAllGlobals();vi.unstubAllEnvs();}
   });
   it('persists chat and clearly labels template response',async()=>{await save();const submitted=await post('/coach/me/messages',{programId,requestId:ulid(),text:'Помоги написать пост'});expect(submitted.status).toBe(202);await processCoachJob();const messages=(await get('/coach/me/messages')).body.messages;expect(messages).toHaveLength(2);expect(messages[1].data.model).toBe('template-v1');expect(messages[1].data.body).toContain('демонстрационном');});
   it('does not falsely connect OpenAI without credentials',async()=>{await save();await request(app).patch('/admin/coach/settings').set('Authorization',auth(admin)).send({enabled:true,provider:'openai',dailyRuns:20});expect((await post('/coach/me/messages',{programId,requestId:ulid(),text:'Привет'})).status).toBe(503);expect((await get('/coach/me/messages')).body.messages).toHaveLength(0);});
   it('imports only explicitly confirmed forecast without creating commissions',async()=>{expect((await post('/coach/me/forecast-snapshots',{programId,confirmed:false,settings:{}})).status).toBe(422);const r=await post('/coach/me/forecast-snapshots',{programId,confirmed:true,settings:{}});expect(r.status,r.text).toBe(201);expect(r.body.snapshot.data.commission).toBe(.2);expect(r.body.snapshot.partnerId).toBe(partnerId);expect((await get('/coach/me/forecast-snapshots',otherKey)).body.snapshots).toHaveLength(0);});
 });
 describe('D03-D15: permissions, pause and durable runs',()=>{
+  it('admin disable blocks new messages and prevents queued work from calling the provider',async()=>{
+    await save();const queued=await post('/coach/me/messages',{programId,requestId:ulid(),text:'Первый шаг'});
+    expect(queued.status).toBe(202);
+    expect((await request(app).patch('/admin/coach/settings').set('Authorization',auth(admin)).send({enabled:false,provider:'template',dailyRuns:20})).status).toBe(200);
+    const fake=vi.fn();vi.stubGlobal('fetch',fake);
+    try{
+      expect((await post('/coach/me/messages',{programId,requestId:ulid(),text:'Еще'})).status).toBe(409);
+      await processCoachJob();expect((await get(`/coach/me/runs/${queued.body.run.id}`)).body.run.status).toBe('failed');
+      expect(fake).not.toHaveBeenCalled();expect((await get('/coach/me/messages')).body.messages).toHaveLength(1);
+    }finally{vi.unstubAllGlobals();}
+  });
+  it('does not silently replace a repeated manager message or create duplicate replies',async()=>{
+    await save();await post(`/admin/coach/partners/${partnerId}/takeover`,{enabled:true},admin);
+    const requestId=ulid();const body={programId,requestId,text:'Помогите с роликом'};
+    expect((await post('/coach/me/messages',body)).status).toBe(202);
+    expect((await post('/coach/me/messages',body)).body.replayed).toBe(true);
+    expect((await post('/coach/me/messages',{...body,text:'Совсем другой текст'})).status).toBe(409);
+    expect((await get('/coach/me/messages')).body.messages).toHaveLength(1);
+  });
+  it('rejects reusing a plan request ID for another week',async()=>{
+    await save();const body={programId,requestId:ulid(),weekStart:'2026-10-12'};
+    expect((await post('/coach/me/plans/generate',body)).status).toBe(202);
+    expect((await post('/coach/me/plans/generate',{...body,weekStart:'2026-10-19'})).status).toBe(409);
+  });
   it('blocks all tested cross-partner object reads and admin API access',async()=>{const plan=await runPlan();expect((await post(`/coach/me/plans/${plan.id}/accept`,{version:plan.version},otherKey)).status).toBe(409);const run=(await get('/coach/me/runs')).body.runs[0];expect((await get(`/coach/me/runs/${run.id}`,otherKey)).status).toBe(404);expect((await get('/admin/coach/overview',otherKey)).status).toBe(403);});
   it('takes over without calling AI and stores partner message for manager',async()=>{await save();await post(`/admin/coach/partners/${partnerId}/takeover`,{enabled:true},admin);const r=await post('/coach/me/messages',{programId,requestId:ulid(),text:'Мне нужна помощь менеджера'});expect(r.status).toBe(202);expect(r.body.awaitingHuman).toBe(true);expect((await get('/coach/me/runs')).body.runs).toHaveLength(0);});
   it('does not apply queued run after profile pause',async()=>{await save();const run=await post('/coach/me/plans/generate',{programId,requestId:ulid(),weekStart:'2026-10-12'});await request(app).patch('/coach/me/profile').set('Authorization',auth(key)).send({version:1,profile:{...profile,mode:'paused'},complete:true});await processCoachJob();expect((await get(`/coach/me/runs/${run.body.run.id}`)).body.run.status).toBe('failed');expect((await get('/coach/me/plans')).body.plans).toHaveLength(0);});

@@ -161,7 +161,7 @@
   background: var(--pf-accent);
 }
 
-.calculator-page .pf-section :is(.pf-text-button, .pf-export, .pf-mode-toggle) {
+.calculator-page .pf-section :is(.pf-text-button, .pf-mode-toggle) {
   padding: 8px 12px;
   border: 1px solid var(--pf-border);
   border-radius: var(--pf-radius-sm);
@@ -171,15 +171,31 @@
   transition: background .15s, border-color .15s, color .15s;
 }
 
-.calculator-page .pf-section .pf-toolbar-actions {
-  gap: 8px;
+.calculator-page .pf-section .pf-export {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: auto;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pf-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  box-shadow: none;
+  white-space: nowrap;
+  text-decoration: none;
 }
 
-.calculator-page .pf-section .pf-cta {
-  background: var(--pf-accent);
-  color: var(--pf-accent-ink);
-  border-radius: var(--pf-radius-sm);
-  text-decoration: none;
+.calculator-page .pf-section .pf-result-footer {
+  justify-content: flex-start;
+  margin-top: 2px;
+}
+
+.calculator-page .pf-section .pf-toolbar-actions {
+  gap: 8px;
 }
 
 .calculator-page .pf-section :is(.pf-channel-list, .pf-table-scroll) {
@@ -201,17 +217,19 @@
 }
 
 @media (hover: hover) {
-  .calculator-page .pf-section :is(.pf-text-button, .pf-export, .pf-mode-toggle):hover {
+  .calculator-page .pf-section :is(.pf-text-button, .pf-mode-toggle):hover {
     background: var(--pf-accent-soft);
     border-color: var(--pf-accent);
     color: var(--pf-accent);
     text-decoration: none;
   }
+  .calculator-page .pf-section .pf-export:hover {
+    background: transparent;
+    color: var(--pf-accent);
+    text-decoration: none;
+  }
   .calculator-page .pf-section .pf-tab:hover {
     color: var(--pf-accent);
-  }
-  .calculator-page .pf-section .pf-cta:hover {
-    background: var(--pf-accent-hover);
   }
 }
 
@@ -227,7 +245,7 @@
     background: transparent;
     border-bottom-color: var(--pf-accent);
   }
-  .calculator-page .pf-section :is(.pf-text-button, .pf-export, .pf-mode-toggle) {
+  .calculator-page .pf-section :is(.pf-text-button, .pf-mode-toggle) {
     padding: 6px 10px;
   }
 }

@@ -126,14 +126,13 @@
 .pf-section .pf-result .pf-table th,.pf-section .pf-result .pf-table td{border-color:#ffffff13;padding-inline:5px}
 .pf-section .pf-result .pf-table thead th{color:#cbd5e1}
 .pf-section .pf-result-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;margin-top:14px}
-.pf-section .pf-cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:12px 17px;border-radius:9px;background:#d62c43;color:#fff;font-size:13px;font-weight:600;line-height:1.3;text-align:center}
 .pf-section .pf-export{font-size:13px;color:#c2d4f0;background:transparent;min-height:40px;padding:8px 0;white-space:nowrap}
 .pf-section .pf-under{padding:0 20px 14px;border-top:1px solid #e7ebf2}
 .pf-section .pf-under>.pf-details{border-top:0;margin-top:2px}
 .pf-section .pf-method{color:#243247;font-size:13px;line-height:1.6;margin:10px 0 0;max-width:980px}
 .pf-section .pf-method p{margin:8px 0}
 .pf-section .pf-method ul{padding-left:18px;margin:8px 0}
-@media(hover:hover){.pf-section .pf-tab:hover{color:#245cec}.pf-section .pf-chart-month:hover .pf-chart-track>span{transform:translateY(-2px) scaleX(1.05);filter:brightness(1.12) saturate(1.06)}.pf-section .pf-cta:hover{background:#c22238}}
+@media(hover:hover){.pf-section .pf-tab:hover{color:#245cec}.pf-section .pf-chart-month:hover .pf-chart-track>span{transform:translateY(-2px) scaleX(1.05);filter:brightness(1.12) saturate(1.06)}}
 @media(max-width:1000px){.pf-section .pf-container{width:calc(100% - 32px)}.pf-section .pf-toolbar{padding:12px 18px}.pf-section .pf-controls,.pf-section .pf-result{padding:16px 18px}.pf-section .pf-workspace{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}.pf-section .pf-format-row label small{display:none}.pf-section .pf-format-row{min-height:48px}.pf-section .pf-format-row label{font-size:13px}.pf-section .pf-income-top output{font-size:30px}.pf-section .pf-scenarios button{font-size:13px}.pf-section .pf-result-footer{align-items:stretch;flex-direction:column;gap:5px}.pf-section .pf-funnel{gap:8px}.pf-section .pf-funnel strong{font-size:13px}}
 
 
@@ -231,7 +230,6 @@
   .pf-section .pf-result .pf-details{margin-top:8px}
   .pf-section .pf-extra-metrics{gap:8px;margin:6px 0 12px}
   .pf-section .pf-result-footer{flex-direction:row;align-items:center;justify-content:flex-start;gap:4px 12px;margin-top:10px}
-  .pf-section .pf-cta{align-self:flex-start;width:auto;min-height:40px;padding:8px 12px;border-radius:7px;font-size:13px}
   .pf-section .pf-export{min-height:32px;padding:4px 0}
   .pf-section .pf-quick-disclaimer{font-size:13px;line-height:1.4;margin-top:8px}
   .pf-section .pf-under{padding:0 12px 6px}

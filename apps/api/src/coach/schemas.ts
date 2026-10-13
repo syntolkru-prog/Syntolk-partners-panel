@@ -16,9 +16,13 @@ export const profileSchema = z.object({
   experience: z.enum(['new', 'tried', 'regular']),
   productUnderstanding: z.string().max(3000),
   preferences: z.string().max(3000),
+  onboardingVersion: z.number().int().min(0).max(1).default(0),
+  interviewAnswers: z.array(z.object({ id: z.string().regex(/^[a-z0-9_-]{1,40}$/), question: z.string().trim().min(1).max(500), answer: z.string().trim().max(3000) }).strict()).max(12).refine(items => new Set(items.map(i => i.id)).size === items.length).default([]),
   mode: z.enum(['on_request', 'gentle', 'active', 'paused', 'off']),
   quietStart: z.number().int().min(0).max(23), quietEnd: z.number().int().min(0).max(23),
   proactiveConsent: z.boolean(),
+  // Legacy profile field retained for portable backups. AI access is controlled
+  // exclusively by the administrator's coach settings, not this flag.
   aiConsent: z.boolean().default(false),
 }).strict();
 export type CoachProfile = z.infer<typeof profileSchema>;
@@ -46,6 +50,13 @@ export function validatePlan(tasks: CoachOutput['tasks'], profile: CoachProfile)
 }
 export function shouldRemind(profile: CoachProfile, at: Date): boolean {
   if (!profile.proactiveConsent || !['gentle', 'active'].includes(profile.mode)) return false;
+  return outsideQuietHours(profile, at);
+}
+/** Admin-scheduled reviews do not depend on the partner's reminder preference. */
+export function canRunDailyReview(profile: CoachProfile, at: Date): boolean {
+  return !['off', 'paused'].includes(profile.mode) && outsideQuietHours(profile, at);
+}
+function outsideQuietHours(profile: CoachProfile, at: Date): boolean {
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: profile.timezone, hour: '2-digit', hourCycle: 'h23' }).format(at));
   const { quietStart: s, quietEnd: e } = profile;
   const quiet = s === e ? false : s < e ? hour >= s && hour < e : hour >= s || hour < e;

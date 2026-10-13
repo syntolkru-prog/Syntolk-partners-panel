@@ -51,6 +51,6 @@ describe('input validation',()=>{
 });
 describe('B01, B06 and C11: welcoming without coercion or provider calls',()=>{
   it('introduces AI and asks for voluntary onboarding',()=>{expect(welcomeMessage('Иван Партнёр')).toContain('ИИ-помощник');expect(welcomeMessage('Иван Партнёр')).toContain('Привет, Иван');});
-  it('recalls the confirmed goal and next step without a guarantee',()=>{const text=welcomeMessage('Иван',profile,'Показать пример');expect(text).toContain('30');expect(text).toContain('Показать пример');expect(text).toContain('Доход зависит');});
+  it('recalls the confirmed goal and next step without repeated disclaimers',()=>{const text=welcomeMessage('Иван',profile,'Показать пример');expect(text).toContain('30');expect(text).toContain('Показать пример');expect(text).not.toMatch(/Доход зависит|не гарантируется/);});
   it('respects pause and human takeover',()=>{expect(welcomeMessage('Иван',{...profile,mode:'paused'})).toContain('на паузе');expect(welcomeMessage('Иван',profile,'Задача',true)).toContain('менеджер');});
 });

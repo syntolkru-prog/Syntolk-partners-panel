@@ -39,6 +39,7 @@ import { Dashboard } from './pages/Dashboard.js';
 import { LinksPage } from './pages/Links.js';
 import { ResourcesPage } from './pages/Resources.js';
 import { CoachPage } from './pages/coach/Coach.js';
+import { CoachCompanion } from './pages/coach/CoachCompanion.js';
 import { CommissionsPage } from './pages/Commissions.js';
 import { PayoutsPage } from './pages/Payouts.js';
 import { AdminPartners } from './pages/AdminPartners.js';
@@ -311,6 +312,7 @@ function Shell() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        {auth.principal.role === 'partner' && auth.principal.partnerId && <CoachCompanion partnerId={auth.principal.partnerId} />}
       </main>
     </div>
   );

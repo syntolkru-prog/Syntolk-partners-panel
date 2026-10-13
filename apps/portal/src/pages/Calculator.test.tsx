@@ -55,6 +55,7 @@ describe('calculator portal integration', () => {
   it('initializes without the landing header and preserves the baseline 12-month calculation', () => {
     render(<CalculatorPage principal={{ role: 'admin' }} />);
     expect(() => initialize()).not.toThrow();
+    expect(screen.queryByRole('link', { name: /Стать партнёром/ })).toBeNull();
     expect(income()).toBe('3965₽');
     expect(document.querySelectorAll('#pf-chart button')).toHaveLength(12);
     fireEvent.change(screen.getByRole('combobox', { name: 'Месяц' }), { target: { value: '12' } });

@@ -52,6 +52,13 @@ describe('OpenRouter adapter without any real network',()=>{
   it('returns only scoped tool results and accumulates usage',async()=>{
     configured();const fake=vi.fn().mockResolvedValueOnce(call()).mockResolvedValueOnce(answer());vi.stubGlobal('fetch',fake);const r=await generateCoachOutput('openrouter','message','Hi',context);expect(r.usage.input_tokens).toBe(40);expect(r.usage.cost_usd).toBe(.002);const body=JSON.parse(fake.mock.calls[1]![1].body);expect(body.messages.some((m:{role:string;content?:string})=>m.role==='tool'&&m.content===JSON.stringify(context.metrics))).toBe(true);expect(body.messages.find((m:{role:string})=>m.role==='assistant').reasoning_details).toBeDefined();
   });
+  it('does not send the deprecated partner AI-consent flag as a model instruction',async()=>{
+    configured();const fake=vi.fn().mockResolvedValueOnce(call('get_profile')).mockResolvedValueOnce(answer());vi.stubGlobal('fetch',fake);
+    await generateCoachOutput('openrouter','message','Hi',{...context,profile:{...context.profile,aiConsent:false}});
+    const body=JSON.parse(fake.mock.calls[1]![1].body);
+    const profile=JSON.parse(body.messages.find((m:{role:string})=>m.role==='tool').content);
+    expect(profile).not.toHaveProperty('aiConsent');expect(profile.weeklyMinutes).toBe(context.profile.weeklyMinutes);
+  });
   it('rejects unapproved tools and owner substitutions',async()=>{
     configured();vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(call('run_payout')).mockResolvedValueOnce(call('get_metrics','{"partnerId":"other"}')));await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('Недопустимый инструмент');await expect(generateCoachOutput('openrouter','message','Hi',context)).rejects.toThrow('Недопустимый инструмент');
   });
