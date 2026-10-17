@@ -4,16 +4,19 @@ import { getApiKey } from '../api.js';
 import { theme } from '../theme.js';
 import { Button, Card, Page, SectionHeading } from '../ui.js';
 
-// Mirrors EXPORT_TABLES in apps/api/src/export.ts, in the same FK-safe
-// order. Keep the two in sync — a table missing here is a table nobody
-// can download one-off, even though the full bundle has it.
+// Active tables available for one-off downloads, in FK-safe order.
+// Full bundles also preserve legacy data from removed features.
 const TABLES = [
   'Partner',
+  'PartnerMessage',
+  'PartnerMessageAttachment',
   'Program',
   'PartnerProgram',
   'PartnerCommission',
   'Coupon',
   'Link',
+  'PartnerMaterial',
+  'PartnerLinkSource',
   'Click',
   'Identity',
   'Event',
@@ -27,11 +30,15 @@ const TABLES = [
 
 const TABLE_LABELS: Record<string, string> = {
   Partner: 'Партнёр',
+  PartnerMessage: 'Переписка с партнёрами',
+  PartnerMessageAttachment: 'Вложения переписки',
   Program: 'Программа',
   PartnerProgram: 'Связь партнёра с программой',
   PartnerCommission: 'Ставка комиссии партнёра',
   Coupon: 'Промокод',
   Link: 'Партнёрская ссылка',
+  PartnerMaterial: 'Материалы партнёров',
+  PartnerLinkSource: 'Размещения и источники',
   Click: 'Клик',
   Identity: 'Идентификатор',
   Event: 'Событие',

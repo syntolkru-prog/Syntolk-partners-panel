@@ -23,6 +23,34 @@ Rows are raw DB rows — the same shape `select *` returns, no reshaping,
 no derived fields. Anything derived (attribution, commissions) is present
 as its own table *and* re-derivable from the raw layers.
 
+Schema version 5 also includes `PartnerMessage`, immediately after `Partner`:
+`id`, `tenantId`, `partnerId`, `senderRole` (`partner` or `admin`),
+`clientMessageId`, `body`, `createdAt`, and nullable `readAt`. It preserves
+human correspondence and unread status independently of the AI coach,
+programs, scenarios, and calendars. Older bundle versions remain importable.
+
+Schema version 6 adds `PartnerMessageAttachment` after `PartnerMessage`.
+Each row contains ownership, message ID (nullable for drafts), uploader role,
+original filename, content type, byte size, base64 file data, and creation time.
+Attachments are private and included in exports in full; no external public
+file URL is required to restore correspondence.
+
+Schema version 7 adds `PartnerMaterial` before `PartnerLinkSource`. Material IDs
+are independent of calendar revisions. Source rows retain their IDs and UTM
+parameters and include the publication URL, channel name and publication date.
+Materials without a scenario are exported with a null `scenarioId`.
+
+Legacy schema version 8 added material text/revision, `PartnerMaterialFile` (private
+base64 attachments), `PublisherAccount` (site and editor settings), and
+`PublicationJob` (approved content snapshot, tracking source, outcome and URL).
+Order is `PartnerMaterial`, `PartnerMaterialFile`, `PublisherAccount`,
+`PartnerLinkSource`, `PublicationJob`. Browser cookies and login profiles are
+never exported. JSON imports disconnect accounts, invalidate router verification,
+and mark queued/running jobs `needs_review`: importing must not publish articles.
+The publication agent has been removed. These legacy tables remain exportable
+to preserve existing data; there are no publication workers or account login
+endpoints. Restoring a bundle cannot start a publication.
+
 ### Tables, in import order
 
 Order is load-bearing: the importer walks it as written, so every table

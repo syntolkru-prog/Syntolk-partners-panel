@@ -18,8 +18,9 @@ interface Model {
   WEEKS: number;
   defaults(): Settings;
   normalize(settings: Record<string, unknown>): Settings;
+  selectMatchingChannels(settings: Record<string, unknown>): Settings;
+  workload(settings: Record<string, unknown>): {unplaced:string[]};
   forecast(settings: Record<string, unknown>, scenario?: string): { months: [Month, Month, Month, ...Month[]] };
-  csv(settings: Record<string, unknown>): string;
 }
 const context: { SyntolkForecast?: Model } = {};
 runInNewContext(readFileSync(resolve(process.cwd(), 'public/calculator/forecast-model.js'), 'utf8'), context);
@@ -37,6 +38,31 @@ function example(): Settings {
 }
 
 describe('first payment conversion and tariff allocation', () => {
+  it('selects only compatible active formats, including custom scopes, without altering assumptions',()=>{
+    const input={...example(),removedChannels:['vk'],customFormats:[{id:'format-group',name:'Сообщение в группе',base:'post',channelId:'telegram-post'}],frequency:{post:10,short:0,long:0,article:0,circle:0,'format-group':1}};
+    const selected=model.selectMatchingChannels(input);
+    expect(selected.channels.vk!.enabled).toBe(false);
+    expect(selected.channels.youtube!.enabled).toBe(false);
+    expect(selected.channels['telegram-post']!.formats).toEqual(['post','format-group']);
+    expect(selected.channels.dzen!.formats).toEqual(['post']);
+    expect(selected.channels.email!.enabled).toBe(true);
+    expect(selected.frequency).toEqual(input.frequency);
+    expect(selected.registration).toBe(input.registration);expect(selected.prices).toEqual(input.prices);
+    expect(selected.channels['telegram-post']!.views).toBe(input.channels['telegram-post']!.views);
+    expect(model.workload(selected).unplaced).toEqual([]);
+    expect(model.selectMatchingChannels(selected)).toEqual(selected);
+  });
+  it('discards legacy effort settings without changing publication or income forecasts', () => {
+    const settings = example();
+    const legacy = { ...settings, budgetHours: 0, publishMinutes: 120, adminMinutes: 10080,
+      hourlyCost: 100000, minutes: { post: 600 } };
+    const normalized = model.normalize(legacy);
+    for (const field of ['budgetHours', 'publishMinutes', 'adminMinutes', 'hourlyCost', 'minutes']) {
+      expect(normalized).not.toHaveProperty(field);
+    }
+    expect(model.forecast(legacy).months).toEqual(model.forecast(settings).months);
+  });
+
   it('calculates 200 clicks → 28 registrations → 2.996 payments before splitting tariffs', () => {
     const settings = example();
     const [first, second] = model.forecast(settings).months;
@@ -108,12 +134,6 @@ describe('first payment conversion and tariff allocation', () => {
   it('uses explicit new rates even when obsolete fields are included', () => {
     const settings = { ...example(), newVisitorShare: 0, personalPaid: 0, businessPaid: 0 };
     expect(model.forecast(settings).months[0].newPaid).toBeCloseTo(2.996, 10);
-    const csv = model.csv({ ...settings, paymentDelayEnabled: true, delayShare: 25 });
-    expect(csv).toContain('"paidConversion";"10.7"');
-    expect(csv).toContain('"paymentDelayEnabled";"true"');
-    expect(csv).not.toContain('newVisitorShare');
-    expect(csv).not.toContain('personalPaid');
-    expect(csv).not.toContain('businessPaid');
-    expect(csv).not.toContain('NaN');
+    expect(model.forecast({ ...settings, paymentDelayEnabled: true, delayShare: 25 }).months[1].newPaid).toBeCloseTo(.749, 10);
   });
 });

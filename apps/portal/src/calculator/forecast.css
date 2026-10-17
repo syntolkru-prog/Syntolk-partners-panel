@@ -32,10 +32,7 @@
 .pf-section input:invalid{border-color:#d9a47b}
 .pf-section .pf-field small,.pf-section .pf-help{color:#243247;font-size:13px;font-weight:400;line-height:1.5;margin:0}
 .pf-section .pf-help{margin:8px 0}
-.pf-section .pf-help a,.pf-section .pf-method a{color:#245cec;text-decoration:underline;text-underline-offset:3px}
-.pf-section .pf-budget{display:flex;align-items:center;gap:16px;margin:0 0 14px}
-.pf-section .pf-budget .pf-field{flex:0 1 160px}
-.pf-section .pf-budget>span{font-size:13px;line-height:1.5;color:#2b394c}
+.pf-section .pf-help a{color:#245cec;text-decoration:underline;text-underline-offset:3px}
 .pf-section .pf-row-head{display:flex;align-items:center;justify-content:space-between;color:#2b394c;font-size:13px;margin-bottom:4px}
 .pf-section .pf-format-row{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:48px;border-bottom:1px solid #edf0f5;padding:5px 0}
 .pf-section .pf-format-row>div{display:flex;align-items:center;gap:11px;min-width:0}
@@ -51,7 +48,9 @@
 .pf-section summary::-webkit-details-marker{display:none}
 .pf-section .pf-fields-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px;margin:8px 0 12px;align-items:start}
 .pf-section .pf-panel>.pf-fields-grid{margin-top:14px}
-.pf-section .pf-platform-tools{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.pf-section .pf-platform-tools{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.pf-section .pf-platform-tools #pf-select-matching{padding:7px 10px;font-size:12px;white-space:nowrap;border:1px solid var(--pf-border);border-radius:6px;background:var(--pf-surface-raised);color:var(--pf-accent);cursor:pointer}
+.pf-section .pf-platform-tools #pf-select-matching:disabled{opacity:.45;cursor:default}
 .pf-section .pf-platform-tools select{flex:1;font-size:13px}
 .pf-section .pf-platform-tools>span{white-space:nowrap;font-size:13px;color:#2b394c}
 .pf-section .pf-add-platform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:end;padding:14px;margin:10px 0 14px;border:1px solid #dce4f0;border-radius:10px;background:#f7f9fc}
@@ -77,9 +76,7 @@
 .pf-section .pf-work>div{display:flex;flex-direction:column;gap:3px}
 .pf-section .pf-work strong{font-size:13px;font-weight:600;line-height:1.4}
 .pf-section .pf-work span{color:#2b394c;font-size:13px;line-height:1.4}
-.pf-section .pf-work.pf-over-budget{background:#fff3ec;color:#9f4b1b}
 .pf-section .pf-warning{font-size:13px;color:#a35421;margin:8px 0;line-height:1.4}
-.pf-section .pf-fit{width:100%;border:1px solid #f0c9ac;border-radius:8px;padding:10px;font-size:13px;background:#fff8f2;color:#9f4b1b;min-height:40px}
 .pf-section .pf-result{min-width:0;padding:20px;background:#102139;color:#fff;align-self:start;border-radius:0 0 0 16px}
 .pf-section .pf-scenarios{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:#ffffff0c;padding:4px;border-radius:10px}
 .pf-section .pf-scenarios button{border-radius:7px;color:#e2e8f0;background:transparent;padding:9px 5px;min-height:40px;line-height:1.25;font-size:13px;font-weight:500}
@@ -100,7 +97,7 @@
 .pf-section .pf-chart{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px;border-bottom:1px solid #ffffff14;padding-bottom:10px}
 .pf-section .pf-chart-month{display:flex;flex-direction:column;align-items:center;justify-content:end;gap:6px;min-width:0;height:112px;padding:0 2px;background:transparent;color:#dbe4f0;font-size:13px;line-height:1.4}
 .pf-section .pf-chart-track{display:flex;align-items:end;justify-content:center;height:84px;width:100%;border-bottom:1px solid #6b85b527}
-.pf-section .pf-chart-track>span{display:block;width:100%;max-width:28px;min-width:3px;height:var(--pf-bar);border-radius:4px 4px 0 0;background:linear-gradient(#7295df,#305a9d);transform-origin:center bottom;transition:transform .24s cubic-bezier(.2,.7,.3,1),filter .24s ease}
+.pf-section .pf-chart-track>span{display:block;width:100%;max-width:28px;min-width:3px;min-height:2px;height:var(--pf-bar);border-radius:4px 4px 0 0;background:linear-gradient(#7295df,#305a9d);transform-origin:center bottom;transition:transform .24s cubic-bezier(.2,.7,.3,1),filter .24s ease}
 .pf-section .pf-chart-month:focus-visible .pf-chart-track>span{transform:translateY(-2px) scaleX(1.05);filter:brightness(1.12) saturate(1.06)}
 .pf-section .pf-active-month{color:#fff}
 .pf-section .pf-active-month .pf-chart-track>span{background:linear-gradient(#ff8a98,#ff525f)}
@@ -113,31 +110,9 @@
 .pf-section .pf-repeat-labels{display:flex;justify-content:space-between;gap:16px;font-size:13px;color:#cbd5e1;line-height:1.5}
 .pf-section .pf-repeat-labels strong{display:block;color:#e4edfc;font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}
 .pf-section .pf-repeat-labels>div:last-child{text-align:right}
-.pf-section .pf-result .pf-details{border-color:#ffffff20;margin-top:12px}
-.pf-section .pf-result .pf-details>summary{color:#dbe4f0;font-size:13px}
 .pf-section .pf-result .pf-help{color:#cbd5e1}
-.pf-section .pf-result h4{font-size:13px;font-weight:500;margin:18px 0 8px;color:#dbe4f0}
-.pf-section .pf-extra-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:10px 0 18px}
-.pf-section .pf-extra-metrics div{font-size:13px;color:#cbd5e1;line-height:1.5}
-.pf-section .pf-extra-metrics strong{display:block;font-size:13px;color:#e4edfc;font-weight:500}
-.pf-section .pf-table-scroll{overflow:auto;max-width:100%;min-width:0;scrollbar-width:thin;scrollbar-color:#9babc5 transparent}
-.pf-section .pf-table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.4}
-.pf-section .pf-table th,.pf-section .pf-table td{text-align:right;white-space:nowrap;padding:7px 9px;border-bottom:1px solid #e2e8f1;font-variant-numeric:tabular-nums;font-weight:400}
-.pf-section .pf-table th:first-child{text-align:left}
-.pf-section .pf-table th small{display:block;color:#cbd5e1;font-size:13px;margin-top:3px}
-.pf-section .pf-table thead th{color:#2b394c;font-size:13px;font-weight:500}
-.pf-section .pf-result .pf-table{color:#d9e6f8}
-.pf-section .pf-result .pf-table th,.pf-section .pf-result .pf-table td{border-color:#ffffff13;padding-inline:5px}
-.pf-section .pf-result .pf-table thead th{color:#cbd5e1}
-.pf-section .pf-result-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px;margin-top:14px}
-.pf-section .pf-export{font-size:13px;color:#c2d4f0;background:transparent;min-height:40px;padding:8px 0;white-space:nowrap}
-.pf-section .pf-under{padding:0 20px 14px;border-top:1px solid #e7ebf2}
-.pf-section .pf-under>.pf-details{border-top:0;margin-top:2px}
-.pf-section .pf-method{color:#243247;font-size:13px;line-height:1.6;margin:10px 0 0;max-width:980px}
-.pf-section .pf-method p{margin:8px 0}
-.pf-section .pf-method ul{padding-left:18px;margin:8px 0}
 @media(hover:hover){.pf-section .pf-tab:hover{color:#245cec}.pf-section .pf-chart-month:hover .pf-chart-track>span{transform:translateY(-2px) scaleX(1.05);filter:brightness(1.12) saturate(1.06)}}
-@media(max-width:1000px){.pf-section .pf-container{width:calc(100% - 32px)}.pf-section .pf-toolbar{padding:12px 18px}.pf-section .pf-controls,.pf-section .pf-result{padding:16px 18px}.pf-section .pf-workspace{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}.pf-section .pf-format-row label small{display:none}.pf-section .pf-format-row{min-height:48px}.pf-section .pf-format-row label{font-size:13px}.pf-section .pf-income-top output{font-size:30px}.pf-section .pf-scenarios button{font-size:13px}.pf-section .pf-result-footer{align-items:stretch;flex-direction:column;gap:5px}.pf-section .pf-funnel{gap:8px}.pf-section .pf-funnel strong{font-size:13px}}
+@media(max-width:1000px){.pf-section .pf-container{width:calc(100% - 32px)}.pf-section .pf-toolbar{padding:12px 18px}.pf-section .pf-controls,.pf-section .pf-result{padding:16px 18px}.pf-section .pf-workspace{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}.pf-section .pf-format-row label small{display:none}.pf-section .pf-format-row{min-height:48px}.pf-section .pf-format-row label{font-size:13px}.pf-section .pf-income-top output{font-size:30px}.pf-section .pf-scenarios button{font-size:13px}.pf-section .pf-funnel{gap:8px}.pf-section .pf-funnel strong{font-size:13px}}
 @media(max-width:1000px){.pf-section .pf-add-platform{grid-template-columns:1fr 1fr}.pf-section .pf-add-platform>div{grid-column:1/-1}}
 
 
@@ -180,9 +155,6 @@
   .pf-section .pf-tabs{gap:0;padding:0;margin-bottom:10px;background:transparent;border-radius:0;border-bottom:1px solid #e7ebf2}
   .pf-section .pf-tab{min-height:36px;padding:7px 4px;font-size:13px;line-height:1.35;border-radius:0;border-bottom:2px solid transparent}
   .pf-section .pf-tab[aria-selected="true"]{background:transparent;border-bottom-color:#245cec;box-shadow:none}
-  .pf-section .pf-budget{gap:8px;margin-bottom:10px}
-  .pf-section .pf-budget .pf-field{display:grid;grid-template-columns:minmax(0,1fr) 80px;align-items:center;gap:8px;flex:1}
-  .pf-section .pf-budget>span{display:none}
   .pf-section .pf-row-head{font-size:13px;line-height:1.35;margin-bottom:2px;gap:8px}
   .pf-section .pf-row-head>span:last-child{white-space:nowrap}
   .pf-section .pf-format-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:10px}
@@ -210,7 +182,6 @@
   .pf-section .pf-plan-row>span{min-width:0;overflow-wrap:anywhere}
   .pf-section .pf-work{margin-top:8px;padding:8px;gap:8px;border-radius:7px}
   .pf-section .pf-work strong,.pf-section .pf-work span{font-size:13px;line-height:1.35}
-  .pf-section .pf-fit{min-height:36px;padding:7px 10px}
   .pf-section .pf-result{padding:12px;border-radius:0}
   .pf-section .pf-scenarios{gap:2px;padding:2px;border-radius:7px}
   .pf-section .pf-scenarios button{min-height:36px;padding:6px 4px;font-size:13px;line-height:1.25}
@@ -233,13 +204,7 @@
   .pf-section .pf-funnel{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
   .pf-section .pf-funnel strong{font-size:14px}
   .pf-section .pf-funnel span{font-size:13px;line-height:1.35;margin-top:3px}
-  .pf-section .pf-result .pf-details{margin-top:8px}
-  .pf-section .pf-extra-metrics{gap:8px;margin:6px 0 12px}
-  .pf-section .pf-result-footer{flex-direction:row;align-items:center;justify-content:flex-start;gap:4px 12px;margin-top:10px}
-  .pf-section .pf-export{min-height:32px;padding:4px 0}
   .pf-section .pf-quick-disclaimer{font-size:13px;line-height:1.4;margin-top:8px}
-  .pf-section .pf-under{padding:0 12px 6px}
-  .pf-section .pf-method{line-height:1.45;margin-top:6px}
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-full-only{display:none!important}
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-quick-only{display:block}
   .pf-section .pf-app[data-mobile-mode="compact"] .pf-extra-toggle{display:flex;width:auto;min-height:36px;text-align:left;white-space:normal;padding:4px 0}

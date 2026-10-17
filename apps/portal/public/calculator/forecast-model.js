@@ -3,11 +3,11 @@
   'use strict';
   const WEEKS = 52 / 12, COMMISSION = 0.2, VERIFIED = '2026-10-11';
   const FORMATS = [
-    { id: 'post', name: 'Посты', hint: 'Текст и изображение', minutes: 15, tail: 0.10 },
-    { id: 'short', name: 'Короткие видео', hint: 'Один ролик → несколько площадок', minutes: 15, tail: 0.35 },
-    { id: 'long', name: 'Длинные видео', hint: 'Обзоры и разборы продукта', minutes: 60, tail: 0.55 },
-    { id: 'article', name: 'Статьи', hint: 'Кейсы, инструкции, сравнения', minutes: 60, tail: 0.60 },
-    { id: 'circle', name: 'Кружочки', hint: 'Отдельные видео для Telegram', minutes: 5, tail: 0.05 }
+    { id: 'post', name: 'Посты', hint: 'Текст и изображение', tail: 0.10 },
+    { id: 'short', name: 'Короткие видео', hint: 'Один ролик → несколько площадок', tail: 0.35 },
+    { id: 'long', name: 'Длинные видео', hint: 'Обзоры и разборы продукта', tail: 0.55 },
+    { id: 'article', name: 'Статьи', hint: 'Кейсы, инструкции, сравнения', tail: 0.60 },
+    { id: 'circle', name: 'Кружочки', hint: 'Отдельные видео для Telegram', tail: 0.05 }
   ];
   const PLANS = [
     { name: 'Базовый', price: 990, segment: 'personal' },
@@ -69,7 +69,7 @@
       const base=FORMATS.find(f=>f.id===item.base)??FORMATS[0];
       const channelId=text(item.channelId,40).toLowerCase();
       const scopedChannel=CHANNELS.some(c=>c.id===channelId)||/^custom-[a-z0-9-]+$/.test(channelId)?channelId:'';
-      ids.add(id);result.push({id,name,base:base.id,channelId:scopedChannel,hint:text(item.hint,160)||base.hint,minutes:num(item.minutes,base.minutes,1,600),tail:base.tail,custom:true});
+      ids.add(id);result.push({id,name,base:base.id,channelId:scopedChannel,hint:text(item.hint,160)||base.hint,tail:base.tail,custom:true});
     }
     return result;
   }
@@ -104,16 +104,15 @@
   }
   function defaults() {
     return {
-      version:1, conversionVersion:2, budgetHours:4, publishMinutes:3, adminMinutes:30,
+      version:1, conversionVersion:2,
       customChannels:[], customFormats:[], removedChannels:[], removedFormats:[], channelOverrides:{}, formatOverrides:{}, forecastMonths:12,
       frequency:{ post:3, short:2, long:0.25, article:0.25, circle:1 },
-      minutes:Object.fromEntries(FORMATS.map(f=>[f.id,f.minutes])),
       channels:Object.fromEntries(CHANNELS.map(c=>[c.id,{ enabled:c.selected.length>0, formats:[...c.selected], views:c.views, ctr:c.ctr }])),
       ...clone(DEFAULT_SALES), prices:PLANS.map(p=>p.price),
       paymentDelayEnabled:false, delayShare:0, growth:3,
       tail:Object.fromEntries(FORMATS.map(f=>[f.id,f.tail*100])),
       personalUpgrade:3, businessUpgrade:2, addon:0, refunds:0,
-      monthlyCost:0, hourlyCost:0, stopAfter:12,
+      monthlyCost:0, stopAfter:12,
       viralViews:0, viralMonth:3, viralChannel:'ytshorts'
     };
   }
@@ -135,11 +134,10 @@
     }
     out.customChannels=normalizeCustomChannels(s.customChannels,allFormats(out));
     out.forecastMonths=Math.floor(num(s.forecastMonths,12,1,12));
-    const bounds={ budgetHours:[0,168],publishMinutes:[0,120],adminMinutes:[0,10080],
-      businessShare:[0,100],registration:[0,100],paidConversion:[0,100],
+    const bounds={ businessShare:[0,100],registration:[0,100],paidConversion:[0,100],
       personalRetention:[0,100],businessRetention:[0,100],delayShare:[0,100],
       growth:[0,30],personalUpgrade:[0,100],businessUpgrade:[0,100],addon:[0,1000000],refunds:[0,100],
-      monthlyCost:[0,10000000],hourlyCost:[0,100000],stopAfter:[0,12],viralViews:[0,10000000],viralMonth:[1,12] };
+      monthlyCost:[0,10000000],stopAfter:[0,12],viralViews:[0,10000000],viralMonth:[1,12] };
     Object.entries(bounds).forEach(([k,[min,max]])=>{out[k]=num(s[k],d[k],min,max);});
     // Old snapshots expressed registration per new visitor and split people
     // before payment. Translate those rates once into the new denominators.
@@ -156,10 +154,9 @@
     // delay percentage takes effect only after the partner enables it.
     out.paymentDelayEnabled=s.paymentDelayEnabled===true;
     out.stopAfter=Math.floor(out.stopAfter);out.viralMonth=Math.floor(out.viralMonth);
-    out.frequency={};out.minutes={};out.tail={};
+    out.frequency={};out.tail={};
     allFormats(out).forEach(f=>{
       out.frequency[f.id]=num(s.frequency?.[f.id],d.frequency[f.id]??0,0,35);
-      out.minutes[f.id]=num(s.minutes?.[f.id],f.minutes,1,600);
       out.tail[f.id]=num(s.tail?.[f.id],f.tail*100,0,95);
     });
     allChannels(out).forEach(c=>{
@@ -187,7 +184,6 @@
     const settings=normalize(raw);
     Object.keys(settings.frequency).forEach(id=>{settings.frequency[id]=0;});
     Object.values(settings.channels).forEach(channel=>{channel.enabled=false;channel.formats=[];});
-    settings.adminMinutes=0;
     return settings;
   }
   function workload(raw) {
@@ -196,19 +192,17 @@
     const formatDefs=allFormats(s);
     const originals=total(formatDefs.map(f=>s.frequency[f.id]));
     const placements=total(channelDefs.map(c=>s.channels[c.id].enabled?total(s.channels[c.id].formats.map(f=>s.frequency[f])):0));
-    const creationMinutes=total(formatDefs.map(f=>s.frequency[f.id]*s.minutes[f.id]));
-    const distributionMinutes=placements*s.publishMinutes;
-    const adminMinutes=originals>0?s.adminMinutes:0;
-    const minutes=creationMinutes+distributionMinutes+adminMinutes;
-    return { originals, placements, creationMinutes, distributionMinutes, adminMinutes,
-      minutes, hours:minutes/60, budgetMinutes:s.budgetHours*60,
+    return { originals, placements,
       unplaced:formatDefs.filter(f=>s.frequency[f.id]>0&&!channelDefs.some(c=>s.channels[c.id].enabled&&s.channels[c.id].formats.includes(f.id))).map(f=>f.id) };
   }
-  function fitBudget(raw) {
-    const s=normalize(raw), w=workload(s), flexible=w.creationMinutes+w.distributionMinutes;
-    if(w.minutes<=w.budgetMinutes)return s;
-    const ratio=flexible>0?Math.min(1,Math.max(0,(w.budgetMinutes-w.adminMinutes)/flexible)):0;
-    allFormats(s).forEach(f=>{s.frequency[f.id]=Math.floor(s.frequency[f.id]*ratio*100)/100;});
+  function selectMatchingChannels(raw) {
+    const s=normalize(raw);
+    Object.values(s.channels).forEach(channel=>{channel.enabled=false;channel.formats=[];});
+    allChannels(s).forEach(channel=>{
+      const formats=channel.formats.filter(id=>s.frequency[id]>0);
+      s.channels[channel.id].enabled=formats.length>0;
+      s.channels[channel.id].formats=formats;
+    });
     return s;
   }
   function transition(vector, s) {
@@ -232,7 +226,7 @@
     const cohorts=[], months=[];
     const previousPotential=Object.fromEntries(channelDefs.map(c=>[c.id,0]));
     const delayedShare=s.paymentDelayEnabled?pct(s.delayShare):0;
-    let cumulative=0, cumulativeHours=0, cumulativeNet=0;
+    let cumulative=0, cumulativeNet=0;
     for(let m=1;m<=12;m++) {
       const activePublication=m<=s.stopAfter;
       const factor=Math.min(3,Math.pow(1+pct(s.growth),m-1));
@@ -289,38 +283,18 @@
       });
       const sum=key=>total(channels.map(c=>c[key]));
       const reward=payments*revenueFactor*COMMISSION;
-      // Stopping new posts removes production/distribution work, but does not
-      // remove the explicitly budgeted ongoing audience communication/analytics.
-      const ongoingMinutes=s.stopAfter>0&&work.originals>0?work.adminMinutes:0;
-      const hours=(activePublication?work.minutes:ongoingMinutes)*WEEKS/60;
       // A fixed monthly spend continues until explicitly changed, even after posting stops.
-      const costs=s.monthlyCost+hours*s.hourlyCost, net=reward-costs;
-      cumulative+=reward;cumulativeHours+=hours;cumulativeNet+=net;
+      const costs=s.monthlyCost, net=reward-costs;
+      cumulative+=reward;cumulativeNet+=net;
       months.push({ month:m, originals:activePublication?work.originals*WEEKS:0,placements:sum('placements'),
         freshViews:sum('freshViews'),oldViews:sum('oldViews'),views:sum('views'),clicks:sum('clicks'),
         registrations:sum('registrations'),newPaid:sum('newPaid'),
         newPersonal:sum('newPersonal'),newBusiness:sum('newBusiness'),active:total(byPlan),churned,
         byPlan,upgrades,cohorts:cohortSummary,channels,payments,eligiblePayments:payments*revenueFactor,
         newReward:newPayments*revenueFactor*COMMISSION,repeatReward:repeatPayments*revenueFactor*COMMISSION,
-        reward,cumulative,hours,cumulativeHours,costs,net,cumulativeNet });
+        reward,cumulative,costs,net,cumulativeNet });
     }
     return { settings:s,scenario:scenarioKey,work,months,year:months[11],mix:[...personalMix,...businessMix] };
   }
-  function csv(raw) {
-    const s=normalize(raw), lines=[];
-    const add=(...cells)=>lines.push(cells.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';'));
-    add('Syntolk','Сценарный расчёт','Тарифы проверены',VERIFIED,'Комиссия',COMMISSION);
-    add('Параметр','Значение');
-    Object.entries(s).filter(([,v])=>['number','string','boolean'].includes(typeof v)).forEach(([k,v])=>add(k,v));
-    allFormats(s).forEach(f=>add(f.name,'В неделю',s.frequency[f.id],'Минут на оригинал',s.minutes[f.id],'Хвост, %',s.tail[f.id]));
-    PLANS.forEach((p,i)=>add(p.name,p.segment,'Цена',s.prices[i],'Вес внутри сегмента',s.mix[i]));
-    allChannels(s).forEach(c=>add(c.name,s.channels[c.id].formats.join(', '),'Просмотров на размещение',s.channels[c.id].views,'CTR, %',s.channels[c.id].ctr));
-    add('Сценарий','Месяц','Оригиналы','Размещения','Просмотры','Старые просмотры','Переходы','Регистрации','Первые оплаты','Личные первые оплаты','Бизнес первые оплаты','Активные','Перестали оплачивать','Оплаты, ₽','Учтено оплат, ₽','Первые начисления, ₽','Продления, ₽','Всего начислено, ₽','Накоплено, ₽','Часы','Расходы, ₽','После расходов, ₽',...PLANS.map(p=>'Клиенты: '+p.name),...PLANS.map(p=>'Повышения: '+p.name));
-    Object.entries(SCENARIOS).forEach(([id,sc])=>{
-      add(sc.name,'Множители',sc.views,sc.registration,sc.payment);
-      forecast(s,id).months.slice(0,s.forecastMonths).forEach(m=>add(sc.name,m.month,...[m.originals,m.placements,m.views,m.oldViews,m.clicks,m.registrations,m.newPaid,m.newPersonal,m.newBusiness,m.active,m.churned,m.payments,m.eligiblePayments,m.newReward,m.repeatReward,m.reward,m.cumulative,m.hours,m.costs,m.net,...m.byPlan,...m.upgrades].map(v=>v.toFixed(4).replace('.',','))));
-    });
-    return '\uFEFF'+lines.join('\r\n');
-  }
-  globalThis.SyntolkForecast=Object.freeze({ WEEKS,COMMISSION,VERIFIED,FORMATS,PLANS,CHANNELS,SCENARIOS,defaults,normalize,newScenario,allFormats,allChannels,workload,fitBudget,transition,forecast,csv });
+  globalThis.SyntolkForecast=Object.freeze({ WEEKS,COMMISSION,VERIFIED,FORMATS,PLANS,CHANNELS,SCENARIOS,defaults,normalize,newScenario,allFormats,allChannels,workload,selectMatchingChannels,transition,forecast });
 })();

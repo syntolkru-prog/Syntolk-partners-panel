@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { TABLES, type ClickRow, type LinkRow } from '@openpartner/db';
+import { TABLES, type ClickRow } from '@openpartner/db';
 import { grantScope, requireAuth, requirePartnerOrAdmin } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
 import { parseUserAgent } from '../ua-parse.js';
-import { adjustmentTotalsByCommission, netCommissionAmount } from '../commission-net.js';
+import { analyticsDetailsQuerySchema, analyticsFiltersFromQuery, partnerAnalytics, partnerAnalyticsDetails } from '../partner-analytics.js';
 
 export const dashboardRouter = Router();
 
@@ -25,144 +25,48 @@ export const dashboardRouter = Router();
 // Optional `?includeLinks=true` adds a per-Link breakdown so the partner /
 // creator portal can show channel-level performance ("newsletter converted
 // at 8%, TikTok bio at 0.3% — focus on the newsletter").
+dashboardRouter.get('/partners/:id/analytics', requireAuth, grantScope('partners:read'), requirePartnerOrAdmin('id'), async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  try {
+    const profile = await db('CoachProfile').where({ tenantId, partnerId: req.params.id! }).first();
+    const filters = analyticsFiltersFromQuery(req.query, profile?.data?.timezone ?? 'Europe/Moscow');
+    res.json(await partnerAnalytics(db, tenantId, req.params.id!, filters));
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
+    throw error;
+  }
+});
+
+dashboardRouter.get('/partners/:id/analytics/details', requireAuth, grantScope('partners:read'), requirePartnerOrAdmin('id'), async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  try {
+    const profile = await db('CoachProfile').where({ tenantId, partnerId: req.params.id! }).first();
+    const filters = analyticsFiltersFromQuery(req.query, profile?.data?.timezone ?? 'Europe/Moscow');
+    const { cursor } = analyticsDetailsQuerySchema.parse(req.query);
+    res.json(await partnerAnalyticsDetails(db, tenantId, req.params.id!, filters, cursor));
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
+    throw error;
+  }
+});
+
 dashboardRouter.get('/partners/:id/dashboard', requireAuth, grantScope('partners:read'), requirePartnerOrAdmin('id'), async (req, res) => {
-  const { db } = tenantOf(req);
-  const partnerId = req.params.id;
-  const since = req.query.since
-    ? new Date(String(req.query.since))
-    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const includeLinks = req.query.includeLinks === 'true' || req.query.includeLinks === '1';
-
-  const [clicksRow] = await db(TABLES.Click)
-    .where({ partnerId })
-    .andWhere('ts', '>=', since)
-    .count<{ count: string }[]>({ count: '*' });
-
-  // Multi-touch: an event may produce N attribution rows with fractional
-  // weights. The partner's share of revenue is Σ(value × weight), and
-  // the event count is distinct eventIds (one partner can't "earn" an
-  // event twice within the same model).
-  const attributedRow = await db(TABLES.Attribution)
-    .join(TABLES.Event, `${TABLES.Event}.id`, `${TABLES.Attribution}.eventId`)
-    .where(`${TABLES.Attribution}.partnerId`, partnerId)
-    .andWhere(`${TABLES.Attribution}.computedAt`, '>=', since)
-    .select(
-      db.raw(`COUNT(DISTINCT "Attribution"."eventId") as events`),
-      db.raw(`COUNT(DISTINCT CASE WHEN "Event"."type" = 'signup' THEN "Event"."userId" END) as registrations`),
-      db.raw(`COUNT(DISTINCT CASE WHEN "Event"."type" IN ('invoice_paid','recurring_payment') AND COALESCE("Event"."value", 0) > 0 THEN "Event"."userId" END) as "payingClients"`),
-      db.raw(`COALESCE(SUM("Event".value * "Attribution".weight), 0) as revenue`),
-    )
-    .first<{ events: string; registrations: string; payingClients: string; revenue: string }>();
-
-  const ledgerQuery = () => db(`${TABLES.Commission} as c`)
-    .leftJoin(`${TABLES.Payout} as p`, 'p.id', 'c.payoutId')
-    .where('c.partnerId', partnerId)
-    .select('c.id', 'c.amount')
-    // Also interpret old pending payouts correctly, without rewriting
-    // historical records belonging to the user's existing partners.
-    .select(db.raw(`CASE WHEN "c"."payoutId" IS NOT NULL AND "c"."status" IN ('approved','paid') AND COALESCE("p"."status", 'pending') <> 'paid' THEN 'pending' ELSE "c"."status" END as status`));
-  const commissionRows = (await ledgerQuery().andWhere('c.accruedAt', '>=', since)) as Array<{ id: string; status: string; amount: string }>;
-  const adjustments = await adjustmentTotalsByCommission(db, commissionRows.map((c) => c.id));
-  const commissionByStatus = new Map<string, number>();
-  for (const row of commissionRows) {
-    commissionByStatus.set(
-      row.status,
-      (commissionByStatus.get(row.status) ?? 0) + netCommissionAmount(row, adjustments, row.id),
-    );
+  const { db, tenantId } = tenantOf(req);
+  try {
+    const profile = await db('CoachProfile').where({ tenantId, partnerId: req.params.id! }).first();
+    const filters = analyticsFiltersFromQuery(req.query, profile?.data?.timezone ?? 'Europe/Moscow');
+    const report = await partnerAnalytics(db, tenantId, req.params.id!, { ...filters, groupBy: 'link' });
+    res.json({ partnerId: req.params.id, since: report.period.since.toISOString(),
+      clicks: report.counts.clicks, attributedEvents: report.counts.attributedEvents,
+      registrations: report.counts.registrations, payingClients: report.counts.payingCustomers,
+      conversionRate: report.conversions.clickToPayment ?? 0, attributedRevenue: report.amountsMinor.observedPayments/100,
+      commissionByStatus: report.commissionByStatus, balances: report.balances,
+      ...((req.query.includeLinks === 'true' || req.query.includeLinks === '1') ? { links: report.rows.map(row => ({ linkKey: row.linkKey ?? row.id, clicks: row.counts.clicks, attributedEvents: row.counts.attributedEvents, attributedRevenue: row.amountsMinor.observedPayments/100 })) } : {}),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
+    throw error;
   }
-
-  // Balances are lifetime ledger totals, intentionally independent from the
-  // selected dashboard period. "Available" means approved and not clawed
-  // back; paid is retained as a separate historical total.
-  const lifetimeRows = (await ledgerQuery()) as Array<{ id: string; status: string; amount: string }>;
-  const lifetimeAdjustments = await adjustmentTotalsByCommission(db, lifetimeRows.map((c) => c.id));
-  const balances = { accrued: 0, available: 0, pending: 0, paid: 0, total: 0 };
-  for (const row of lifetimeRows) {
-    const amount = netCommissionAmount(row, lifetimeAdjustments, row.id);
-    if (row.status === 'accrued') balances.accrued += amount;
-    if (row.status === 'approved') balances.available += amount;
-    if (row.status === 'pending') balances.pending += amount;
-    if (row.status === 'paid') balances.paid += amount;
-    if (row.status !== 'reversed') balances.total += amount;
-  }
-  for (const key of Object.keys(balances) as Array<keyof typeof balances>) {
-    balances[key] = Math.round(balances[key] * 100) / 100;
-  }
-
-  let links: Array<{
-    linkKey: string;
-    clicks: number;
-    attributedEvents: number;
-    attributedRevenue: number;
-  }> | undefined;
-
-  if (includeLinks) {
-    // Per-Link breakdown: clicks via Click.linkId, conversions via the
-    // attribution → event join with the same linkId. We aggregate by
-    // Link (not by linkKey directly) so a deleted-and-recreated link
-    // with the same key shows as one row tied to the current Link.
-    // Then surface linkKey for display.
-    const partnerLinks = (await db<LinkRow>(TABLES.Link)
-      .where({ partnerId })
-      .select('id', 'linkKey')) as Array<Pick<LinkRow, 'id' | 'linkKey'>>;
-    const linkIds = partnerLinks.map((l) => l.id);
-
-    if (linkIds.length > 0) {
-      const clicksByLink = (await db(TABLES.Click)
-        .whereIn('linkId', linkIds)
-        .andWhere('ts', '>=', since)
-        .groupBy('linkId')
-        .select('linkId')
-        .count<{ linkId: string; count: string }[]>({ count: '*' })) as Array<{ linkId: string; count: string }>;
-
-      // Attribution rows don't carry linkId directly — they reference clickId.
-      // Join through Click + Event to get per-link conversion + revenue.
-      const eventsByLink = (await db(TABLES.Attribution)
-        .join(TABLES.Click, `${TABLES.Click}.id`, `${TABLES.Attribution}.clickId`)
-        .join(TABLES.Event, `${TABLES.Event}.id`, `${TABLES.Attribution}.eventId`)
-        .where(`${TABLES.Attribution}.partnerId`, partnerId)
-        .andWhere(`${TABLES.Attribution}.computedAt`, '>=', since)
-        .whereIn(`${TABLES.Click}.linkId`, linkIds)
-        .groupBy(`${TABLES.Click}.linkId`)
-        .select(`${TABLES.Click}.linkId as linkId`)
-        .select(
-          db.raw(`COUNT(DISTINCT "Attribution"."eventId") as events`),
-          db.raw(`COALESCE(SUM("Event".value * "Attribution".weight), 0) as revenue`),
-        )) as Array<{ linkId: string; events: string; revenue: string }>;
-
-      const clicksMap = new Map(clicksByLink.map((c) => [c.linkId, Number(c.count)]));
-      const eventsMap = new Map(eventsByLink.map((e) => [e.linkId, { events: Number(e.events), revenue: Number(e.revenue) }]));
-
-      links = partnerLinks
-        .map((l) => ({
-          linkKey: l.linkKey,
-          clicks: clicksMap.get(l.id) ?? 0,
-          attributedEvents: eventsMap.get(l.id)?.events ?? 0,
-          attributedRevenue: eventsMap.get(l.id)?.revenue ?? 0,
-        }))
-        // Sort by attributed revenue desc, then clicks desc — most useful
-        // surface for "what's working" comparisons.
-        .sort((a, b) => b.attributedRevenue - a.attributedRevenue || b.clicks - a.clicks);
-    } else {
-      links = [];
-    }
-  }
-
-  res.json({
-    partnerId,
-    since: since.toISOString(),
-    clicks: Number(clicksRow?.count ?? 0),
-    attributedEvents: Number(attributedRow?.events ?? 0),
-    registrations: Number(attributedRow?.registrations ?? 0),
-    payingClients: Number(attributedRow?.payingClients ?? 0),
-    conversionRate: Number(clicksRow?.count ?? 0) > 0
-      ? Number(attributedRow?.payingClients ?? 0) / Number(clicksRow?.count ?? 0)
-      : 0,
-    attributedRevenue: Number(attributedRow?.revenue ?? 0),
-    commissionByStatus: Object.fromEntries(commissionByStatus),
-    balances,
-    ...(links !== undefined ? { links } : {}),
-  });
 });
 
 // ---------- Time-series for charting ----------

@@ -14,6 +14,7 @@ import { sslFromConnectionString } from './ssl.js';
 
 export * from './types.js';
 export * from './coach.js';
+export { trackingSourceForClick, trackingSourceParams } from './tracking-sources.js';
 export { sslFromConnectionString } from './ssl.js';
 export { renderCommissionSummary } from './commission-summary.js';
 export type {
@@ -78,9 +79,16 @@ export const TABLES = {
   SignupBlocklist: 'SignupBlocklist',
   PlatformAuditLog: 'PlatformAuditLog',
   Partner: 'Partner',
+  PartnerMessage: 'PartnerMessage',
+  PartnerMessageAttachment: 'PartnerMessageAttachment',
   Program: 'Program',
   PartnerProgram: 'PartnerProgram',
   Link: 'Link',
+  PartnerLinkSource: 'PartnerLinkSource',
+  PartnerMaterial: 'PartnerMaterial',
+  PartnerMaterialFile: 'PartnerMaterialFile',
+  PublisherAccount: 'PublisherAccount',
+  PublicationJob: 'PublicationJob',
   Click: 'Click',
   Identity: 'Identity',
   Event: 'Event',

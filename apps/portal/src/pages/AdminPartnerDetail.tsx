@@ -145,6 +145,9 @@ export function AdminPartnerDetail() {
       subtitle={`${p.email}${p.phone ? ` · ${p.phone}` : ''}`}
       actions={
         <>
+          <TenantLink to={`/admin/messages?partnerId=${p.id}`} style={{ color: theme.accent, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            Написать партнёру
+          </TenantLink>
           <TenantLink to={`/links?partnerId=${p.id}`} style={{ color: theme.accent, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <ExternalLink size={14} /> Открыть ссылки
           </TenantLink>

@@ -21,15 +21,16 @@
 
 import type { Knex } from 'knex';
 import { DEFAULT_TENANT_ID, TABLES, COACH_TABLES } from '@openpartner/db';
+import { calendarMaterialTitle, materialFormats } from './materials-service.js';
 
 /** Bundle format version. Bumped when the table set or row shape changes.
  *  v1 → v2 (Aug 2026): added PartnerProgram, PartnerCommission, Coupon;
  *  every table now carries its real primary key instead of assuming `id`. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 8;
 /** Older bundles still import — a v1 bundle is a v2 bundle minus three
  *  tables. Dropping support for a version people hold on disk would break
  *  the portability promise, so this list only ever grows. */
-export const SUPPORTED_IMPORT_VERSIONS = [1, 2, 3] as const;
+export const SUPPORTED_IMPORT_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
 export interface ExportTableSpec {
   table: string;
@@ -46,6 +47,8 @@ export interface ExportTableSpec {
  */
 export const EXPORT_TABLES = [
   { table: TABLES.Partner, primaryKey: 'id' },
+  { table: TABLES.PartnerMessage, primaryKey: 'id' },
+  { table: TABLES.PartnerMessageAttachment, primaryKey: 'id' },
   { table: TABLES.Program, primaryKey: 'id' },
   // Which partners may promote which programs. Without this the roster
   // survives an export but every grant is lost, so an imported instance
@@ -58,6 +61,11 @@ export const EXPORT_TABLES = [
   // re-derived without the code → (partner, program) mapping.
   { table: TABLES.Coupon, primaryKey: 'id' },
   { table: TABLES.Link, primaryKey: 'id' },
+  { table: TABLES.PartnerMaterial, primaryKey: 'id' },
+  { table: TABLES.PartnerMaterialFile, primaryKey: 'id' },
+  { table: TABLES.PublisherAccount, primaryKey: 'id' },
+  { table: TABLES.PartnerLinkSource, primaryKey: 'id' },
+  { table: TABLES.PublicationJob, primaryKey: 'id' },
   { table: TABLES.Click, primaryKey: 'id' },
   { table: TABLES.Identity, primaryKey: 'id' },
   { table: TABLES.Event, primaryKey: 'id' },
@@ -426,6 +434,9 @@ export async function importBundle(
       tenantId,
       ...(table === 'CoachRun' ? {status:'cancelled',leaseUntil:null,lockedBy:null} : {}),
       ...(table === 'CoachNotification' ? {status:'read'} : {}),
+      ...(table === 'PublisherAccount' ? {status:'disconnected'} : {}),
+      ...(table === 'Partner' ? {publisherLinkVerifiedAt:null} : {}),
+      ...(table === 'PublicationJob' && ['queued','processing'].includes(String((r as Record<string,unknown>).status)) ? {status:'needs_review',message:'Импортированное задание не запускается автоматически.'} : {}),
     }));
 
     // The conflict target has to be the table's REAL primary key —
@@ -441,6 +452,28 @@ export async function importBundle(
     skipped[table] = rows.length - result.length;
   }
 
+  // Older bundles predate the material registry. Keep their task/source IDs.
+  if (!bundle.PartnerMaterial && bundle.CoachTask?.length) {
+    const tasks = await db('CoachTask as t').join('CoachPlan as p', function () {
+      this.on('p.id', '=', 't.planId').andOn('p.tenantId', '=', 't.tenantId').andOn('p.partnerId', '=', 't.partnerId');
+    }).where('t.tenantId', tenantId).whereIn('t.id', (bundle.CoachTask as Array<{id:string}>).map(t => t.id))
+      .whereRaw("t.data->>'kind'='content' AND p.data->>'source'='calculator_schedule_v1'")
+      .select('t.*', 'p.data as planData').orderBy('t.createdAt').orderBy('t.id');
+    const ordinals = new Map<string, number>();
+    const materials = tasks.map(t => {
+      const data = t.data, day = data.scheduledDay, key = `${t.planId}:${day}:${data.format}`;
+      const ordinal = (ordinals.get(key) ?? 0) + 1; ordinals.set(key, ordinal);
+      const formatName = materialFormats.find(f => f.id === data.format)?.name ?? data.title.split(' · ')[0];
+      const customTitle = !/ · материал [0-9]+$/.test(data.title);
+      return {id:t.id,tenantId,partnerId:t.partnerId,programId:t.programId,scenarioId:t.planData.scenarioId??t.planData.snapshotId??null,
+        title:customTitle?data.title:calendarMaterialTitle(data.format,formatName,day,ordinal),customTitle,formatId:data.format,formatName,
+        scheduledDay:day,platforms:JSON.stringify(data.placements??[]),createdAt:t.createdAt};
+    });
+    if (materials.length) {
+      const restored = await db('PartnerMaterial').insert(materials).onConflict('id').ignore().returning('id');
+      inserted.PartnerMaterial = restored.length; skipped.PartnerMaterial = materials.length - restored.length;
+    }
+  }
   return { inserted, skipped };
 }
 

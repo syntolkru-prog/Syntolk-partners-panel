@@ -8,6 +8,10 @@ import { installRussianUi } from './i18n.js';
 
 installRussianUi();
 
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) window.location.reload();
+});
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } },
 });

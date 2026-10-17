@@ -15,6 +15,7 @@ import { behaviorSchema, directivesSchema, getBehavior, getDirectives, saveCoach
 import { buildCoachContext } from '../coach/context.js';
 import { actionableStatuses, managementPolicy, managementSnapshot, summarizeManagement } from '../coach/management.js';
 import { dailyPlan, saveDailyPlan, todayWindow } from '../coach/daily-plan.js';
+import { analyticsFiltersFromQuery } from '../partner-analytics.js';
 import { CALCULATOR_PLAN_SOURCE, assertLegacyPlannerAvailable, calculatorSchedule, calculatorPlanView, createCalculatorPlan } from '../coach/calculator-plan.js';
 
 function owner(req: Request) {
@@ -94,7 +95,7 @@ partnerCoach.get('/welcome', async (req, res) => {
   const paused = !!profile && ['off','paused'].includes(profile.mode);
   const calculatorTask=task?.data.source===CALCULATOR_PLAN_SOURCE?task:null;
   const message=settings.takeover.includes(s.partnerId)?'Сопровождение ведёт менеджер Syntolk. Напиши ему в чат.':calculatorTask?`Привет, ${partner.name}! В календаре следующий шаг — «${calculatorTask.data.title}». Помогу с идеей, текстом или сценарием для этого материала. С чего начнём?`:'Сначала выбери форматы и площадки в калькуляторе и создай календарь. Я помогу с материалами по его шагам.';
-  res.json({enabled:settings.enabled,paused,needsOnboarding:false,takeover:settings.takeover.includes(s.partnerId),message,task:calculatorTask?{title:calculatorTask.data.title,minutes:calculatorTask.minutes}:null});
+  res.json({enabled:settings.enabled,paused,needsOnboarding:false,takeover:settings.takeover.includes(s.partnerId),message,task:calculatorTask?{title:calculatorTask.data.title}:null});
 });
 partnerCoach.patch('/profile', async (req, res) => {
   const body = z.object({ version: z.number().int().min(0), profile: profileSchema, complete: z.boolean() }).strict().parse(req.body);
@@ -165,7 +166,7 @@ partnerCoach.post('/calculator-plan/preview',async(req,res)=>{
   if(JSON.stringify(input.settings).length>50000)throw new CoachError('invalid_body',422,'Сценарий слишком большой.');
   const {tasks}=await calculatorSchedule(input.settings,input.startDate,input.days,input.weekdays);
   tasks.sort((a,b)=>a.day.localeCompare(b.day)||a.key.localeCompare(b.key));
-  res.json({tasks,originals:tasks.filter(t=>t.kind==='content').length,placements:tasks.reduce((n,t)=>n+t.placements.length,0),minutes:tasks.reduce((n,t)=>n+t.minutes,0),views:tasks.reduce((n,t)=>n+t.estimatedViews,0)});
+  res.json({tasks,originals:tasks.length,placements:tasks.reduce((n,t)=>n+t.placements.length,0),views:tasks.reduce((n,t)=>n+t.estimatedViews,0)});
 });
 partnerCoach.post('/calculator-plan', async (req,res) => {
   const s=owner(req),input=calculatorPeriodSchema.extend({snapshotId:z.string().min(1),scenarioId:z.string().min(1).max(100).optional(),requestId:z.string().min(8).max(100),replacePlanId:z.string().optional(),replaceVersion:z.number().int().positive().optional()}).strict().parse(req.body);
@@ -292,13 +293,12 @@ partnerCoach.post('/runs/:id/cancel', async (req,res) => {
   res.json({ok:true});
 });
 partnerCoach.get('/results', async (req,res) => {
-  const s=owner(req), programId=z.string().min(1).optional().parse(req.query.programId);
-  const period=z.enum(['today','30d']).optional().default('30d').parse(req.query.period);
-  if(programId)await assertProgram(s.db,s.tenantId,s.partnerId,programId,false);
-  const row=period==='today'?await s.db('CoachProfile').where({tenantId:s.tenantId,partnerId:s.partnerId}).first():null;
+  const s=owner(req);
+  const row=await s.db('CoachProfile').where({tenantId:s.tenantId,partnerId:s.partnerId}).first();
   const timezone=row?.data?.timezone??'Europe/Moscow';
-  const window=period==='today'?todayWindow(timezone):undefined;
-  res.json({...await coachMetrics(s.db,s.tenantId,s.partnerId,programId,30,window),selectedPeriod:period,...(window?{day:window.day,timezone}: {})});
+  const filters=analyticsFiltersFromQuery(req.query,timezone);
+  if(filters.programId)await assertProgram(s.db,s.tenantId,s.partnerId,filters.programId,false);
+  res.json({...await coachMetrics(s.db,s.tenantId,s.partnerId,filters.programId,30,undefined,filters),selectedPeriod:filters.period??'30d',timezone});
 });
 partnerCoach.get('/notifications', async (req,res) => { const s=owner(req); res.json({notifications:await s.db('CoachNotification').where({tenantId:s.tenantId,partnerId:s.partnerId}).orderBy('createdAt','desc').limit(30)}); });
 partnerCoach.post('/notifications/:id/read', async (req,res) => { const s=owner(req); await s.db('CoachNotification').where({id:req.params.id,tenantId:s.tenantId,partnerId:s.partnerId}).update({status:'read',updatedAt:new Date()}); res.json({ok:true}); });
@@ -323,6 +323,8 @@ partnerCoach.delete('/forecast-snapshots/:scenarioId', async (req,res) => {
   const planIds=plans.filter(row=>String(row.data?.scenarioId??row.data?.snapshotId??'')===scenarioId||(!row.data?.scenarioId&&snapshotIds.includes(row.data?.snapshotId))).map(row=>row.id);
   await s.db.transaction(async trx=>{
     await trx('CoachForecastSnapshot').whereIn('id',snapshotIds).update({status:'archived',updatedAt:new Date()});
+    await trx('PartnerMaterial').where({tenantId:s.tenantId,partnerId:s.partnerId,programId,scenarioId,customTitle:false})
+      .whereNotIn('id',trx('PartnerLinkSource').where({tenantId:s.tenantId,partnerId:s.partnerId}).whereNotNull('materialId').select('materialId')).update({archivedAt:new Date()});
     if(planIds.length){
       await trx('CoachTask').whereIn('planId',planIds).whereNot('status','completed').update({status:'cancelled',updatedAt:new Date()});
       await trx('CoachPlan').whereIn('id',planIds).update({status:'archived',updatedAt:new Date()});

@@ -7,10 +7,11 @@ export default defineConfig({
     // 5673: stays out of the brightyard-platform 5173/5175 range.
     port: Number(process.env.PORTAL_PORT ?? 5673),
     strictPort: true,
+    headers: { 'Cache-Control': 'no-store' },
     proxy: {
       // The local portal and share links must work on the same origin.
       // Forward referral requests to the dedicated click-counting router.
-      '/r': {
+      '^/r(?:/|$)': {
         target: process.env.ROUTER_URL ?? 'http://localhost:4701',
         changeOrigin: true,
       },
@@ -20,5 +21,8 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
+  },
+  preview: {
+    headers: { 'Cache-Control': 'no-store' },
   },
 });

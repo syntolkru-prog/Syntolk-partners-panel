@@ -82,7 +82,7 @@
   function channelFormatControl(group){
     const c=primaryChannel(group);
     const open=channelFormatMenu===c.id;
-    return `<div class="pf-channel-format-add"><button type="button" class="pf-channel-add-format" data-channel-format-menu="${escape(c.id)}" aria-expanded="${open?'true':'false'}" aria-label="${open?'Закрыть форму добавления формата':'Добавить свой формат для '+escape(c.name)}" title="${open?'Закрыть форму':'Добавить свой формат'}">${open?'×':'+'}</button>${open?`<div class="pf-channel-format-menu"><strong>Свой формат для ${escape(c.name)}</strong><div class="pf-fields-grid"><label class="pf-field"><span>Название формата</span><input type="text" maxlength="80" data-channel-format-name="${escape(c.id)}" placeholder="Например, сообщение в группе"></label><label class="pf-field"><span>Материалов в неделю</span><input type="number" min="0" max="35" step="any" data-channel-format-count="${escape(c.id)}" value="1"></label><label class="pf-field"><span>Минут на материал</span><input type="number" min="1" max="600" data-channel-format-time="${escape(c.id)}" value="30"></label></div><button type="button" data-channel-format-save="${escape(c.id)}">Сохранить формат</button></div>`:''}</div>`;
+    return `<div class="pf-channel-format-add"><button type="button" class="pf-channel-add-format" data-channel-format-menu="${escape(c.id)}" aria-expanded="${open?'true':'false'}" aria-label="${open?'Закрыть форму добавления формата':'Добавить свой формат для '+escape(c.name)}" title="${open?'Закрыть форму':'Добавить свой формат'}">${open?'×':'+'}</button>${open?`<div class="pf-channel-format-menu"><strong>Свой формат для ${escape(c.name)}</strong><div class="pf-fields-grid"><label class="pf-field"><span>Название формата</span><input type="text" maxlength="80" data-channel-format-name="${escape(c.id)}" placeholder="Например, сообщение в группе"></label><label class="pf-field"><span>Материалов в неделю</span><input type="number" min="0" max="35" step="any" data-channel-format-count="${escape(c.id)}" value="1"></label></div><button type="button" data-channel-format-save="${escape(c.id)}">Сохранить формат</button></div>`:''}</div>`;
   }
   function renderPlatformGroup(group){
     const enabled=group.members.some(c=>settings.channels[c.id].enabled),chosen=selectedFormats(group);
@@ -96,18 +96,17 @@
     const expanded=new Set($$('details[open]').map(disclosureKey));
     const platformScroll=$('.pf-channel-list')?.scrollTop||0;
     $('#pf-panel-content').innerHTML=`
-      <div class="pf-budget pf-full-only">${input('budgetHours','Моё время в неделю',{max:168,unit:'ч'})}<span>Создание, размещение<br>и общение с аудиторией</span></div>
       <div class="pf-row-head"><span>Оригинальные материалы</span><span>В неделю</span></div>
-      <div class="pf-format-list">${visibleFormats().map(f=>`<div id="pf-format-${f.id}" class="pf-format-item"><details id="pf-format-settings-${f.id}" class="pf-format-edit"><summary><span class="pf-format-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${formatIcons[f.base]||formatIcons.post}</svg></span><span class="pf-format-title">${escape(f.name)}</span><span class="pf-format-action">Настроить</span></summary><div class="pf-format-edit-body"><label class="pf-field"><span>Название формата</span><input type="text" maxlength="80" aria-label="Название формата ${escape(f.name)}" data-format-name="${f.id}" value="${escape(f.name)}"></label>${input('minutes.'+f.id,'Минут на материал',{min:1,max:600,unit:'мин',ariaLabel:'Минут на материал: '+f.name})}<button class="pf-remove-platform" type="button" data-remove-format="${f.id}">Убрать формат из сценария</button></div></details><input class="pf-format-frequency" id="pf-frequency-${f.id}" aria-label="${escape(f.name)}: оригиналов в неделю" data-pf-path="frequency.${f.id}" type="number" min="0" max="35" step="any" inputmode="decimal" value="${settings.frequency[f.id]}"></div>`).join('')}</div>
-      <div class="pf-custom-form"><button type="button" id="pf-format-menu-toggle" aria-expanded="${formatMenuOpen?'true':'false'}" aria-controls="pf-format-menu">${formatMenuOpen?'Скрыть форму':'Добавить формат'}</button>${formatMenuOpen?`<div id="pf-format-menu" class="pf-format-menu"><div class="pf-format-menu-head"><strong>Новый формат</strong><button type="button" id="pf-format-menu-close" class="pf-format-menu-close" aria-label="Закрыть форму добавления формата">Закрыть</button></div><div class="pf-fields-grid"><label class="pf-field pf-custom-name"><span>Название нового формата</span><input id="pf-format-name" maxlength="80" placeholder="Например, мой формат"></label><label class="pf-field"><span>Материалов в неделю</span><input id="pf-format-count" type="number" min="0" max="35" step="any" value="1"></label><label class="pf-field"><span>Минут на материал</span><input id="pf-format-time" type="number" min="1" max="600" value="30"></label></div><button type="button" id="pf-add-format">Сохранить формат</button></div>`:''}</div>
+      <div class="pf-format-list">${visibleFormats().map(f=>`<div id="pf-format-${f.id}" class="pf-format-item"><details id="pf-format-settings-${f.id}" class="pf-format-edit"><summary aria-label="Название и удаление формата ${escape(f.name)}" title="Название и удаление формата"><span class="pf-format-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${formatIcons[f.base]||formatIcons.post}</svg></span><span class="pf-format-title">${escape(f.name)}</span></summary><div class="pf-format-edit-body"><label class="pf-field"><span>Название формата</span><input type="text" maxlength="80" aria-label="Название формата ${escape(f.name)}" data-format-name="${f.id}" value="${escape(f.name)}"></label><button class="pf-remove-platform" type="button" data-remove-format="${f.id}">Убрать формат из сценария</button></div></details><input class="pf-format-frequency" id="pf-frequency-${f.id}" aria-label="${escape(f.name)}: оригиналов в неделю" data-pf-path="frequency.${f.id}" type="number" min="0" max="35" step="any" inputmode="decimal" value="${settings.frequency[f.id]}"></div>`).join('')}</div>
+      <div class="pf-custom-form"><button type="button" id="pf-format-menu-toggle" aria-expanded="${formatMenuOpen?'true':'false'}" aria-controls="pf-format-menu">${formatMenuOpen?'Скрыть форму':'Добавить формат'}</button>${formatMenuOpen?`<div id="pf-format-menu" class="pf-format-menu"><div class="pf-format-menu-head"><strong>Новый формат</strong><button type="button" id="pf-format-menu-close" class="pf-format-menu-close" aria-label="Закрыть форму добавления формата">Закрыть</button></div><div class="pf-fields-grid"><label class="pf-field pf-custom-name"><span>Название нового формата</span><input id="pf-format-name" maxlength="80" placeholder="Например, мой формат"></label><label class="pf-field"><span>Материалов в неделю</span><input id="pf-format-count" type="number" min="0" max="35" step="any" value="1"></label></div><button type="button" id="pf-add-format">Сохранить формат</button></div>`:''}</div>
       ${settings.removedFormats.length?`<label class="pf-field pf-restore"><span>Вернуть стандартный формат</span><select id="pf-restore-format"><option value="">Выберите формат</option>${M.FORMATS.filter(f=>settings.removedFormats.includes(f.id)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('')}</select></label>`:''}
       <p class="pf-help pf-full-only">0,25 в неделю ≈ один материал в месяц. Копии для других площадок здесь не прибавляйте.</p>
-      <details class="pf-details pf-more-settings pf-full-only" id="pf-more-settings"><summary>Время создания, рост и другие условия</summary>
-      <details class="pf-details"><summary>Время на публикацию и общение</summary><div class="pf-fields-grid">${input('publishMinutes','Разместить одну копию',{max:120,unit:'мин'})}${input('adminMinutes','Общение и аналитика / неделю',{max:10080,unit:'мин'})}</div></details>
-      <details class="pf-details"><summary>Старый контент и рост просмотров</summary><div class="pf-fields-grid">${input('growth','Прирост просмотров / месяц',{max:30,unit:'%',hint:'Новые материалы; рост ограничен ×3.'})}${visibleFormats().map(f=>input('tail.'+f.id,'Хвост: '+f.name.toLowerCase(),{max:95,unit:'%'})).join('')}${select('stopAfter','Выпускать новые материалы',[[0,'Не выпускать'],...Array.from({length:12},(_,i)=>[i+1,'Первые '+(i+1)+' мес.'])])}</div><p class="pf-help">Хвост 35%: в следующем месяце — 35% стартовых просмотров, затем 12,25%. После остановки публикаций сохраняются просмотры старого контента, продления и заданное время общения/аналитики.</p></details>
+      <details class="pf-details pf-more-settings pf-full-only" id="pf-more-settings"><summary>Рост и другие условия</summary>
+      <details class="pf-details"><summary>Старый контент и рост просмотров</summary><div class="pf-fields-grid">${input('growth','Прирост просмотров / месяц',{max:30,unit:'%',hint:'Новые материалы; рост ограничен ×3.'})}${visibleFormats().map(f=>input('tail.'+f.id,'Хвост: '+f.name.toLowerCase(),{max:95,unit:'%'})).join('')}${select('stopAfter','Выпускать новые материалы',[[0,'Не выпускать'],...Array.from({length:12},(_,i)=>[i+1,'Первые '+(i+1)+' мес.'])])}</div><p class="pf-help">Хвост 35%: в следующем месяце — 35% стартовых просмотров, затем 12,25%. После остановки публикаций сохраняются просмотры старого контента и продления.</p></details>
       <details class="pf-details"><summary>А если один ролик наберёт больше?</summary><div class="pf-fields-grid">${input('viralViews','Дополнительные просмотры',{max:10000000})}${select('viralMonth','В каком месяце',Array.from({length:12},(_,i)=>[i+1,i+1]))}${select('viralChannel','На какой площадке',channels().filter(c=>c.formats.includes('short')).map(c=>[c.id,c.name]))}</div><p class="pf-help" id="pf-viral-note">По умолчанию всплеска нет.</p></details></details>`;
     $('#pf-panel-platforms').innerHTML=`
-      <div class="pf-platform-tools"><label for="pf-channel-filter" class="sr-only">Показать площадки</label><select id="pf-channel-filter"><option value="selected">Выбранные площадки</option><option value="all">Все доступные площадки</option><option value="social">Соцсети и мессенджеры</option><option value="video">Видеоплощадки</option><option value="expert">Экспертные блоги</option><option value="owned">Свои площадки и СМИ</option><option value="custom">Добавленные мной</option></select><span id="pf-channel-count"></span></div>
+      <div class="pf-platform-tools"><label for="pf-channel-filter" class="sr-only">Показать площадки</label><select id="pf-channel-filter"><option value="matching">Под мой контент</option><option value="selected">Выбранные площадки</option><option value="all">Все площадки</option><option value="social">Соцсети и мессенджеры</option><option value="video">Видеоплощадки</option><option value="expert">Экспертные блоги</option><option value="owned">Свои площадки и СМИ</option><option value="custom">Добавленные мной</option></select><button type="button" id="pf-select-matching" aria-label="Выбрать все подходящие площадки">Выбрать все</button><span id="pf-channel-count"></span></div>
+      <p class="pf-help" id="pf-matching-empty" hidden></p>
       <p class="pf-help">Выберите, куда публикуете каждый формат. Просмотры — на одно размещение за первый месяц; переходы — доля этих просмотров.</p>
       <div class="pf-add-platform"><button type="button" id="pf-platform-menu-toggle" aria-expanded="${platformMenuOpen?'true':'false'}" aria-controls="pf-platform-menu">${platformMenuOpen?'Скрыть форму':'Добавить площадку'}</button>${platformMenuOpen?`<div id="pf-platform-menu" class="pf-platform-menu"><div class="pf-platform-menu-head"><strong>Новая площадка</strong><button type="button" id="pf-platform-menu-close" class="pf-platform-menu-close" aria-label="Закрыть форму добавления площадки">Закрыть</button></div><div class="pf-fields-grid"><label class="pf-field"><span>Название площадки</span><input id="pf-custom-name" aria-label="Название" type="text" maxlength="80" placeholder="Например, мой канал в MAX"></label><label class="pf-field"><span>Ссылка на площадку или правила</span><input id="pf-custom-url" aria-label="Ссылка для регистрации или справки" type="url" maxlength="300" placeholder="https://..."></label></div><button type="button" id="pf-add-channel">Сохранить площадку</button></div>`:''}</div>
       <div class="pf-channel-list">${platformGroups().map(renderPlatformGroup).join('')}</div>`;
@@ -121,7 +120,7 @@
       <details class="pf-details"><summary>Продления и повышение тарифа</summary><div class="pf-fields-grid">${input('personalRetention','Продлевают: личные',{unit:'%'})}${input('businessRetention','Продлевают: бизнес',{unit:'%'})}${input('personalUpgrade','Повышают тариф: личные',{unit:'%'})}${input('businessUpgrade','Повышают тариф: бизнес',{unit:'%'})}</div><p class="pf-help">Проценты — за месяц. Повышение на одну ступень внутри сегмента. Автоматического перехода с личного тарифа на бизнес нет.</p></details>
       <details class="pf-details"><summary>Срок первой оплаты</summary><label class="pf-check"><input type="checkbox" data-pf-path="paymentDelayEnabled">Учитывать перенос первой оплаты</label><div class="pf-fields-grid">${input('delayShare','Доля первых оплат на следующий месяц',{unit:'%'})}</div><p class="pf-help">По умолчанию первые оплаты учитываются в месяце регистрации. При включении указанная доля переносится на следующий месяц.</p></details>
       <details class="pf-details"><summary>Тарифы и состав первых оплат</summary><p class="pf-help">Первые оплаты делятся на личные и бизнес, затем распределяются по тарифам внутри каждой группы. Доли приводятся к 100%; при всех нулях используется первый тариф группы. <a href="https://syntolk.ru/" target="_blank" rel="noopener">Тарифы Syntolk ↗</a> · проверены 11.10.2026.</p><div class="pf-plan-head"><span>Тариф</span><span>Цена, ₽</span><span>Доля, %</span></div>${M.PLANS.map((p,i)=>`${i===0||i===3?`<div class="pf-segment-label">${i===0?'Личные тарифы':'Для бизнеса'}</div>`:''}<div class="pf-plan-row"><span>${p.name}</span><input data-pf-path="prices.${i}" aria-label="${p.name}: цена в рублях" type="number" inputmode="decimal" min="0" max="1000000" step="any" value="${settings.prices[i]}"><input data-pf-path="mix.${i}" aria-label="${p.name}: доля внутри группы" type="number" inputmode="decimal" min="0" max="100" step="any" value="${settings.mix[i]}"></div>`).join('')}<p class="pf-help" id="pf-mix-summary"></p></details>
-      <details class="pf-details"><summary>Доплаты, возвраты и расходы</summary><div class="pf-fields-grid">${input('addon','Доплаты / активного клиента в месяц',{max:1000000,unit:'₽'})}${input('refunds','Возвращено от суммы оплат',{unit:'%'})}${input('monthlyCost','Денежные расходы / месяц',{max:10000000,unit:'₽'})}${input('hourlyCost','Оценка часа вашей работы',{max:100000,unit:'₽'})}</div><p class="pf-help">Бонусный баланс тарифов не считается оплатой. Расходы показаны отдельно от партнёрских начислений.</p></details>`;
+      <details class="pf-details"><summary>Доплаты, возвраты и расходы</summary><div class="pf-fields-grid">${input('addon','Доплаты / активного клиента в месяц',{max:1000000,unit:'₽'})}${input('refunds','Возвращено от суммы оплат',{unit:'%'})}${input('monthlyCost','Денежные расходы / месяц',{max:10000000,unit:'₽'})}</div><p class="pf-help">Бонусный баланс тарифов не считается оплатой. Расходы показаны отдельно от партнёрских начислений.</p></details>`;
     $$('details').forEach(details=>{if(expanded.has(disclosureKey(details)))details.open=true;});
     $('.pf-channel-list').scrollTop=platformScroll;
     syncControls();
@@ -142,19 +141,27 @@
   }
   function filterChannels() {
     const filter=$('#pf-channel-filter').value;
-    let enabled=0;
+    const activeFormats=formats().filter(format=>settings.frequency[format.id]>0);
+    let enabled=0,visible=0;
     platformGroups().forEach(group=>{
       const chosen=selectedFormats(group), active=group.members.some(c=>settings.channels[c.id].enabled), card=$(`[data-channel-group="${group.key}"]`);
       if(active)enabled++;
       $(`[data-summary="${group.key}"]`).textContent=active?(chosen.length?chosen.join(' · '):'Форматы не выбраны'):'Не выбрана';
       card.classList.toggle('pf-is-selected',active);
-      card.hidden=filter==='selected'?!active:filter!=='all'&&!group.members.some(c=>c.group===filter);
+      const matching=group.members.some(c=>c.formats.some(id=>settings.frequency[id]>0));
+      card.hidden=filter==='matching'?!matching:filter==='selected'?!active:filter!=='all'&&!group.members.some(c=>c.group===filter);
+      if(!card.hidden)visible++;
+      card.querySelectorAll('[data-channel-format]').forEach(input=>{input.closest('label').hidden=activeFormats.length>0&&settings.frequency[input.value]<=0;});
       if(card.hidden&&card.contains(document.activeElement))$('#pf-channel-filter').focus();
     });
     $('#pf-channel-count').textContent=enabled+' из '+platformGroups().length;
+    $('#pf-select-matching').disabled=!activeFormats.length;
+    $('#pf-matching-empty').hidden=visible>0;
+    $('#pf-matching-empty').textContent=activeFormats.length?'Подходящих площадок нет. Добавьте свою площадку.':'Укажите количество материалов во вкладке «Контент».';
   }
   function setTab(next,focus=false) {
     if(!['content','platforms','sales'].includes(next))return;
+    if(next==='platforms')filterChannels();
     tab=next;
     $$('[data-pf-tab]').forEach(button=>{
       const selected=button.dataset.pfTab===tab;
@@ -185,7 +192,7 @@
   function resetScenario(persist=true) {
     settings=M.newScenario(settings);formatMenuOpen=false;platformMenuOpen=false;channelFormatMenu=null;
     suppressPersist=!persist;
-    try { renderControls();$('#pf-channel-filter').value='all';filterChannels();setTab('content');renderResults(); }
+    try { renderControls();$('#pf-channel-filter').value='matching';filterChannels();setTab('content');renderResults(); }
     finally { suppressPersist=false; }
   }
   root.addEventListener('syntolk-calculator-load',event=>{
@@ -194,9 +201,6 @@
     renderControls();setTab(tab);renderResults();
   });
   root.addEventListener('syntolk-calculator-reset',event=>resetScenario(event.detail?.persist!==false));
-  function cellTable(headings,rows,caption) {
-    return `<div class="pf-table-scroll" tabindex="0" role="region" aria-label="${caption}"><table class="pf-table"><caption class="sr-only">${caption}</caption><thead><tr>${headings.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.map(cells=>`<tr>${cells.map((v,i)=>i===0?`<th scope="row">${v}</th>`:`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-  }
   function renderResults() {
     results=Object.fromEntries(Object.keys(M.SCENARIOS).map(id=>[id,M.forecast(settings,id)]));
     month=Math.min(month,settings.forecastMonths);
@@ -204,13 +208,12 @@
     $('#pf-horizon').value=String(settings.forecastMonths);
     $('#pf-month').innerHTML=visibleMonths.map(m=>`<option value="${m.month}"${m.month===month?' selected':''}>${m.month}</option>`).join('');
     $('#pf-total-label').textContent='Всего за '+settings.forecastMonths+' мес.';
-    $('#pf-hours-label').textContent='Работы за '+settings.forecastMonths+' мес.';
     const activeChannels=platformGroups().filter(group=>group.members.some(c=>settings.channels[c.id].enabled)).map(group=>group.name);
     const buyerMix='Личные — '+number.format(100-settings.businessShare)+'%, бизнес — '+number.format(settings.businessShare)+'% первых оплат.';
     const delayNote=settings.paymentDelayEnabled&&settings.delayShare>0?'Перенос на следующий месяц: '+number.format(settings.delayShare)+'% первых оплат.':'';
     $('#pf-buyer-mix').textContent=buyerMix;
     $('#pf-active-delay').textContent=delayNote;$('#pf-active-delay').hidden=!delayNote;
-    $('#pf-quick-assumptions').textContent='Площадки: '+(activeChannels.join(', ')||'не выбраны')+'. Материалы в неделю: '+visibleFormats().map(f=>f.name.toLowerCase()+' — '+frequencyNumber.format(settings.frequency[f.id])).join('; ')+'. Регистрация из переходов: '+number.format(settings.registration)+'%. Первая оплата из регистрации: '+number.format(settings.paidConversion)+'%. '+buyerMix+(delayNote?' '+delayNote:'')+' Время по плану: '+number.format(work.hours)+' ч/неделю из доступных '+number.format(settings.budgetHours)+' ч. Остальные условия — в полном калькуляторе.';
+    $('#pf-quick-assumptions').textContent='Площадки: '+(activeChannels.join(', ')||'не выбраны')+'. Материалы в неделю: '+visibleFormats().map(f=>f.name.toLowerCase()+' — '+frequencyNumber.format(settings.frequency[f.id])).join('; ')+'. Регистрация из переходов: '+number.format(settings.registration)+'%. Первая оплата из регистрации: '+number.format(settings.paidConversion)+'%. '+buyerMix+(delayNote?' '+delayNote:'')+' Остальные условия — в полном калькуляторе.';
     $('#pf-quick-scenario').textContent=M.SCENARIOS[scenario].name+' · комиссия 20%';
     $$('[data-scenario]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.scenario===scenario)));
     const sc=M.SCENARIOS[scenario];
@@ -219,20 +222,12 @@
     $('#pf-income').textContent=money(current.reward);
     $('#pf-income-range').textContent='Другие сценарии: '+money(results.low.months[month-1].reward)+' — '+money(results.high.months[month-1].reward);
     $('#pf-year').textContent=money(year.cumulative);
-    $('#pf-hours').textContent=number.format(year.cumulativeHours)+' ч';
     $('#pf-cumulative').textContent=money(current.cumulative);
-    $('#pf-work').innerHTML=`<div><strong>${number.format(work.hours)} ч / неделю</strong><span>из доступных ${number.format(settings.budgetHours)} ч</span></div><div><strong>${number.format(work.originals)} оригинала</strong><span>${number.format(work.placements)} размещений / неделю</span></div>`;
-    const over=work.minutes>work.budgetMinutes+0.01;
-    $('#pf-work').classList.toggle('pf-over-budget',over);
-    $('#pf-fit').hidden=!over;
-    $('#pf-budget-note').textContent=over?'План превышает ваш бюджет времени. Уменьшите частоту или увеличьте доступные часы.':'Создание считается один раз. На каждую копию добавляется только время размещения.';
-    $('#pf-fit').textContent='Сократить план до '+number.format(settings.budgetHours)+' ч / неделю';
-    const orphan=work.unplaced.map(id=>formats().find(f=>f.id===id).name.toLowerCase());
-    $('#pf-unplaced').hidden=!orphan.length;
-    $('#pf-unplaced').textContent=orphan.length?'Не выбраны площадки для форматов: '+orphan.join(', ')+'. Время на создание учтено, просмотров нет.':'';
+    $('#pf-work').innerHTML=`<div><strong>${number.format(work.originals)} оригинала / неделю</strong></div><div><strong>${number.format(work.placements)} размещений / неделю</strong></div>`;
     const viralEnabled=settings.channels[settings.viralChannel]?.formats.includes('short')&&settings.frequency.short>0&&settings.stopAfter>0;
     $('#pf-viral-note').textContent=settings.viralViews>0&&!viralEnabled?'Всплеск не учтён: добавьте выпуск коротких видео и включите выбранную площадку.':'Дополнительные просмотры одного из ваших коротких роликов. По умолчанию всплеска нет.';
     const peak=Math.max(1,...visibleMonths.map(m=>m.reward));
+    $('#pf-chart-hint').textContent=visibleMonths.some(m=>m.reward>0)?'Нажмите на столбец':'Все месяцы — 0 ₽';
     $('#pf-chart').setAttribute('aria-label','Начисления за каждый из '+settings.forecastMonths+' месяцев');
     $('#pf-chart').style.setProperty('--pf-months',String(settings.forecastMonths));
     $('#pf-chart').innerHTML=visibleMonths.map(m=>`<button type="button" class="pf-chart-month${month===m.month?' pf-active-month':''}" data-month="${m.month}" tabindex="${month===m.month?0:-1}" aria-pressed="${month===m.month}" aria-label="Месяц ${m.month}: ${money(m.reward)}"><span class="pf-chart-track"><span style="--pf-bar:${m.reward?Math.max(2,m.reward/peak*100):0}%"></span></span><span>${m.month}</span></button>`).join('');
@@ -240,23 +235,10 @@
     $('#pf-clicks').textContent=integer.format(current.clicks);
     $('#pf-signups').textContent=count(current.registrations);
     $('#pf-paid').textContent=count(current.newPaid);
-    $('#pf-active-clients').textContent=count(current.active);
-    $('#pf-old-share').textContent=(current.views?number.format(current.oldViews/current.views*100):'0')+'%';
     $('#pf-new-income').textContent=money(current.newReward);
     $('#pf-repeat-income').textContent=money(current.repeatReward);
     $('#pf-repeat-bar').style.setProperty('--pf-repeat',current.reward?current.repeatReward/current.reward*100+'%':'0%');
-    $('#pf-net').textContent=money(current.net);
-    $('#pf-new-personal').textContent=count(current.newPersonal);
-    $('#pf-new-business').textContent=count(current.newBusiness);
-    $('#pf-upgrades').textContent=count(current.upgrades.reduce((a,b)=>a+b,0));
-    $('#pf-churned').textContent=count(current.churned);
-    $('#pf-plan-output').innerHTML=cellTable(['Тариф','Активных','Повысили до'],M.PLANS.map((p,i)=>[p.name+'<small>'+money(settings.prices[i])+'/мес.</small>',count(current.byPlan[i]),count(current.upgrades[i])]),'Состав клиентов в выбранном месяце');
-    const contributing=current.channels.filter(c=>c.views>0||c.active>0);
-    $('#pf-channel-output').innerHTML=contributing.length?cellTable(['Площадка','Переходы','Активных','Начислено'],contributing.map(c=>[escape(c.name),count(c.clicks),count(c.active),money(c.reward)]),'Вклад площадок в выбранном месяце'):'<p class="pf-help">Выберите площадки и добавьте публикации, чтобы увидеть их вклад.</p>';
-    $('#pf-cohort-output').innerHTML=current.cohorts.length?cellTable(['Первая оплата','Активных сейчас','Начислено'],current.cohorts.map(c=>[c.month+'-й месяц',count(c.active),money(c.reward)]),'Группы клиентов по месяцу первой оплаты'):'<p class="pf-help">В этом сценарии оплат пока нет.</p>';
-    $('#pf-monthly-output').innerHTML=cellTable(['Месяц','Просмотры','Переходы','Регистрации','Первые оплаты','Активных','Первые начисления','Продления','Всего за месяц','Накоплено'],visibleMonths.map(m=>[m.month,integer.format(m.views),integer.format(m.clicks),count(m.registrations),count(m.newPaid),count(m.active),money(m.newReward),money(m.repeatReward),money(m.reward),money(m.cumulative)]),'Помесячный сценарий');
     $('#pf-mix-summary').textContent='Личные: '+result.mix.slice(0,3).map(w=>number.format(w*100)+'%').join(' / ')+' · Бизнес: '+result.mix.slice(3).map(w=>number.format(w*100)+'%').join(' / ')+'.';
-    $('#pf-result-details-title').textContent='Клиенты, тарифы и источники · '+month+'-й месяц';
     $('#pf-month').value=String(month);
     clearTimeout(statusTimer);
     statusTimer=setTimeout(()=>{$('#pf-live').textContent='Расчёт обновлён. '+month+'-й месяц: '+money(current.reward)+'.';},400);
@@ -271,6 +253,7 @@
     const applied=get(path);
     // Keep a clamped value visible immediately, but do not interrupt a valid edit.
     if(applied!==entered)el.value=String(applied);
+    if(path.startsWith('frequency.'))filterChannels();
     renderResults();
   });
   root.addEventListener('change',event=>{
@@ -310,6 +293,9 @@
   });
   root.addEventListener('click',event=>{
     const button=event.target.closest('button,a');if(!button)return;
+    if(button.id==='pf-select-matching'){
+      settings=M.selectMatchingChannels(settings);$('#pf-channel-filter').value='matching';syncControls();renderResults();return;
+    }
     if(button.id==='pf-mode-toggle'){setMobileMode(!mobileExpanded);return;}
     if(button.id==='pf-format-menu-toggle'){
       formatMenuOpen=!formatMenuOpen;renderControls();setTab('content');if(formatMenuOpen)$('#pf-format-name')?.focus();return;
@@ -339,9 +325,9 @@
       const channelId=button.dataset.channelFormatSave,channel=channels().find(c=>c.id===channelId),name=$(`[data-channel-format-name="${channelId}"]`)?.value.trim();
       if(!channel||!name){$(`[data-channel-format-name="${channelId}"]`)?.focus();return;}
       if(settings.customFormats.length>=15){$('#pf-live').textContent='Можно добавить до 15 собственных форматов.';return;}
-      const id=newId('format-'),minutes=Number($(`[data-channel-format-time="${channelId}"]`)?.value)||30,count=Number($(`[data-channel-format-count="${channelId}"]`)?.value)||0,base=channelFormatBase(channel);
-      settings.customFormats.push({id,name,base,channelId,minutes});
-      settings.frequency[id]=count;settings.minutes[id]=minutes;
+      const id=newId('format-'),count=Number($(`[data-channel-format-count="${channelId}"]`)?.value)||0,base=channelFormatBase(channel);
+      settings.customFormats.push({id,name,base,channelId});
+      settings.frequency[id]=count;
       settings.channels[channelId].formats=[...new Set([...settings.channels[channelId].formats,id])];
       const customChannel=settings.customChannels.find(c=>c.id===channelId);
       if(customChannel)customChannel.formats=[...new Set([...(customChannel.formats||[]),id])];
@@ -373,8 +359,8 @@
       const name=$('#pf-format-name').value.trim();if(!name){$('#pf-format-name').focus();return;}
       if(settings.customFormats.length>=15){$('#pf-live').textContent='Можно добавить до 15 собственных форматов.';return;}
       const id=newId('format-'),base='post';
-      settings.customFormats.push({id,name,base,minutes:Number($('#pf-format-time').value)||30});
-      settings.frequency[id]=Number($('#pf-format-count').value)||0;settings.minutes[id]=Number($('#pf-format-time').value)||30;
+      settings.customFormats.push({id,name,base});
+      settings.frequency[id]=Number($('#pf-format-count').value)||0;
       channels().forEach(c=>{if(c.formats.includes(base)&&settings.channels[c.id].formats.length)settings.channels[c.id].formats.push(id);});
       settings=M.normalize(settings);formatMenuOpen=false;renderControls();setTab('content');renderResults();return;
     }
@@ -383,15 +369,10 @@
       if(M.FORMATS.some(f=>f.id===id))settings.removedFormats.push(id);else settings.customFormats=settings.customFormats.filter(f=>f.id!==id);
       settings=M.normalize(settings);renderControls();setTab('content');renderResults();return;
     }
-    if(button.id==='pf-fit'){settings=M.fitBudget(settings);syncControls();renderResults();return;}
     if(button.id==='pf-reset'){
       const event=new CustomEvent('syntolk-calculator-create-scenario',{bubbles:true,cancelable:true});
       if(!root.dispatchEvent(event))return;
       resetScenario();return;
-    }
-    if(button.id==='pf-export'){
-      const blob=new Blob([M.csv(settings)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');
-      link.href=url;link.download='Syntolk-partner-scenario.csv';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     }
   });
   root.addEventListener('keydown',event=>{
@@ -406,7 +387,6 @@
     }
   });
   renderControls();setTab(tab);setMobileMode(false);renderResults();
-  $('.pf-under>.pf-details').classList.add('pf-full-only');
   mobileQuery?.addEventListener?.('change',()=>{
     if(mobileQuery.matches&&!mobileExpanded)setTab('content');
     updateMobileTitle();

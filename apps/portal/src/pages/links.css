@@ -1,0 +1,5 @@
+.links-disclosure>summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;padding:12px 16px;color:#e6e8eb;font-size:14px;font-weight:600;line-height:1.25}
+.links-disclosure>summary::-webkit-details-marker{display:none}
+.links-disclosure>summary::before{content:'+';width:14px;color:var(--op-accent,#2dd4bf);font-size:17px;font-weight:400;text-align:center}
+.links-disclosure[open]>summary::before{content:'−'}
+.links-disclosure__body{padding:0 12px 12px}

@@ -73,6 +73,7 @@ async function createDailyFixture(value: Partial<CoachProfile> = {}) {
 beforeAll(async () => { await db.raw('select 1'); });
 
 beforeEach(async () => {
+  await db('Config').where({tenantId,key:'coach_openrouter'}).del();
   for (const table of [...COACH_TABLES].reverse()) await db(table).where({ tenantId }).del();
   await db('Config').where({ tenantId, key: 'coach_behavior' }).del();
   await db('Config').where({ tenantId }).where('key', 'like', 'coach_partner_directives:%').del();

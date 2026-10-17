@@ -231,6 +231,7 @@ function pinnedLookup(expectedHost: string, pin: Pin) {
 }
 
 export interface SafeFetchInit {
+  expectedJson?:Record<string,string|boolean>;
   method?: string;
   headers?: Record<string, string>;
   body?: string;
@@ -250,7 +251,7 @@ export interface SafeFetchResult {
  * Validate + resolve + pin, then fetch. Throws OutboundBlockedError (with a
  * stable code) for policy violations before any socket opens; propagates
  * genuine network errors from the request itself. Never follows redirects.
- * The response body is never read — callers only use status.
+ * The body is read only for a bounded, exact JSON probe; normal deliveries use status.
  */
 export async function safeFetch(
   rawUrl: string,
@@ -288,7 +289,14 @@ export async function safeFetch(
     });
     const status = res.status;
     // A 3xx (or opaque redirect status 0) is a non-delivery: we never follow.
-    return { status, ok: status >= 200 && status < 300 };
+    let matches=true;
+    if(init.expectedJson){
+      let text='',size=0;const decoder=new TextDecoder();
+      for await(const chunk of res.body??[]){size+=chunk.byteLength;if(size>16384){matches=false;break;}text+=decoder.decode(chunk,{stream:true});}
+      text+=decoder.decode();
+      try{const json=JSON.parse(text);matches=matches&&Object.entries(init.expectedJson).every(([key,value])=>json[key]===value);}catch{matches=false;}
+    }
+    return { status, ok: status >= 200 && status < 300 && matches };
   } finally {
     try {
       await res?.body?.cancel();

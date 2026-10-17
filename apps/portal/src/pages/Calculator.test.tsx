@@ -49,6 +49,31 @@ afterEach(() => {
 });
 
 describe('calculator portal integration', () => {
+  it('filters platforms by active content and explicitly selects every compatible platform',()=>{
+    render(<CalculatorPage principal={{role:'partner'}}/>);initialize(false,false);
+    fireEvent.input(screen.getByRole('spinbutton',{name:'Посты: оригиналов в неделю'}),{target:{value:'10'}});
+    expect(screen.queryByText(/Не выбраны площадки для форматов/)).toBeNull();
+    fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));
+    const visible=()=>[...document.querySelectorAll<HTMLDetailsElement>('[data-channel-group]')].filter(card=>!card.hidden).map(card=>card.dataset.channelGroup);
+    expect(visible()).toEqual(['telegram-post','vk','dzen','ok','tenchat','email']);
+    let settings=JSON.parse(document.getElementById('partner-forecast')!.dataset.currentSettings!);
+    expect(Object.values(settings.channels).some((channel:any)=>channel.enabled)).toBe(false);
+    fireEvent.click(screen.getByRole('button',{name:'Выбрать все подходящие площадки'}));
+    settings=JSON.parse(document.getElementById('partner-forecast')!.dataset.currentSettings!);
+    expect(Object.entries(settings.channels).filter(([,channel]:any)=>channel.enabled).map(([id])=>id)).toEqual(visible());
+    expect(settings.frequency.post).toBe(10);
+    expect(Object.values(settings.channels).filter((channel:any)=>channel.enabled).every((channel:any)=>channel.formats.join(',')==='post')).toBe(true);
+    expect(document.getElementById('pf-unplaced')).toBeNull();
+    fireEvent.click(screen.getByRole('tab',{name:'Контент'}));
+    fireEvent.input(screen.getByRole('spinbutton',{name:'Посты: оригиналов в неделю'}),{target:{value:'0'}});
+    fireEvent.input(screen.getByRole('spinbutton',{name:'Короткие видео: оригиналов в неделю'}),{target:{value:'2'}});
+    fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));
+    expect(visible()).toEqual(['telegram-short','vkclips','dzen','ytshorts','rutubeshorts','ok','tiktok']);
+    fireEvent.click(screen.getByRole('button',{name:'Выбрать все подходящие площадки'}));
+    settings=JSON.parse(document.getElementById('partner-forecast')!.dataset.currentSettings!);
+    expect(settings.channels.youtube.enabled).toBe(false);expect(settings.channels['telegram-post'].enabled).toBe(false);
+    expect(settings.channels.ytshorts.formats).toEqual(['short']);
+  });
   it('starts a new partner with no content, selected platforms or analytics tasks',()=>{
     render(<CalculatorPage principal={{role:'partner'}}/>);
     initialize(false,false);
@@ -58,9 +83,15 @@ describe('calculator portal integration', () => {
       const config=channel as {enabled:boolean;formats:string[]};
       return !config.enabled&&config.formats.length===0;
     })).toBe(true);
-    expect(settings.adminMinutes).toBe(0);
+    expect(settings).not.toHaveProperty('adminMinutes');
     expect(settings.registration).toBe(18);
     expect(settings.prices[0]).toBe(990);
+    expect(income()).toBe('0₽');
+    expect(document.getElementById('pf-chart-hint')!.textContent).toBe('Все месяцы — 0 ₽');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Месяц' }), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('Период прогноза'), { target: { value: '3' } });
+    expect(document.querySelectorAll('#pf-chart button')).toHaveLength(3);
+    expect(document.querySelector('#pf-chart .pf-active-month')?.getAttribute('data-month')).toBe('3');
     expect(income()).toBe('0₽');
     expect(screen.getByRole('button',{name:'Создать сценарий'})).toBeTruthy();
   });
@@ -72,7 +103,7 @@ describe('calculator portal integration', () => {
     const original=JSON.parse(root.dataset.currentSettings!);
     original.registration=23;original.paidConversion=7;original.tail.post=17;original.prices[0]=1234;
     original.customFormats=[{id:'format-own',name:'Мой формат',base:'post',minutes:12}];
-    original.frequency['format-own']=2;original.minutes['format-own']=12;original.tail['format-own']=9;
+    original.frequency['format-own']=2;original.tail['format-own']=9;
     original.channels['telegram-post'].formats.push('format-own');
     root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{settings:original}}));
     const before=JSON.parse(root.dataset.currentSettings!);
@@ -84,8 +115,8 @@ describe('calculator portal integration', () => {
       const config=channel as {enabled:boolean;formats:string[]};
       return !config.enabled&&config.formats.length===0;
     })).toBe(true);
-    expect(cleared.adminMinutes).toBe(0);
-    for(const field of ['registration','paidConversion','prices','mix','tail','growth','personalRetention','businessRetention','customFormats','minutes'])expect(cleared[field]).toEqual(before[field]);
+    expect(cleared).not.toHaveProperty('adminMinutes');
+    for(const field of ['registration','paidConversion','prices','mix','tail','growth','personalRetention','businessRetention','customFormats'])expect(cleared[field]).toEqual(before[field]);
     expect(income()).toBe('0₽');
     cleanup();
     render(<CalculatorPage principal={{role:'partner'}}/>);
@@ -202,6 +233,7 @@ describe('calculator portal integration', () => {
   it('keeps edited content and nested platform settings open after rebuilding controls', () => {
     render(<CalculatorPage principal={{ role: 'partner' }} />);
     initialize();
+    expect(screen.queryByText('Настроить')).toBeNull();
     document.querySelector<HTMLDetailsElement>('#pf-format-settings-post')!.open = true;
     fireEvent.change(screen.getByLabelText('Название формата Посты'), { target: { value: 'Посты для канала' } });
     expect(document.querySelector<HTMLDetailsElement>('#pf-format-settings-post')!.open).toBe(true);
@@ -239,8 +271,8 @@ describe('calculator portal integration', () => {
     expect(document.getElementById('pf-clicks')!.textContent).toBe('200');
     expect(document.getElementById('pf-signups')!.textContent).toBe('28');
     expect(document.getElementById('pf-paid')!.textContent).toBe('3');
-    expect(document.getElementById('pf-new-personal')!.textContent).toBe('2,7');
-    expect(document.getElementById('pf-new-business')!.textContent).toBe('0,3');
+    expect(document.getElementById('pf-result-details-title')).toBeNull();
+    expect(document.getElementById('pf-monthly-output')).toBeNull();
     const delay = screen.getByLabelText(/^Доля первых оплат на следующий месяц/) as HTMLInputElement;
     expect(delay.disabled).toBe(true);
     fireEvent.click(screen.getByLabelText('Учитывать перенос первой оплаты'));
@@ -267,7 +299,7 @@ describe('calculator portal integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Добавить свой формат для Telegram — Посты' }));
     fireEvent.input(screen.getByRole('textbox', { name: 'Название формата' }), { target: { value: 'Сообщение в группе' } });
     fireEvent.input(screen.getByRole('spinbutton', { name: 'Материалов в неделю' }), { target: { value: '2' } });
-    fireEvent.input(screen.getByRole('spinbutton', { name: 'Минут на материал' }), { target: { value: '8' } });
+    expect(screen.queryByRole('spinbutton', { name: 'Минут на материал' })).toBeNull();
     const before = income();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить формат' }));
 
@@ -275,7 +307,7 @@ describe('calculator portal integration', () => {
     const custom = saved.settings.customFormats[0];
     expect(custom.channelId).toBe('telegram-post');
     expect(saved.settings.frequency[custom.id]).toBe(2);
-    expect(saved.settings.minutes[custom.id]).toBe(8);
+    expect(saved.settings).not.toHaveProperty('minutes');
     expect(saved.settings.channels['telegram-post'].formats).toContain(custom.id);
     expect(saved.settings.channels.youtube.formats).not.toContain(custom.id);
     expect(income()).not.toBe(before);
@@ -343,7 +375,7 @@ describe('calculator portal integration', () => {
     fireEvent.click(document.getElementById('pf-add-format')!);
     const settings=JSON.parse(document.getElementById('partner-forecast')!.dataset.currentSettings!);
     const id=settings.customFormats[0].id;
-    expect(settings.frequency[id]).toBe(1);expect(settings.minutes[id]).toBe(30);
+    expect(settings.frequency[id]).toBe(1);expect(settings).not.toHaveProperty('minutes');
     expect(settings.channels['telegram-post'].formats).toContain(id);expect(income()).not.toBe(before);
     cleanup();render(<CalculatorPage principal={{role:'partner'}}/>);initialize();
     expect(screen.getByRole('spinbutton',{name:'Прямой эфир: оригиналов в неделю'})).toBeTruthy();
@@ -369,8 +401,17 @@ describe('calculator portal integration', () => {
     expect(document.querySelector('[data-channel="vkclips"]')).toBeTruthy();
   });
 
-  it('changes forecast horizon and exported months without changing the baseline formula',()=>{
+  it('changes forecast horizon without changing the baseline formula',()=>{
     render(<CalculatorPage principal={{role:'partner'}}/>);initialize();
+    const barHeights = () => [...document.querySelectorAll<HTMLElement>('#pf-chart .pf-chart-track > span')].map(bar=>bar.style.getPropertyValue('--pf-bar'));
+    const initialHeights=barHeights();
+    expect(initialHeights.every(height=>Number.parseFloat(height)>0)).toBe(true);
+    fireEvent.change(screen.getByRole('combobox',{name:'Месяц'}),{target:{value:'12'}});
+    fireEvent.change(screen.getByRole('combobox',{name:'Месяц'}),{target:{value:'3'}});
+    expect(barHeights()).toEqual(initialHeights);
+    fireEvent.change(screen.getByLabelText('Период прогноза'),{target:{value:'3'}});
+    expect(barHeights()).toHaveLength(3);
+    expect(barHeights().every(height=>Number.parseFloat(height)>0)).toBe(true);
     fireEvent.change(screen.getByLabelText('Период прогноза'),{target:{value:'1'}});
     expect(document.querySelectorAll('#pf-chart [data-month]')).toHaveLength(1);
     expect(document.getElementById('pf-total-label')!.textContent).toBe('Всего за 1 мес.');

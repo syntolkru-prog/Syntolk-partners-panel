@@ -30,6 +30,7 @@ import {
   Bot,
   ListTodo,
   ChartNoAxesCombined,
+  MessageSquare,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { clearApiKey, api, type Principal } from './api.js';
@@ -39,6 +40,7 @@ import { useIsMobile } from './lib/useMediaQuery.js';
 import { useBrand, usePublicBrand } from './lib/useBrand.js';
 import { Dashboard } from './pages/Dashboard.js';
 import { LinksPage } from './pages/Links.js';
+import { MessagesPage, MessageUnread, PartnerMessages } from './pages/Messages.js';
 import { ResourcesPage } from './pages/Resources.js';
 import { CoachPage } from './pages/coach/Coach.js';
 import { CalculatorWork } from './pages/coach/CalculatorWork.js';
@@ -251,6 +253,7 @@ function Shell() {
 
           <Route path="links" element={<LinksPage principal={auth.principal} />} />
           <Route path="resources" element={<ResourcesPage />} />
+          {auth.principal.role === 'partner' && <Route path="messages" element={<MessagesPage principal={auth.principal} />} />}
           {auth.principal.role === 'partner' && <Route path="coach" element={<Navigate to="/plan" replace />} />}
           {auth.principal.role === 'partner' && <Route path="plan" element={<CalculatorWork partnerId={auth.principal.partnerId!} />} />}
           {auth.principal.role === 'partner' && <Route path="results" element={<CalculatorWork partnerId={auth.principal.partnerId!} view="results" />} />}
@@ -286,6 +289,7 @@ function Shell() {
           {auth.principal.role === 'admin' && (
             <>
               <Route path="admin/partners" element={<AdminPartners />} />
+              <Route path="admin/messages" element={<MessagesPage principal={auth.principal} />} />
               <Route path="admin/partners/:id" element={<AdminPartnerDetail />} />
               <Route path="admin/partners/:id/programs" element={<AdminPartnerPrograms />} />
               <Route path="admin/partners/:id/coupons" element={<AdminPartnerCoupons />} />
@@ -317,6 +321,7 @@ function Shell() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      {auth.principal.role === 'partner' && !location.pathname.endsWith('/messages') && <PartnerMessages key={auth.principal.partnerId} principal={auth.principal} />}
     </div>
   );
 }
@@ -447,6 +452,7 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
           {principal.role === 'partner' && <NavItem to="/plan" icon={<ListTodo size={16} />}>Календарь работ</NavItem>}
           {principal.role === 'partner' && <NavItem to="/results" icon={<ChartNoAxesCombined size={16} />}>Результаты</NavItem>}
           <NavItem to="/links" icon={<Link2 size={16} />}>Ссылки</NavItem>
+          {principal.role === 'admin' && <NavItem to="/admin/messages" icon={<MessageSquare size={16} />}>Сообщения <MessageUnread principal={principal} /></NavItem>}
           {principal.role === 'partner' && <NavItem to="/resources" icon={<Megaphone size={16} />}>Материалы</NavItem>}
           <NavItem to="/commissions" icon={<Receipt size={16} />}>Комиссии</NavItem>
           <NavItem to="/payouts" icon={<Banknote size={16} />}>Выплаты</NavItem>

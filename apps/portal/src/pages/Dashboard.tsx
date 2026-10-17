@@ -56,25 +56,16 @@ interface Funnel {
 }
 
 function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string }) {
-  const tenantBase = useTenantBase();
   const { programTermsUrl } = useBrand();
   const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'all'>('30d');
-  const since = period === 'today'
-    ? new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
-    : period === '7d'
-      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      : period === 'all' ? '2000-01-01T00:00:00.000Z' : undefined;
   const { data, error, isLoading } = useQuery({
     queryKey: ['dashboard', partnerId, period],
-    queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard${since ? `?since=${encodeURIComponent(since)}` : ''}`),
+    queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard?period=${period}`),
   });
   const funnel = useQuery({
-    queryKey: ['funnel', partnerId],
-    queryFn: () => api<Funnel>(`/partners/${partnerId}/funnel`),
+    queryKey: ['funnel', partnerId, period],
+    queryFn: () => api<Funnel>(`/partners/${partnerId}/funnel?period=${period}`),
   });
-  const coach = useQuery({queryKey:['coach-home-gate',partnerId],queryFn:()=>api<{programs:Array<{id:string}>}>('/coach/me'),staleTime:30000});
-  const coachProgramId=coach.data?.programs?.[0]?.id??'';
-  const calendar=useQuery({queryKey:['coach-home-calendar',partnerId,coachProgramId],queryFn:()=>api<{plan:unknown|null}>(`/coach/me/calculator-plan?programId=${encodeURIComponent(coachProgramId)}`),enabled:!!coachProgramId,staleTime:30000});
   const profile = useQuery({
     queryKey: ['partner-profile', partnerId],
     queryFn: () => api<PartnerProfile>(`/partners/${partnerId}`),
@@ -87,14 +78,12 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
     onSuccess: () => profile.refetch(),
   });
 
-  if(coach.isLoading||(coachProgramId&&calendar.isLoading))return <Page title="Партнёрский кабинет"><Card>Загружаем ваш сценарий…</Card></Page>;
-
   return (
     <Page
       title={`Здравствуйте, ${name.split(' ')[0] || 'партнёр'}`}
       subtitle="Партнёрская статистика Syntolk"
       actions={
-        <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ padding: '8px 10px', borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text }}>
+        <select aria-label="Период статистики" value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ padding: '8px 10px', borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text }}>
           <option value="today">Сегодня</option>
           <option value="7d">7 дней</option>
           <option value="30d">30 дней</option>
@@ -102,7 +91,7 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
         </select>
       }
     >
-      <ErrorBanner error={error} />
+      <ErrorBanner error={error ?? funnel.error} />
       <CoachDay partnerId={partnerId} />
       {!profile.isLoading && profile.data && !profile.data.termsAcceptedAt && (
         <Card style={{ marginBottom: 14, borderColor: `${theme.warn}66`, background: theme.warnSoft }}>

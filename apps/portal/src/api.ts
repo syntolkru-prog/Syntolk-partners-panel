@@ -34,10 +34,10 @@ export function currentTenantSlug(): string | null {
   return m ? m[1]! : null;
 }
 
-export async function api<T = unknown>(
+async function apiResponse(
   path: string,
   init: Omit<RequestInit, 'body'> & { body?: unknown } = {},
-): Promise<T> {
+): Promise<Response> {
   const key = getApiKey();
   const headers = new Headers(init.headers);
   if (key && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${key}`);
@@ -84,7 +84,15 @@ export async function api<T = unknown>(
     // as a bare "500" or "400" — useless when triaging.
     throw new ApiError(res.status, friendlyMessage(res, detail), detail);
   }
-  return res.json() as Promise<T>;
+  return res;
+}
+
+export async function api<T = unknown>(path: string, init: Omit<RequestInit, 'body'> & { body?: unknown } = {}): Promise<T> {
+  return (await apiResponse(path, init)).json() as Promise<T>;
+}
+
+export async function apiBlob(path: string): Promise<Blob> {
+  return (await apiResponse(path)).blob();
 }
 
 function friendlyMessage(res: Response, detail: unknown): string {

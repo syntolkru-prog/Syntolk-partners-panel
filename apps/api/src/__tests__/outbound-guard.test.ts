@@ -123,8 +123,10 @@ describe('safeFetch against a live server', () => {
 
   beforeAll(async () => {
     await new Promise<void>((resolve) => {
-      server = createServer((_req, res) => {
+      server = createServer((req, res) => {
         hits += 1;
+        if(req.url==='/probe')return void res.end(JSON.stringify({service:'router',proof:'signed-response'}));
+        if(req.url==='/oversized')return void res.end(JSON.stringify({service:'router',padding:'x'.repeat(20000)}));
         res.statusCode = 204;
         res.end();
       });
@@ -158,6 +160,14 @@ describe('safeFetch against a live server', () => {
     expect(res.status).toBe(204);
     expect(res.ok).toBe(true); // 204 is within 200–299
     expect(hits).toBe(before + 1);
+  });
+
+  it('requires exact bounded JSON for router probes, not just HTTP 200',async()=>{
+    const ipaddr=(await import('ipaddr.js')).default;
+    const policy={allowedPorts:null,privateCidrs:[ipaddr.parseCIDR('127.0.0.1/32')]};
+    expect((await safeFetch(`http://127.0.0.1:${port}/probe`,{expectedJson:{service:'router',proof:'signed-response'}},policy)).ok).toBe(true);
+    expect((await safeFetch(`http://127.0.0.1:${port}/probe`,{expectedJson:{service:'router',proof:'forged-response'}},policy)).ok).toBe(false);
+    expect((await safeFetch(`http://127.0.0.1:${port}/oversized`,{expectedJson:{service:'router'}},policy)).ok).toBe(false);
   });
 
   it('trust split: admin honors the escape hatch, partner does NOT', async () => {

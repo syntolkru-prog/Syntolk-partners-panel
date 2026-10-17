@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono, type Context } from 'hono';
 import { ulid } from 'ulid';
 import { createHash } from 'node:crypto';
-import { createDb, TABLES, type LinkRow } from '@openpartner/db';
+import { createDb, TABLES, trackingSourceForClick, type LinkRow } from '@openpartner/db';
 import { checkIpCap, checkVelocity } from './velocity.js';
 import './env.js';
 
@@ -151,6 +151,7 @@ async function resolveLink(c: Context, link: LinkRow | undefined) {
   // on source/medium/campaign in the analytics UI today.
   const inbound = new URL(c.req.url, 'http://placeholder');
   const utm = extractUtm(inbound.searchParams);
+  const trackingSourceId = await trackingSourceForClick(db, link, utm);
   // Cloudflare populates cf-ipcountry on every request when the router
   // sits behind their proxy. Free on every CF plan; null when the
   // router is hit directly (dev, self-host without CF in front).
@@ -163,6 +164,7 @@ async function resolveLink(c: Context, link: LinkRow | undefined) {
     // the privileged pool, so nothing else stamps it.
     tenantId: link.tenantId,
     linkId: link.id,
+    trackingSourceId,
     partnerId: link.partnerId,
     programId: link.programId,
     landingUrl: destination.toString(),

@@ -28,9 +28,9 @@
   display: none;
 }
 
-.calculator-page .pf-section :is(.pf-toolbar, .pf-under, .pf-mode-bar,
+.calculator-page .pf-section :is(.pf-toolbar, .pf-mode-bar,
   .pf-format-row, .pf-details, .pf-year-totals, .pf-chart, .pf-chart-track,
-  .pf-channel, .pf-table th, .pf-table td, .pf-tabs) {
+  .pf-channel, .pf-tabs) {
   border-color: var(--pf-border);
 }
 
@@ -93,19 +93,16 @@
 }
 
 .calculator-page .pf-section :is(.pf-field, .pf-format-row label,
-  .pf-check, .pf-details > summary, .pf-result .pf-details > summary,
-  .pf-result h4, .pf-repeat-labels strong, .pf-extra-metrics strong,
-  .pf-result .pf-table) {
+  .pf-check, .pf-details > summary, .pf-repeat-labels strong) {
   color: var(--pf-text);
 }
 
 .calculator-page .pf-section :is(.pf-help, .pf-field small, .pf-input-wrap > span,
-  .pf-budget > span, .pf-row-head, .pf-format-row label small,
+  .pf-row-head, .pf-format-row label small,
   .pf-platform-tools > span, .pf-channel-summary, .pf-plan-head,
-  .pf-segment-label, .pf-work span, .pf-method, .pf-scenario-note,
+  .pf-segment-label, .pf-work span, .pf-scenario-note,
   .pf-income-top p, .pf-month-select, .pf-income-range, .pf-year-totals span,
   .pf-chart-caption, .pf-chart-month, .pf-funnel span, .pf-repeat-labels,
-  .pf-extra-metrics div, .pf-table thead th, .pf-table th small,
   .pf-quick-scenario, .pf-quick-disclaimer) {
   color: var(--pf-muted);
 }
@@ -167,7 +164,7 @@
   accent-color: var(--pf-accent);
 }
 
-.calculator-page .pf-section :is(.pf-help a, .pf-method a,
+.calculator-page .pf-section :is(.pf-help a,
   .pf-is-selected .pf-channel-summary) {
   color: var(--pf-accent);
 }
@@ -255,11 +252,6 @@
   border-color: var(--pf-border);
 }
 
-.calculator-page .pf-section :is(.pf-work.pf-over-budget, .pf-fit) {
-  background: var(--pf-warning-soft);
-  border-color: var(--pf-warning);
-  color: var(--pf-warning);
-}
 
 .calculator-page .pf-section .pf-warning {
   color: var(--pf-warning);
@@ -315,34 +307,11 @@
   transition: background .15s, border-color .15s, color .15s;
 }
 
-.calculator-page .pf-section .pf-export {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  margin-left: auto;
-  padding: 2px 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--pf-muted);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.35;
-  box-shadow: none;
-  white-space: nowrap;
-  text-decoration: none;
-}
-
-.calculator-page .pf-section .pf-result-footer {
-  justify-content: flex-start;
-  margin-top: 2px;
-}
-
 .calculator-page .pf-section .pf-toolbar-actions {
   gap: 8px;
 }
 
-.calculator-page .pf-section :is(.pf-channel-list, .pf-table-scroll) {
+.calculator-page .pf-section .pf-channel-list {
   scrollbar-color: var(--pf-border) transparent;
 }
 
@@ -352,7 +321,7 @@
 .calculator-page .pf-format-edit { display:block; margin:0; padding:0; }
 .calculator-page .pf-section .pf-format-edit > summary { justify-content:flex-start; min-height:48px; padding:5px 84px 5px 0; color:var(--pf-text); font-size:13px; }
 .calculator-page .pf-format-title { min-width:0; overflow-wrap:anywhere; }
-.calculator-page .pf-format-action { flex-shrink:0; font-size:12px; color:var(--pf-muted); }
+.calculator-page .pf-section .pf-format-edit > summary::after,.calculator-page .pf-section .pf-format-edit[open] > summary::after { content:'⋯'; color:var(--pf-muted); font-size:18px; }
 .calculator-page .pf-section .pf-format-frequency { position:absolute; top:5px; right:0; width:72px; text-align:center; }
 .calculator-page .pf-format-edit-body { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:end; gap:10px; padding:8px 0 12px; }
 .calculator-page .pf-format-edit-body > .pf-remove-platform { grid-column:1/-1; justify-self:start; margin:0; }
@@ -396,11 +365,6 @@
     color: var(--pf-accent);
     text-decoration: none;
   }
-  .calculator-page .pf-section .pf-export:hover {
-    background: transparent;
-    color: var(--pf-accent);
-    text-decoration: none;
-  }
   .calculator-page .pf-section .pf-tab:hover {
     color: var(--pf-accent);
   }
@@ -427,7 +391,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .calculator-page .pf-section :is(summary, .pf-text-button, .pf-export, .pf-mode-toggle),
+  .calculator-page .pf-section :is(summary, .pf-text-button, .pf-mode-toggle),
   .calculator-page .calculator-preview > summary {
     transition: none;
   }

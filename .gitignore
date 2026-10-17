@@ -14,6 +14,7 @@ build
 .vscode/*
 !.vscode/settings.json
 coverage
+/outputs/
 .nyc_output
 .claude/settings.local.json
 *.tsbuildinfo

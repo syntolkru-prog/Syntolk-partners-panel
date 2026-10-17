@@ -10,6 +10,9 @@ import {calculateCoachForecast} from '../forecast-adapter.js';
 import {calculatorSchedule,CALCULATOR_PLAN_SOURCE} from '../calculator-plan.js';
 import {localDay} from '../daily-plan.js';
 import {buildCoachContext} from '../context.js';
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {runInNewContext} from 'node:vm';
 assertIsolatedCoachDatabase(process.env.DATABASE_URL!,process.env.COACH_WORKING_DB);
 const app=createApp({enableLogger:false});
 let partnerId:string,otherId:string,programId:string,key:string,settings:Record<string,unknown>;
@@ -32,6 +35,18 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await db.destroy();await appDb.destroy();});
 describe('calculator is the sole work-plan source',()=>{
+ it('saves ten posts per week on all matching platforms as one calendar with forty materials',async()=>{
+  const context={SyntolkForecast:undefined as unknown as {selectMatchingChannels:(input:Record<string,unknown>)=>Record<string,unknown>}};
+  runInNewContext(readFileSync(resolve('../../apps/portal/public/calculator/forecast-model.js'),'utf8'),context);
+  settings=context.SyntolkForecast.selectMatchingChannels({...settings,frequency:{post:10,short:0,long:0,article:0,circle:0}});
+  const preview=await post('/coach/me/calculator-plan/preview',{programId,settings,startDate:day(),days:28,weekdays:[1,2,3,4,5]});
+  expect(preview.status,preview.text).toBe(200);expect(preview.body.originals).toBe(40);expect(preview.body.placements).toBe(240);
+  const saved=await post('/coach/me/calculator-plan',{programId,snapshotId:await save(),startDate:day(),days:28,weekdays:[1,2,3,4,5],requestId:ulid()});
+  expect(saved.status,saved.text).toBe(201);
+  const calendar=await get(`/coach/me/calculator-plan?programId=${programId}`);
+  expect(calendar.body.tasks).toHaveLength(40);
+  expect(calendar.body.tasks.every((task:{data:{format:string;placements:unknown[]}})=>task.data.format==='post'&&task.data.placements.length===6)).toBe(true);
+ });
  it('excludes a disabled source even when its format checkbox is retained',async()=>{
   const configured=structuredClone(settings);
   const channels=configured.channels as Record<string,{enabled:boolean;formats:string[]}>;
@@ -39,7 +54,7 @@ describe('calculator is the sole work-plan source',()=>{
   const result=await calculatorSchedule(configured,day(),7,[1,2,3,4,5]);
   expect(result.tasks.filter(t=>t.kind==='content')).toHaveLength(2);
   expect(result.tasks.every(t=>t.placements.length===1&&t.placements[0]!.id==='ytshorts')).toBe(true);
-  expect(result.tasks.reduce((sum,t)=>sum+t.minutes,0)).toBe(result.forecast.workload.minutes);
+  expect(result.tasks.every(task=>!('minutes' in task))).toBe(true);
   expect(result.tasks.reduce((sum,t)=>sum+t.estimatedViews,0)).toBe(2400);
   channels.ytshorts!.enabled=false;
   await expect(calculatorSchedule(configured,day(),7,[1,2,3,4,5])).rejects.toMatchObject({code:'calculator_unplaced'});
@@ -68,7 +83,7 @@ describe('calculator is the sole work-plan source',()=>{
   expect(result.tasks.filter(t=>t.kind==='content')).toHaveLength(2);expect(result.tasks.flatMap(t=>t.placements)).toHaveLength(4);
   expect(result.tasks.filter(t=>t.kind==='content').every(t=>t.placements.length===2&&t.estimatedViews>0)).toBe(true);
   expect(new Set(result.tasks.map(t=>t.format))).toEqual(new Set(['short']));
-  expect(result.tasks.reduce((n,t)=>n+t.minutes,0)).toBe(result.forecast.workload.minutes);
+  expect(result.tasks.every(task=>!('minutes' in task))).toBe(true);
  });
  it('includes a partner-created platform in forecasts, tasks, tips and links',async()=>{
   const customId='custom-my-community';
@@ -82,13 +97,13 @@ describe('calculator is the sole work-plan source',()=>{
   const r=await calculatorSchedule(s,day(),28,[1,3,5]);expect(r.tasks.filter(t=>t.kind==='content')).toHaveLength(1);
   expect(r.tasks.every(t=>[1,3,5].includes(new Date(t.day).getUTCDay()))).toBe(true);
  });
- it('rejects an empty or over-budget calculator rather than silently inventing tasks',async()=>{
-  await expect(calculatorSchedule({...settings,budgetHours:0},day(),7,[0,1,2,3,4,5,6])).rejects.toMatchObject({code:'calculator_over_budget'});
+ it('ignores obsolete time budgets and rejects an empty calculator',async()=>{
+  expect((await calculatorSchedule({...settings,budgetHours:0,adminMinutes:70},day(),7,[0,1,2,3,4,5,6])).tasks).toHaveLength(2);
   await expect(calculatorSchedule({...settings,frequency:{post:0,short:0,long:0,article:0,circle:0}},day(),7,[0,1,2,3,4,5,6])).rejects.toMatchObject({code:'calculator_empty'});
  });
  it('saves a real calendar without auto-created links and without AI or money side effects',async()=>{
   const response=await build();expect(response.status,response.text).toBe(201);
-  expect(response.body.plan.data).toMatchObject({source:CALCULATOR_PLAN_SOURCE,originals:2,placements:4,plannedMinutes:42});
+  expect(response.body.plan.data).toMatchObject({source:CALCULATOR_PLAN_SOURCE,originals:2,placements:4});
   const view=await get(`/coach/me/calculator-plan?programId=${programId}`);expect(view.status).toBe(200);expect(view.body.tasks).toHaveLength(2);expect(view.body.tasks.flatMap((t:{links:unknown[]})=>t.links)).toHaveLength(0);
   const context=await buildCoachContext(db,tenantId,partnerId,programId);expect(context.activePlan).toMatchObject({source:CALCULATOR_PLAN_SOURCE,originals:2});expect(context.currentTasks).toHaveLength(2);
   expect(Number((await db('CoachRun').where({partnerId}).count({n:'*'}).first())!.n)).toBe(0);
@@ -159,8 +174,19 @@ describe('calculator is the sole work-plan source',()=>{
   expect((await build({replacePlanId:first.body.plan.id,replaceVersion:first.body.plan.version})).status).toBe(201);
   expect(Number((await db('Link').where({partnerId,programId}).count({n:'*'}).first())!.n)).toBe(0);
  });
- it('scales analytics time for a partial week and validates real dates',async()=>{
-  const r=await calculatorSchedule({...settings,adminMinutes:70},day(),3,[0,1,2,3,4,5,6]);expect(r.tasks.filter(t=>t.kind==='analytics').reduce((s,t)=>s+t.minutes,0)).toBe(30);
+ it('preserves a named material without links when rebuilding its calendar',async()=>{
+  const first=await build(),task=await db('CoachTask').where({planId:first.body.plan.id}).first();
+  const renamed=await request(app).patch(`/partners/${partnerId}/materials/${task.id}`).set('Authorization',`Bearer ${key}`).send({title:'Мой обзор Syntolk'});
+  expect(renamed.status,renamed.text).toBe(200);
+  const view=await get(`/coach/me/calculator-plan?programId=${programId}`);
+  expect(view.body.tasks.find((t:{id:string})=>t.id===task.id).data.title).toBe('Мой обзор Syntolk');
+  expect((await build({replacePlanId:first.body.plan.id,replaceVersion:first.body.plan.version})).status).toBe(201);
+  expect((await db('PartnerMaterial').where({id:task.id,partnerId}).first()).archivedAt).toBeNull();
+  expect(await db('PartnerLinkSource').where({partnerId})).toHaveLength(0);
+ });
+ it('omits obsolete analytics-time tasks for a partial week and validates real dates',async()=>{
+  await expect(calculatorSchedule({...settings,adminMinutes:70},day(),3,[0,1,2,3,4,5,6])).rejects.toMatchObject({code:'no_calendar_work'});
+  const r=await calculatorSchedule({...settings,adminMinutes:70,frequency:{...(settings.frequency as Record<string,number>),short:7}},day(),3,[0,1,2,3,4,5,6]);expect(r.tasks).toHaveLength(3);expect(r.tasks.every(t=>t.kind==='content')).toBe(true);
   expect((await build({startDate:'2026-02-30'})).status).toBe(422);
   expect((await build({startDate:'2000-01-01'})).body.error).toBe('calendar_date');
  });

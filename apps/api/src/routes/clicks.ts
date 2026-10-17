@@ -18,7 +18,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { TABLES, type ClickRow, type LinkRow } from '@openpartner/db';
+import { TABLES, trackingSourceForClick, type ClickRow, type LinkRow } from '@openpartner/db';
 import { grantScope, requireAdmin, requireAuth } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
 
@@ -65,11 +65,17 @@ clicksRouter.post('/clicks', requireAuth, grantScope('clicks:write'), requireAdm
   const link = await db<LinkRow>(TABLES.Link).where({ linkKey: body.data.linkKey }).first();
   if (!link) return res.status(404).json({ error: 'link_not_found' });
 
+  const trackingSourceId = await trackingSourceForClick(db, link, {
+    campaign: body.data.utmCampaign, source: body.data.utmSource,
+    medium: body.data.utmMedium, content: body.data.utmContent,
+  });
+
   try {
     await db<ClickRow>(TABLES.Click).insert({
       id: body.data.id,
       tenantId,
       linkId: link.id,
+      trackingSourceId,
       partnerId: link.partnerId,
       programId: link.programId,
       landingUrl: body.data.landingUrl,

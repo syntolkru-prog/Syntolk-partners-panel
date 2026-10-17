@@ -138,7 +138,7 @@ export async function scheduleCoachReminders(): Promise<void> {
       const recent = await trx('CoachNotification').where({ tenantId: row.tenantId, partnerId: row.partnerId }).where('dedupeKey', 'like', 'reminder:%').where('createdAt', '>', new Date(Date.now() - 7*86400000)).count({ count: '*' }).first();
       if (Number(recent?.count ?? 0) >= 3) return;
       const day = new Intl.DateTimeFormat('en-CA', { timeZone: profile.data.timezone }).format(new Date());
-      await trx('CoachNotification').insert({ id: ulid(), tenantId: row.tenantId, partnerId: row.partnerId, programId: task.programId, status: 'unread', dedupeKey: `reminder:${day}`, data: JSON.stringify({ title: 'Готовы к короткой сессии?', body: `Задание «${task.data.title}» займёт ${task.minutes} минут. Можно начать, перенести или поставить сопровождение на паузу.` }) }).onConflict(['tenantId', 'partnerId', 'dedupeKey']).ignore();
+      await trx('CoachNotification').insert({ id: ulid(), tenantId: row.tenantId, partnerId: row.partnerId, programId: task.programId, status: 'unread', dedupeKey: `reminder:${day}`, data: JSON.stringify({ title: 'Готовы к короткой сессии?', body: `Задание «${task.data.title}» ждёт выполнения. Можно начать, перенести или поставить сопровождение на паузу.` }) }).onConflict(['tenantId', 'partnerId', 'dedupeKey']).ignore();
     });
   }
 }

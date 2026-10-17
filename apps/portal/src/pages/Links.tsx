@@ -1,33 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link2, Plus, ArrowRight, Check, Copy } from 'lucide-react';
-import { api, currentTenantSlug, type Principal } from '../api.js';
+import { api, type Principal } from '../api.js';
 import { theme } from '../theme.js';
 import { TenantLink } from '../tenant-link.js';
-import { usePublicBrand } from '../lib/useBrand.js';
+import { shareUrlBase } from '../lib/share-links.js';
 import { Avatar, Button, Card, EmptyState, ErrorBanner, Input, Label, Page, Select, Table, formatDate } from '../ui.js';
-
-/**
- * The full share URL for a link key, matching how the router resolves it:
- *   platform origin (path-based tenant) → https://app…/r/<slug>/<key>
- *   white-label custom domain           → https://portal.brand.com/r/<key>
- *   single-tenant self-host             → null (the portal origin doesn't
- *     necessarily serve /r; show the relative key and let the operator's
- *     own router URL apply)
- */
-function useShareUrlBase(): string | null {
-  const pathSlug = currentTenantSlug();
-  const { tenantSlug } = usePublicBrand();
-  const configuredRouter = (import.meta.env.VITE_ROUTER_URL as string | undefined)?.replace(/\/$/, '');
-  if (configuredRouter) return pathSlug ? `${configuredRouter}/r/${pathSlug}` : `${configuredRouter}/r`;
-  if (pathSlug) return `${window.location.origin}/r/${pathSlug}`;
-  if (tenantSlug && tenantSlug !== 'default') return `${window.location.origin}/r`;
-  if (import.meta.env.DEV) return `${window.location.origin}/r`;
-  // Self-host deployments route /r to the click router on the same public
-  // origin. A separate router hostname should be supplied with
-  // VITE_ROUTER_URL at build time.
-  return `${window.location.origin}/r`;
-}
+import './links.css';
 
 function CopyableShareLink({ linkKey, base }: { linkKey: string; base: string | null }) {
   const [copied, setCopied] = useState(false);
@@ -159,12 +138,11 @@ function AdminLinksHub() {
 function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: boolean }) {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [showArchived,setShowArchived]=useState(false);
-  const shareBase = useShareUrlBase();
+  const shareBase = shareUrlBase();
 
   const links = useQuery({
-    queryKey: ['links', partnerId,showArchived],
-    queryFn: () => api<{ links: LinkRow[];archivedCount:number }>(`/partners/${partnerId}/links${showArchived?'?archived=1':''}`),
+    queryKey: ['links', partnerId],
+    queryFn: () => api<{ links: LinkRow[];archivedCount:number }>(`/partners/${partnerId}/links?archived=1`),
   });
 
   // Partners need this too — they pick a Program when creating a link
@@ -175,13 +153,35 @@ function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: bo
     queryFn: () => api<{ programs: Program[] }>('/me/programs').catch(() => ({ programs: [] })),
   });
 
+  const allLinks=links.data?.links??[];
+  const activeLinks=allLinks.filter(link=>!link.archived);
+  const archivedLinks=allLinks.filter(link=>link.archived);
+  const renderLinksTable=(rows:LinkRow[])=><Table
+    columns={['Основная ссылка', 'Канал', 'Назначение', 'Программа', 'Создана']}
+    rows={rows.map((l) => {
+      const campaign = campaigns.data?.programs.find((c) => c.id === l.programId);
+      const dest = l.destinationUrl ?? campaign?.destinationUrl ?? '—';
+      return [
+        <CopyableShareLink linkKey={l.linkKey} base={shareBase} />,
+        <span style={{ color: theme.textMuted, fontSize: 13 }}>{l.label || l.channel || '—'}</span>,
+        <span style={{ color: theme.textMuted, fontSize: 13 }}>
+          {dest}
+          {l.destinationUrl && (
+            <span style={{ color: theme.accent, fontSize: 11, marginLeft: 8 }}>(прямая ссылка)</span>
+          )}
+        </span>,
+        <span>{campaign?.name ?? <code style={{ color: theme.textDim, fontSize: 12 }}>{l.programId.slice(0, 8)}…</code>}</span>,
+        <span style={{ color: theme.textMuted }}>{formatDate(l.createdAt, { relative: true })}</span>,
+      ];
+    })}
+  />;
   return (
     <Page
       title="Ссылки"
       subtitle={
         readOnly
           ? "Ссылки, созданные этим партнёром."
-          : "Ваши партнёрские ссылки — переход по /r/<ключ> фиксируется и учитывается в начислениях."
+          : "Постоянные ссылки — для профиля и закрепов. Ссылки материалов — в календаре и «Результатах»."
       }
       actions={
         readOnly ? undefined : (
@@ -192,7 +192,6 @@ function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: bo
       }
     >
       <ErrorBanner error={links.error} />
-      {(links.data?.archivedCount??0)>0&&<label style={{display:'flex',gap:8,alignItems:'center',marginBottom:16,color:theme.textMuted,fontSize:13}}><input type="checkbox" checked={showArchived} onChange={e=>setShowArchived(e.target.checked)}/>Показать ссылки прежних сценариев ({links.data?.archivedCount})</label>}
       {showCreate && !readOnly && (
         <CreateLink
           partnerId={partnerId}
@@ -206,32 +205,17 @@ function PartnerLinks({ partnerId, readOnly }: { partnerId: string; readOnly: bo
       )}
       {links.isLoading ? (
         <Card>Загрузка…</Card>
-      ) : (links.data?.links ?? []).length === 0 ? (
+      ) : allLinks.length === 0 ? (
         <EmptyState
           title="Ссылок пока нет"
           hint={readOnly ? 'У этого партнёра пока нет ссылок.' : 'Создайте ссылку, чтобы начать учитывать переходы.'}
           icon={<Link2 size={28} strokeWidth={1.25} />}
         />
       ) : (
-        <Table
-          columns={['Ключ', 'Канал', 'Назначение', 'Программа', 'Создана']}
-          rows={(links.data?.links ?? []).map((l) => {
-            const campaign = campaigns.data?.programs.find((c) => c.id === l.programId);
-            const dest = l.destinationUrl ?? campaign?.destinationUrl ?? '—';
-            return [
-              <CopyableShareLink linkKey={l.linkKey} base={shareBase} />,
-              <span style={{ color: theme.textMuted, fontSize: 13 }}>{l.label || l.channel || '—'}{l.archived&&<small> · прежний сценарий</small>}</span>,
-              <span style={{ color: theme.textMuted, fontSize: 13 }}>
-                {dest}
-                {l.destinationUrl && (
-                    <span style={{ color: theme.accent, fontSize: 11, marginLeft: 8 }}>(прямая ссылка)</span>
-                )}
-              </span>,
-              <span>{campaign?.name ?? <code style={{ color: theme.textDim, fontSize: 12 }}>{l.programId.slice(0, 8)}…</code>}</span>,
-              <span style={{ color: theme.textMuted }}>{formatDate(l.createdAt, { relative: true })}</span>,
-            ];
-          })}
-        />
+        <>
+          {activeLinks.length>0&&renderLinksTable(activeLinks)}
+          {archivedLinks.length>0&&<Card padded={false} style={{marginTop:16,overflow:'hidden'}}><details className="links-disclosure"><summary>Архив</summary><div className="links-disclosure__body">{renderLinksTable(archivedLinks)}</div></details></Card>}
+        </>
       )}
     </Page>
   );
@@ -249,7 +233,7 @@ function CreateLink({
   onCreated: () => void;
 }) {
   const [linkKey, setLinkKey] = useState('');
-  const [programId, setProgramId] = useState(campaigns[0]?.id ?? '');
+  const [programId, setProgramId] = useState(new URLSearchParams(window.location.search).get('programId') ?? campaigns[0]?.id ?? '');
   const [useDeepLink, setUseDeepLink] = useState(false);
   const [destinationOverride, setDestinationOverride] = useState('');
   const [label, setLabel] = useState('');

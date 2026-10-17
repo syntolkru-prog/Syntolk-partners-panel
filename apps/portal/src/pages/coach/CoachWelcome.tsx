@@ -4,8 +4,8 @@ import { Button, Card } from '../../ui.js';
 import { TenantLink } from '../../tenant-link.js';
 import './coach.css';
 
-interface Welcome { enabled:boolean;paused:boolean;needsOnboarding:boolean;takeover:boolean;message:string;task:{title:string;minutes:number}|null }
-export function CoachWelcome({partnerId,prefix='/coach/me',onAction}:{partnerId:string;prefix?:string;onAction?:(action:string,minutes?:number)=>void}) {
+interface Welcome { enabled:boolean;paused:boolean;needsOnboarding:boolean;takeover:boolean;message:string;task:{title:string}|null }
+export function CoachWelcome({partnerId,prefix='/coach/me',onAction}:{partnerId:string;prefix?:string;onAction?:(action:string)=>void}) {
   const query=useQuery({queryKey:['coach',currentTenantSlug(),partnerId,prefix,'welcome'],queryFn:()=>api<Welcome>(`${prefix}/welcome`),staleTime:30000});
   const data=query.data;
   // Optional accompaniment must not block access to the core dashboard.

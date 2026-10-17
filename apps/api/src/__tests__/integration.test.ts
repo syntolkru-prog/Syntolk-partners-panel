@@ -14,6 +14,7 @@ import { ulid } from 'ulid';
 import { DEFAULT_TENANT_ID, TABLES } from '@openpartner/db';
 import { db } from '../db.js';
 import { createApp } from '../app.js';
+import { SCHEMA_VERSION } from '../export.js';
 
 const ADMIN_KEY = 'op_test_admin_key_0123456789abcdef0123';
 process.env.ADMIN_API_KEY = ADMIN_KEY;
@@ -251,7 +252,7 @@ describe.skipIf(skipIntegration)('api integration', () => {
       .get('/export.json')
       .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(exportRes.status).toBe(200);
-    expect(exportRes.body.schemaVersion).toBe(2);
+    expect(exportRes.body.schemaVersion).toBe(SCHEMA_VERSION);
     expect(exportRes.body.tables.Partner).toHaveLength(1);
 
     // Wipe, re-import.

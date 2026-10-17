@@ -10,12 +10,14 @@ import { ulid } from 'ulid';
 
 import { identifyRouter } from './routes/identify.js';
 import { coachRouter, adminCoachRouter } from './routes/coach.js';
+import { messagesRouter } from './routes/messages.js';
 import { eventsRouter } from './routes/events.js';
 import { paymentsRouter } from './routes/payments.js';
 import { cloudPaymentsWebhookRouter } from './routes/cloudpayments-webhook.js';
 import { partnersRouter } from './routes/partners.js';
 import { programsRouter } from './routes/programs.js';
 import { linksRouter } from './routes/links.js';
+import { materialsRouter } from './routes/materials.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { apiKeysRouter } from './routes/api-keys.js';
 import { payoutsRouter } from './routes/payouts.js';
@@ -243,6 +245,7 @@ export function createApp(options: { enableLogger?: boolean } = {}) {
   app.use(authRouter);
   app.use(coachRouter);
   app.use(adminCoachRouter);
+  app.use(messagesRouter);
   app.use(partnerAuthRouter);
   app.use(portalDomainsRouter);
   app.use(partnerSignupRouter);
@@ -260,6 +263,7 @@ export function createApp(options: { enableLogger?: boolean } = {}) {
   app.use(partnersRouter);
   app.use(programsRouter);
   app.use(linksRouter);
+  app.use(materialsRouter);
   app.use(clicksRouter);
   app.use(dashboardRouter);
   app.use(apiKeysRouter);
