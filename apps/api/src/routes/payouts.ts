@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { runPayouts } from '../payouts.js';
 import { tenantOf, withTenantTransaction } from '../tenancy.js';
 import { tryTenantPayoutLock } from '../payout-lock.js';
-import { adjustmentTotalsByCommission, netCommissionAmount } from '../commission-net.js';
+import { manualPayableAmounts } from '../commission-net.js';
 import { dispatchEvent } from '../webhook-dispatcher.js';
 
 export const payoutsRouter = Router();
@@ -77,8 +77,8 @@ payoutsRouter.post('/payouts/:id/confirm', requireAuth, requireAdmin, async (req
     return res.status(409).json({ error: 'not_confirmable', detail: 'Подтвердить можно только ожидающую ручную выплату.' });
   }
   const commissions = await db<CommissionRow>(TABLES.Commission).where({ payoutId: existing.id });
-  const adjustments = await adjustmentTotalsByCommission(db, commissions.map((c) => c.id));
-  const netMinor = commissions.reduce((sum, c) => sum + Math.round(netCommissionAmount(c, adjustments, c.id) * 100), 0);
+  const payable = await manualPayableAmounts(db, [existing]);
+  const netMinor = commissions.reduce((sum, c) => sum + Math.round((payable.get(c.id) ?? 0) * 100), 0);
   if (commissions.length === 0 || commissions.some((c) => !['approved', 'paid'].includes(c.status)) || netMinor !== Math.round(Number(existing.amount) * 100)) {
     return res.status(409).json({ error: 'payout_amount_changed', detail: 'Начисления изменились после расчёта. Отмените заявку и рассчитайте выплату заново.' });
   }
@@ -99,7 +99,7 @@ payoutsRouter.post('/payouts/:id/confirm', requireAuth, requireAdmin, async (req
   for (const commission of commissions.filter((c) => c.status !== 'paid')) {
     dispatchEvent(tenantId, 'commission.paid', {
       commissionId: commission.id, partnerId: commission.partnerId,
-      amount: netCommissionAmount(commission, adjustments, commission.id).toFixed(2),
+      amount: (payable.get(commission.id) ?? 0).toFixed(2),
       currency: commission.currency, payoutId: existing.id,
     });
   }

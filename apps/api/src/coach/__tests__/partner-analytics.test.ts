@@ -53,7 +53,7 @@ async function event(userId:string,type:string,value?:number) {
   expect(response.status,response.text).toBe(200);return {response,externalEventId};
 }
 async function identify(clickId:string,userId:string) {
-  const response=await request(app).post('/attribution/identify').send({cref:clickId,userId});expect(response.status,response.text).toBe(200);
+  const response=await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({cref:clickId,userId});expect(response.status,response.text).toBe(200);
 }
 async function customer(sourceRow?:any,payment?:number) {
   const id=await click(sourceRow),userId=ulid();await identify(id,userId);await event(userId,'signup');

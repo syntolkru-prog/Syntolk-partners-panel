@@ -2,7 +2,7 @@
 
 Client + server SDK for [OpenPartner](https://github.com/getcoherence/openpartner).
 
-- **Browser** — captures the `cref` attribution token from landing URLs and the first-party cookie, survives Safari / ITP cookie expiry via localStorage, and stitches to a logged-in user on auth.
+- **Browser** — captures `cref` from landing URLs and the first-party cookie and keeps it in localStorage for your signup/login request.
 - **Server** — posts conversion events, stitches server-side where needed, with typed errors.
 
 Zero runtime dependencies. ~4 KB gzipped browser bundle.
@@ -22,11 +22,11 @@ const op = OpenPartner.init({
   apiUrl: 'https://openpartner.example.com',
 });
 
-// On signup or login — any time you learn the user's id:
-await op.identify(currentUser.id);
+// Include this referral token in your existing signup/login request:
+const cref = op.getCref();
 ```
 
-That's the whole browser integration. The `identify()` call POSTs `{ cref, userId }` to `/attribution/identify` on your OpenPartner API. Errors are logged to the console by default — pass `onError` to hook in observability, or `await` the call and handle errors yourself.
+Your authenticated backend calls `OpenPartnerServer.identify({cref, userId})`, taking `userId` from its own session or verified signup result. `/attribution/identify` requires an admin key or an integration key with `events:write`. Never send that key to the browser. The old browser `identify()` method is deprecated; anonymous requests now return 401.
 
 ### Config
 
@@ -43,7 +43,7 @@ OpenPartner.init({
 
 ### Framework notes
 
-- **React / Vue / SolidJS**: call `OpenPartner.init()` once at the top of your app. Call `op.identify()` from your auth callback.
+- **React / Vue / SolidJS**: call `OpenPartner.init()` once at the top of your app. Pass `op.getCref()` to your existing authenticated signup/login flow.
 - **Next.js App Router**: put `OpenPartner.init()` in a `'use client'` provider component mounted in your root layout.
 - **SPA with route-based auth**: `captureCref()` runs on init, so you only need one init per page load. Subsequent SPA navigations don't need to re-init.
 
@@ -59,6 +59,10 @@ const op = new OpenPartnerServer({
   apiKey: process.env.OPENPARTNER_API_KEY!,
 });
 
+// In your trusted signup/login handler: user comes from the session,
+// while cref comes from the browser's captured referral token.
+if (cref) await op.identify({ cref, userId: user.id });
+
 // On signup (no revenue yet — still useful for funnel analysis):
 await op.trackEvent({ userId: user.id, type: 'signup' });
 
@@ -68,6 +72,7 @@ await op.trackEvent({
   type: 'invoice_paid',
   value: 249,
   currency: 'USD',
+  externalEventId: `invoice-${invoice.id}`,
   metadata: { stripeInvoiceId: invoice.id },
 });
 ```
@@ -143,7 +148,7 @@ attribution engine             ← Applies campaign model, emits Attribution + C
 ```
 
 - **click** — visitor lands on `https://vendor.example.com/r/<slug>`. The OpenPartner router sets `_cref` cookie and writes a `Click` row.
-- **identify** — once the visitor authenticates on the vendor's site, the browser SDK (or server SDK) calls `/attribution/identify` which writes an `Identity` row stitching `cref → userId`.
+- **identify** — after authentication, the vendor backend uses the server SDK and a trusted credential to bind `cref` to its verified `userId`. Browsers and partner keys cannot create identities directly.
 - **trackEvent** — any subsequent conversion event is written as an `Event` row. The attribution engine walks `Event.userId → Identity → Click → Campaign`, checks the attribution window, applies the configured model (`last_click` / `first_click` / `linear` / `position`), and writes `Attribution` + `Commission` rows.
 
 ## License

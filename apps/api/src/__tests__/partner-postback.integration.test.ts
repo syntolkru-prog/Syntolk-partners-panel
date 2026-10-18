@@ -162,11 +162,11 @@ describe.skipIf(skipIntegration)('partner postback', () => {
     });
 
     const userId = `u_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId });
     const eventRes = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 100, currency: 'USD' });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 100, currency: 'USD' });
     expect(eventRes.status).toBe(200);
 
     // 4. Postback fires asynchronously via dispatchEvent — wait for it.
@@ -252,11 +252,11 @@ describe.skipIf(skipIntegration)('partner postback', () => {
       fraudFlag: null,
     });
     const userId = `u_${Date.now()}_skip`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId });
     await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 50, currency: 'USD' });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 50, currency: 'USD' });
 
     // Give the dispatcher a chance to run; nothing should land.
     await new Promise((r) => setTimeout(r, 200));

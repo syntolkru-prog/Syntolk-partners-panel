@@ -34,7 +34,7 @@ import { REVSHARE_FEE_BPS, type OpenPartnerMode } from './deployment.js';
 import { getTenantBillingState } from './billing-plan.js';
 import { dispatchEvent } from './webhook-dispatcher.js';
 import { tryTenantPayoutLock } from './payout-lock.js';
-import { adjustmentTotalsByCommission, netCommissionAmount } from './commission-net.js';
+import { commissionGroupKey, manualPayableAmounts } from './commission-net.js';
 
 export interface PayoutRunResult {
   runId: string;
@@ -66,6 +66,7 @@ export interface PayoutRunResult {
 }
 
 export async function runPayouts(db: Knex, tenantId: string, partnerId?: string): Promise<PayoutRunResult> {
+  if (!db.isTransaction) return db.transaction((trx) => runPayouts(trx, tenantId, partnerId));
   // Serialize every payout actor for this tenant — the weekly scheduler
   // tick, the admin run-payouts endpoint, and funding reservation — on one
   // advisory xact lock (audit: concurrent runs could double-transfer).
@@ -99,19 +100,21 @@ export async function runPayouts(db: Knex, tenantId: string, partnerId?: string)
   // retry would pay it twice under a different idempotency key (audit
   // #10). Claims are stamped by this function and released by the
   // executor when an intent is abandoned.
-  const groups = (await db(TABLES.Commission)
-    .where({ status: 'approved' })
+  const unclaimed: CommissionRow[] = await db<CommissionRow>(TABLES.Commission)
+    .where({ tenantId, status: 'approved' })
     .modify((query) => { if (partnerId) query.andWhere({ partnerId }); })
-    .whereNull('payoutId')
-    .groupBy('partnerId', 'currency')
-    .select('partnerId', 'currency')) as Array<{ partnerId: string; currency: string }>;
+    .whereNull('payoutId');
+  const groups = [...new Map(unclaimed.map((c) => [commissionGroupKey(c), c])).values()];
+  const payable = await manualPayableAmounts(db, groups);
+  const partners = await db<PartnerRow>(TABLES.Partner).where({ tenantId }).whereIn('id', groups.map((g) => g.partnerId));
+  const partnersById = new Map(partners.map((p) => [p.id, p]));
 
   const results: PayoutRunResult['payouts'] = [];
   const skipped: PayoutRunResult['skippedBelowThreshold'] = [];
   const skippedUnfunded: PayoutRunResult['skippedUnfunded'] = [];
 
   for (const group of groups) {
-    const partner = await db<PartnerRow>(TABLES.Partner).where({ id: group.partnerId }).first();
+    const partner = partnersById.get(group.partnerId);
     if (!partner) continue;
 
     // Read the exact rows first and derive the total from them, in minor
@@ -119,17 +122,16 @@ export async function runPayouts(db: Knex, tenantId: string, partnerId?: string)
     // COMMITTED (each statement takes a fresh snapshot), and the transfer
     // amount must equal the sum of the commissions we actually claim —
     // never a stale aggregate.
-    const commissions = await db<CommissionRow>(TABLES.Commission)
-      .where({ partnerId: group.partnerId, currency: group.currency, status: 'approved' })
-      .whereNull('payoutId');
+    const commissions = unclaimed.filter((c) => commissionGroupKey(c) === commissionGroupKey(group));
     if (commissions.length === 0) continue;
-    const adjustments = await adjustmentTotalsByCommission(db, commissions.map((c) => c.id));
-    const payableCommissions = commissions.filter((c) => netCommissionAmount(c, adjustments, c.id) > 0);
-    if (payableCommissions.length === 0) continue;
+    // Include fully offset rows in a positive payout: confirmation settles
+    // their gross earnings against the debt as well as the cash remainder.
+    const payableCommissions = commissions;
     const amountMinor = payableCommissions.reduce(
-      (s, c) => s + Math.round(netCommissionAmount(c, adjustments, c.id) * 100),
+      (s, c) => s + Math.round((payable.get(c.id) ?? 0) * 100),
       0,
     );
+    if (amountMinor <= 0) continue;
     const amount = amountMinor / 100;
 
     // Threshold gate: balances below the tenant minimum stay 'approved'

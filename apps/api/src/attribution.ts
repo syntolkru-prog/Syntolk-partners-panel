@@ -18,7 +18,8 @@
  * per touch, proportional to the weight, using each click's own campaign's
  * commissionRule — partners don't subsidize each other.
  *
- * Idempotent: unique (eventId, model, clickId) blocks dup rows on retry.
+ * The Event row lock freezes the entire first successful allocation, including
+ * its commissions. An event with no allocation can still be backfilled.
  */
 
 import type { Knex } from 'knex';
@@ -49,7 +50,7 @@ const MONTH_MS = 30.4375 * 24 * 60 * 60 * 1000;
 const CLICK_AFTER_EVENT_GRACE_MS = 5 * 60 * 1000;
 
 export interface AttributeResult {
-  status: 'attributed' | 'no_identity' | 'no_click' | 'outside_window' | 'already_attributed';
+  status: 'attributed' | 'no_identity' | 'no_click' | 'outside_window' | 'already_attributed' | 'refund';
   touches?: Array<{ clickId: string; partnerId: string; weight: number; attributionId: string; commissionId?: string }>;
   model?: AttributionModel;
 }
@@ -63,11 +64,20 @@ export async function attributeEvent(
   event: EventRow,
   modelOverride?: AttributionModel,
 ): Promise<AttributeResult> {
-  const identities = await db<IdentityRow>(TABLES.Identity).where({ userId: event.userId });
+  if (!db.isTransaction) return db.transaction((trx) => attributeEvent(trx, event, modelOverride));
+  const locked = await db<EventRow>(TABLES.Event).where({ id: event.id, tenantId: event.tenantId }).forUpdate().first();
+  if (!locked) throw new Error('Attribution event not found');
+  event = locked;
+  if (event.type === 'refund') return { status: 'refund' };
+  const finalized = await db<AttributionRow>(TABLES.Attribution)
+    .where({ tenantId: event.tenantId, eventId: event.id }).first();
+  if (finalized) return { status: 'already_attributed', model: finalized.model };
+
+  const identities = await db<IdentityRow>(TABLES.Identity).where({ tenantId: event.tenantId, userId: event.userId });
   if (identities.length === 0) return { status: 'no_identity' };
 
   const clickIds = identities.map((i) => i.clickId);
-  const clicks = await db<ClickRow>(TABLES.Click).whereIn('id', clickIds);
+  const clicks = await db<ClickRow>(TABLES.Click).where({ tenantId: event.tenantId }).whereIn('id', clickIds);
   const cleanClicks = clicks.filter((c) => !c.fraudFlag);
   if (cleanClicks.length === 0) return { status: 'no_click' };
 
@@ -227,6 +237,10 @@ export async function attributeEvent(
   }
 
   if (allDup) return { status: 'already_attributed', model };
+  // Refunds may have arrived while this payment had no identity. Reconcile
+  // before releasing the same Event lock used by live refund ingestion.
+  const { reconcilePaymentRefunds } = await import('./payment-events.js');
+  await reconcilePaymentRefunds(db, event);
   return { status: 'attributed', touches: results, model };
 }
 

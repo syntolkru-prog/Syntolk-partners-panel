@@ -12,7 +12,7 @@ import { tenantOf } from '../tenancy.js';
 
 const paymentSchema = z.object({
   userId: z.string().min(1).max(120),
-  type: z.string().min(1).max(80).default('invoice_paid'),
+  type: z.string().min(1).max(80).default('invoice_paid').refine(type => type !== 'refund', 'Use /payments/refunds to record a refund'),
   value: z.number().nonnegative(),
   currency: z.string().length(3).default('RUB'),
   externalEventId: z.string().min(1).max(120),
@@ -35,7 +35,7 @@ const simulatorSchema = z.object({
   userId: z.string().min(1).max(120),
   amount: z.number().nonnegative(),
   currency: z.string().length(3).default('RUB'),
-  type: z.string().min(1).max(80).default('invoice_paid'),
+  type: z.string().min(1).max(80).default('invoice_paid').refine(type => type !== 'refund', 'Use /payments/refunds to record a refund'),
   externalEventId: z.string().min(1).max(120),
 });
 

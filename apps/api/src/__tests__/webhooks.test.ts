@@ -164,11 +164,11 @@ describe.skipIf(skipIntegration)('webhooks', () => {
       fraudFlag: null,
     });
     const userId = `u_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId });
     await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 100 });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 100 });
 
     // Approve + run payouts — fires commission.approved, payout.created, commission.paid.
     const accrued = await db(TABLES.Commission).where({ partnerId, status: 'accrued' }).first();
@@ -250,11 +250,11 @@ describe.skipIf(skipIntegration)('webhooks', () => {
       fraudFlag: null,
     });
     const uid = `ru_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId: uid });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId: uid });
     await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId: uid, type: 'invoice_paid', value: 100 });
+      .send({ externalEventId: ulid(), userId: uid, type: 'invoice_paid', value: 100 });
     const accrued = await db(TABLES.Commission).where({ partnerId: partner.id, status: 'accrued' }).first();
     await request(app).post(`/commissions/${accrued!.id}/approve`).set('Authorization', `Bearer ${ADMIN_KEY}`);
 
@@ -331,11 +331,11 @@ describe.skipIf(skipIntegration)('webhooks', () => {
       fraudFlag: null,
     });
     const uid = `su_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId: uid });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId: uid });
     await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId: uid, type: 'invoice_paid', value: 50 });
+      .send({ externalEventId: ulid(), userId: uid, type: 'invoice_paid', value: 50 });
 
     // attribution.created fired, but neither endpoint subscribed.
     await new Promise((r) => setTimeout(r, 300));

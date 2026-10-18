@@ -93,7 +93,7 @@ v1. End-to-end attribution, payouts, and export are working; API surface is stab
 **Attribution + payouts**
 
 - Edge click router with first-party cookie and SHA-256-hashed IP
-- Identity stitching (`POST /attribution/identify`) with late-binding backlog attribution
+- Trusted server-side identity stitching (`POST /attribution/identify`, admin or `events:write` key) with late-binding backlog attribution
 - Event ingest (`POST /attribution/events`) and Stripe webhook mapping (idempotent on retries)
 - Four attribution models — `last_click`, `first_click`, `linear`, `position` — per-campaign, re-derivable from raw tables
 - Commission accrual + review queue (approve / reverse) + Stripe Connect Standard payouts with idempotent transfers

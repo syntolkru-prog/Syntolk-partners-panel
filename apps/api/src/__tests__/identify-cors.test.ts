@@ -1,10 +1,5 @@
 /**
- * Open CORS on /attribution/identify (the browser SDK's stitch call).
- *
- * The call originates from the BRAND'S OWN website origin, which can never
- * be in our allowlist ahead of time — so this one path gets
- * analytics-collector CORS (any origin, no credentials), while every other
- * route keeps the strict allowlist. Preflight-only tests: no DB needed.
+ * Identify is a trusted backend call and uses the normal origin allowlist.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -13,17 +8,14 @@ import { createApp } from '../app.js';
 
 const app = createApp({ enableLogger: false });
 
-describe('identify CORS carve-out', () => {
-  it('preflights /attribution/identify from any origin, without credentials', async () => {
+describe('identify CORS restrictions', () => {
+  it('does not allow an arbitrary browser origin', async () => {
     const res = await request(app)
       .options('/attribution/identify')
       .set('Origin', 'https://xispark.com')
       .set('Access-Control-Request-Method', 'POST')
       .set('Access-Control-Request-Headers', 'content-type');
-    expect(res.headers['access-control-allow-origin']).toBe('https://xispark.com');
-    // No credentials on the open route — a reflected origin + credentials
-    // would be the CSRF foot-gun the strict allowlist exists to prevent.
-    expect(res.headers['access-control-allow-credentials']).toBeUndefined();
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 
   it('covers the tenant-scoped path shapes', async () => {
@@ -32,7 +24,7 @@ describe('identify CORS carve-out', () => {
         .options(path)
         .set('Origin', 'https://brand-site.example')
         .set('Access-Control-Request-Method', 'POST');
-      expect(res.headers['access-control-allow-origin']).toBe('https://brand-site.example');
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
     }
   });
 

@@ -67,8 +67,9 @@ curl -s -X POST http://localhost:4601/partners/$PARTNER/links \
 # Click — router sets _cref cookie, writes Click row, 302s to destinationUrl.
 CLICK=$(curl -sI http://localhost:4701/r/ada | grep -i '^set-cookie' | sed -E 's/.*_cref=([^;]+).*/\1/' | tr -d '\r')
 
-# Stitch a user (this is what the SDK's identify() call does).
+# Stitch a user from the trusted merchant backend.
 curl -s -X POST http://localhost:4601/attribution/identify \
+  -H "Authorization: Bearer $ADMIN" \
   -H "content-type: application/json" \
   -d "{\"cref\":\"$CLICK\",\"userId\":\"user_123\"}"
 
@@ -76,7 +77,7 @@ curl -s -X POST http://localhost:4601/attribution/identify \
 curl -s -X POST http://localhost:4601/attribution/events \
   -H "Authorization: Bearer $ADMIN" \
   -H "content-type: application/json" \
-  -d '{"userId":"user_123","type":"invoice_paid","value":200,"currency":"USD"}'
+  -d '{"userId":"user_123","type":"invoice_paid","value":200,"currency":"USD","externalEventId":"quickstart-invoice-123"}'
 ```
 
 ## 5. Review + payout
@@ -137,11 +138,11 @@ import { OpenPartner } from '@openpartner/sdk';
 
 const op = OpenPartner.init({ apiUrl: 'https://openpartner.example.com' });
 
-// On login or signup:
-op.identify(currentUser.id);
+// Include in your existing authenticated login/signup request:
+const cref = op.getCref();
 ```
 
-The SDK captures `?cref=…` from the landing URL and the `_cref` cookie, stashes in localStorage so the attribution survives ITP / multi-session gaps, then POSTs to `/attribution/identify` when you call `identify()`.
+The browser captures `?cref=…` or `_cref` and keeps it in localStorage. The merchant backend takes `userId` from its authenticated session and calls `OpenPartnerServer.identify({cref, userId})` with an admin or `events:write` integration key. Direct anonymous browser identification is rejected. Never expose the integration key in browser code.
 
 ## 9. Server SDK
 
@@ -158,6 +159,7 @@ const op = new OpenPartnerServer({
 await op.trackEvent({
   userId: user.id,
   type: 'invoice_paid',
+  externalEventId: `invoice-${invoice.id}`,
   value: 249,
   currency: 'USD',
 });

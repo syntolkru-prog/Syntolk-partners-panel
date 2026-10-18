@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { grantScope, requireAdmin, requireAuth } from '../auth.js';
-import { ingestPaymentEvent } from '../payment-events.js';
+import { ingestPaymentEvent, requiresExternalEventId } from '../payment-events.js';
 import { tenantOf } from '../tenancy.js';
 
 const schema = z.object({
@@ -9,9 +9,13 @@ const schema = z.object({
   type: z.string().min(1),
   value: z.number().nonnegative().optional(),
   currency: z.string().length(3).optional(),
-  externalEventId: z.string().min(1).max(120).optional(),
+  externalEventId: z.string().trim().min(1).max(120).optional(),
   metadata: z.record(z.unknown()).optional(),
   ts: z.string().datetime().optional(),
+}).refine((event) => !requiresExternalEventId(event) || !!event.externalEventId, {
+  path: ['externalEventId'], message: 'Monetary events require externalEventId',
+}).refine((event) => event.type !== 'refund', {
+  path: ['type'], message: 'Use /payments/refunds to record a refund',
 });
 
 export const eventsRouter = Router();

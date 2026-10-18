@@ -11,8 +11,8 @@
  *
  *   const op = OpenPartner.init({ apiUrl: 'https://openpartner.example.com' });
  *
- *   // After login/signup, once you know who the user is:
- *   await op.identify(user.id);
+ *   // Send op.getCref() in your authenticated signup/login request.
+ *   // Your backend derives userId from the session and calls the server SDK.
  */
 
 import { OpenPartnerError, requestJson, type IdentifyResponse } from './shared.js';
@@ -114,8 +114,10 @@ export class OpenPartner {
   }
 
   /**
-   * Stitch the current captured click to an authenticated user. Call
-   * this on login, signup, or anywhere the user becomes known.
+   * @deprecated Identify now requires a trusted backend credential. Send
+   * getCref() to your authenticated backend and call OpenPartnerServer.identify
+   * there. Never put an admin/integration key in browser code. Direct calls
+   * to the API fail with 401 and are reported through onError.
    *
    * No-op if no cref was captured. Errors are reported through
    * `config.onError` by default — attribution is best-effort from the

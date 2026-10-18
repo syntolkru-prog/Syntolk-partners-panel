@@ -114,7 +114,7 @@ describe.skipIf(skipIntegration)('api integration', () => {
     // 5. Browser stitches the click to an authenticated user (SDK's identify()).
     const userId = `user_${Date.now()}`;
     const stitchRes = await request(app)
-      .post('/attribution/identify')
+      .post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`)
       .send({ cref: clickId, userId });
     expect(stitchRes.status).toBe(200);
     expect(stitchRes.body.firstStitch).toBe(true);
@@ -123,7 +123,7 @@ describe.skipIf(skipIntegration)('api integration', () => {
     const eventRes = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 200, currency: 'USD' });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 200, currency: 'USD' });
     expect(eventRes.status).toBe(200);
     expect(eventRes.body.attribution.status).toBe('attributed');
 
@@ -208,12 +208,12 @@ describe.skipIf(skipIntegration)('api integration', () => {
     });
 
     const userId = `user_f_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId });
 
     const eventRes = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 100 });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 100 });
 
     expect(eventRes.body.attribution.status).toBe('no_click');
     const attributions = await db(TABLES.Attribution).where({ partnerId });
@@ -303,13 +303,13 @@ describe.skipIf(skipIntegration)('api integration', () => {
     });
 
     const userId = `mt_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: click1, userId });
-    await request(app).post('/attribution/identify').send({ cref: click2, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: click1, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: click2, userId });
 
     const evt = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 100 });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 100 });
     expect(evt.body.attribution.status).toBe('attributed');
     expect(evt.body.attribution.touches).toHaveLength(2);
 
@@ -398,7 +398,7 @@ describe.skipIf(skipIntegration)('api integration', () => {
 
     // User 1 stitches, signs up, pays.
     const u1 = `u1_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: click1, userId: u1 });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: click1, userId: u1 });
     await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
@@ -406,11 +406,11 @@ describe.skipIf(skipIntegration)('api integration', () => {
     await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId: u1, type: 'invoice_paid', value: 100 });
+      .send({ externalEventId: ulid(), userId: u1, type: 'invoice_paid', value: 100 });
 
     // User 2 stitches but only signs up, no payment.
     const u2 = `u2_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: click2, userId: u2 });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: click2, userId: u2 });
     await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
@@ -468,11 +468,11 @@ describe.skipIf(skipIntegration)('api integration', () => {
 
     // User stitches, pays. Attribution should SKIP because flagged.
     const uid = `fraud_${Date.now()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId: uid });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId: uid });
     const event = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId: uid, type: 'invoice_paid', value: 250 });
+      .send({ externalEventId: ulid(), userId: uid, type: 'invoice_paid', value: 250 });
     expect(event.body.attribution.status).toBe('no_click'); // fraud-flagged filters it
 
     // No Attribution rows for this partner yet.
@@ -544,11 +544,11 @@ describe.skipIf(skipIntegration)('audit safe-fixes', () => {
       landingUrl: 'https://example.com/signup', ipHash: 'h', userAgent: 't', referer: null, ts: new Date(),
     });
     const userId = `u_${ulid()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId });
     const eventRes = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 100, currency: 'USD', ts: new Date(Date.now() - 3600_000).toISOString() });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 100, currency: 'USD', ts: new Date(Date.now() - 3600_000).toISOString() });
 
     expect(eventRes.status).toBe(200);
     expect(eventRes.body.attribution.status).toBe('outside_window');
@@ -582,11 +582,11 @@ describe.skipIf(skipIntegration)('audit safe-fixes', () => {
       landingUrl: 'https://example.com/signup', ipHash: 'h', userAgent: 't', referer: null, ts: new Date(),
     });
     const userId = `u_${ulid()}`;
-    await request(app).post('/attribution/identify').send({ cref: clickId, userId });
+    await request(app).post('/attribution/identify').set('Authorization', `Bearer ${process.env.ADMIN_API_KEY}`).send({ cref: clickId, userId });
     const eventRes = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 100, currency: 'USD', ts: new Date(Date.now() - 2_000).toISOString() });
+      .send({ externalEventId: ulid(), userId, type: 'invoice_paid', value: 100, currency: 'USD', ts: new Date(Date.now() - 2_000).toISOString() });
 
     expect(eventRes.status).toBe(200);
     expect(eventRes.body.attribution.status).toBe('attributed');

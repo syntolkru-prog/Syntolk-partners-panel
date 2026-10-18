@@ -31,8 +31,8 @@ export interface OpenPartnerServerConfig {
   apiUrl: string;
   /**
    * Admin or scoped API key. For event ingest you need admin or a key
-   * with the right scope (the core API currently uses admin-only for
-   * /attribution/events). Never expose this to the browser.
+   * with events:write for both identify and event ingestion. Never expose
+   * this to the browser.
    */
   apiKey: string;
   /** Optional fetch override for tests or custom transports. */
@@ -48,6 +48,8 @@ export interface TrackEventParams {
   value?: number;
   /** ISO 4217 currency code. Defaults to USD on the server if omitted. */
   currency?: string;
+  /** Stable merchant/provider event ID. Required for payments and refunds. */
+  externalEventId?: string;
   /** Arbitrary metadata you want to attach (stripeEventId, invoiceId, etc). */
   metadata?: Record<string, unknown>;
   /** Event time. Defaults to now on the server. Pass ISO 8601 to override. */
@@ -78,9 +80,9 @@ export class OpenPartnerServer {
 
   /**
    * Stitch an attribution token (cref) to a known userId. Normally the
-   * browser SDK does this; use this overload if your backend receives
-   * the cref from the browser (e.g. as part of a signup payload) and
-   * wants to own the stitch call.
+   * backend receives cref from the browser (e.g. in a signup payload) and
+   * supplies userId from its own authenticated session, never from an
+   * unverified browser field.
    */
   async identify(params: { cref: string; userId: string; ts?: number }): Promise<IdentifyResponse> {
     return this.request<IdentifyResponse>('/attribution/identify', {
