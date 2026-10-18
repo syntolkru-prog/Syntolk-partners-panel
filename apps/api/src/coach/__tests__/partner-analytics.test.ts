@@ -91,10 +91,13 @@ describe('scenario tracking and shared partner analytics',()=>{
       const row=selected.rows.find((item:any)=>item.id===group.id);
       expect(group.name).toBe(row.name);
       expect(group.points.reduce((sum:number,point:any)=>sum+point.clicks,0)).toBe(row.counts.clicks);
+      expect(group.points.reduce((sum:number,point:any)=>sum+point.identities,0)).toBe(row.counts.identities);
       expect(group.points.reduce((sum:number,point:any)=>sum+point.earningsMinor,0)).toBe(row.amountsMinor.netAccrued);
       expect(group.points.reduce((sum:number,point:any)=>sum+point.customerPaymentsMinor,0)).toBe(row.amountsMinor.observedPayments);
     }
     expect(selected.series.groups.find((group:any)=>group.id==='telegram-short').points.every((point:any)=>point.clicks===0)).toBe(true);
+    expect(selected.series.groups.find((group:any)=>group.id==='telegram-short').points.every((point:any)=>point.identities===0)).toBe(true);
+    expect(selected.series.points.reduce((sum:number,point:any)=>sum+point.identities,0)).toBe(2);
   });
   it('scopes grouped selections to the owner and bounds incoming selection lists',async()=>{
     const own=await source();await customer(own,1000);

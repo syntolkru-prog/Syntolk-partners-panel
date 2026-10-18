@@ -56,11 +56,13 @@ dashboardRouter.get('/partners/:id/dashboard', requireAuth, grantScope('partners
     const profile = await db('CoachProfile').where({ tenantId, partnerId: req.params.id! }).first();
     const filters = analyticsFiltersFromQuery(req.query, profile?.data?.timezone ?? 'Europe/Moscow');
     const report = await partnerAnalytics(db, tenantId, req.params.id!, { ...filters, groupBy: 'link' });
-    res.json({ partnerId: req.params.id, since: report.period.since.toISOString(),
-      clicks: report.counts.clicks, attributedEvents: report.counts.attributedEvents,
+    res.json({ partnerId: req.params.id, since: report.period.since.toISOString(), until: report.period.until.toISOString(), currency: report.currency,
+      clicks: report.counts.clicks, identities: report.counts.identities, attributedEvents: report.counts.attributedEvents, generatedAt: report.generatedAt,
       registrations: report.counts.registrations, payingClients: report.counts.payingCustomers,
       conversionRate: report.conversions.clickToPayment ?? 0, attributedRevenue: report.amountsMinor.observedPayments/100,
       commissionByStatus: report.commissionByStatus, balances: report.balances,
+      conversions: report.conversions, metricBasis: report.metricBasis, balanceBasis: report.balanceBasis, commissionByStatusBasis: report.commissionByStatusBasis,
+      dataQuality: report.dataQuality, warnings: report.warnings, views: report.views, ctr: report.ctr,
       ...((req.query.includeLinks === 'true' || req.query.includeLinks === '1') ? { links: report.rows.map(row => ({ linkKey: row.linkKey ?? row.id, clicks: row.counts.clicks, attributedEvents: row.counts.attributedEvents, attributedRevenue: row.amountsMinor.observedPayments/100 })) } : {}),
     });
   } catch (error) {

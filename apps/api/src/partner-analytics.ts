@@ -2,7 +2,7 @@ import type { Knex } from 'knex';
 import { z } from 'zod';
 import type { LinkRow, PartnerLinkSourceRow, PartnerMaterialRow } from '@openpartner/db';
 import { trackingSourceParams } from '@openpartner/db';
-import { adjustmentTotalsByCommission, netCommissionAmount } from './commission-net.js';
+import { adjustmentTotalsByCommission, commissionGroupKey, manualPayableAmounts, manualPayoutBalances, netCommissionAmount } from './commission-net.js';
 import { todayWindow } from './coach/daily-plan.js';
 import { parseUserAgent } from './ua-parse.js';
 
@@ -28,7 +28,9 @@ type TimeBucket = 'day' | 'week' | 'month';
 type SeriesDimension = NonNullable<AnalyticsFilters['seriesBy']>;
 type TimeGroup = TimeBucket | { bucket: TimeBucket; dimension: SeriesDimension };
 type Group = AnalyticsGroup | TimeGroup;
-type Scope = { db: Knex; tenantId: string; partnerId: string; filters: AnalyticsFilters; since: Date; until: Date };
+type Scope = { db: Knex; tenantId: string; partnerId: string; filters: AnalyticsFilters; since: Date; until: Date; asOf: Date };
+export type AnalyticsTrackingStatus = 'not_verified_end_to_end' | 'unavailable';
+export type AnalyticsWarning = 'signup_tracking_unverified' | 'payment_tracking_unverified' | 'views_unavailable' | 'ctr_unavailable';
 const GROUPS: Record<AnalyticsGroup, string> = { scenario: 'src.scenarioId', platform: 'src.platformId', format: 'src.formatId', material: 'src.materialId', source: 'src.id', link: 'cl.linkId' };
 const isTimeBucket = (group?: Group): group is TimeGroup => typeof group === 'object' || group === 'day' || group === 'week' || group === 'month';
 const groupExpression = (group: AnalyticsGroup) => group === 'link' ? `COALESCE(??, src."linkId", '__none__')` : `COALESCE(??, '__none__')`;
@@ -68,13 +70,15 @@ export function analyticsFiltersFromQuery(query: unknown, timezone = 'Europe/Mos
     }
   }
   if (since >= until) throw new z.ZodError([{ code: 'custom', path: ['since'], message: 'Начало периода должно быть раньше конца.' }]);
-  return { ...input, since, until, timezone };
+  return { ...input, currency: input.currency ?? 'RUB', since, until, timezone };
 }
 
 function scopeClicks(query: Knex.QueryBuilder, s: Scope) {
   query.where({ 'cl.tenantId': s.tenantId, 'cl.partnerId': s.partnerId }).whereNull('cl.fraudFlag');
-  query.whereNotIn('cl.id', s.db('Identity as i').join('Event as sim', 'sim.userId', 'i.userId')
-    .where({ 'i.tenantId': s.tenantId, 'sim.tenantId': s.tenantId }).whereRaw("sim.metadata->>'source' = 'local_simulator'").select('i.clickId'));
+  // Exclude the synthetic touch itself, never the real history of its user.
+  query.whereRaw("COALESCE(cl.\"userAgent\", '') <> 'Syntolk-Local-Payment-Simulator/1'")
+    .whereRaw("COALESCE(cl.referer, '') <> 'syntolk://local-simulator'")
+    .whereRaw("COALESCE(cl.\"utmMedium\", '') <> 'simulator'");
   if (s.filters.programId) query.where('cl.programId', s.filters.programId);
   for (const field of ['scenarioId', 'platformId', 'formatId', 'materialId'] as const) {
     const values = selectedIds(s.filters, field);
@@ -96,9 +100,9 @@ function clicks(s: Scope) {
 }
 function attributions(s: Scope) {
   return clicks(s).join('Attribution as a', 'a.clickId', 'cl.id').join('Event as e', 'e.id', 'a.eventId')
-    .join('Program as p', 'p.id', 'a.programId')
-    .where({ 'a.tenantId': s.tenantId, 'a.partnerId': s.partnerId, 'e.tenantId': s.tenantId, 'p.tenantId': s.tenantId })
-    .whereRaw('a.model = p."attributionModel"').where('a.weight', '>', 0)
+    .where({ 'a.tenantId': s.tenantId, 'a.partnerId': s.partnerId, 'e.tenantId': s.tenantId })
+    // Attribution is a frozen allocation; the program's current model is not historical evidence.
+    .where('a.weight', '>', 0)
     .whereRaw("COALESCE(e.metadata->>'source', '') <> 'local_simulator'");
 }
 function grouped(query: Knex.QueryBuilder, s: Scope, group?: Group, timestamp = 'cl.ts') {
@@ -113,11 +117,11 @@ function grouped(query: Knex.QueryBuilder, s: Scope, group?: Group, timestamp = 
   return query.select(s.db.raw(`${groupExpression(group)} AS id`, [GROUPS[group]]))
     .groupByRaw(groupExpression(group), [GROUPS[group]]);
 }
-function paidExpression(s: Scope, alias = 'e') {
-  return `${alias}.type IN ('invoice_paid','recurring_payment') AND ${alias}.value > 0${s.filters.currency ? ` AND ${alias}.currency = :currency` : ''}`;
+function paidExpression(alias = 'e') {
+  return `${alias}.type IN ('invoice_paid','recurring_payment') AND ${alias}.value > 0 AND ${alias}.currency = :currency`;
 }
-const bindings = (s: Scope) => s.filters.currency ? { currency: s.filters.currency } : {};
-const recurringExpression = `(e.type = 'recurring_payment' OR EXISTS (SELECT 1 FROM "Event" prev WHERE prev."tenantId" = e."tenantId" AND prev."userId" = e."userId" AND prev.type IN ('invoice_paid','recurring_payment') AND prev.value > 0 AND prev.currency = e.currency AND (prev.ts < e.ts OR (prev.ts = e.ts AND prev.id < e.id))))`;
+const bindings = (s: Scope) => ({ currency: s.filters.currency ?? 'RUB' });
+const recurringExpression = `(e.type = 'recurring_payment' OR EXISTS (SELECT 1 FROM "Event" prev WHERE prev."tenantId" = e."tenantId" AND prev."userId" = e."userId" AND prev.type IN ('invoice_paid','recurring_payment') AND prev.value > 0 AND prev.currency = e.currency AND COALESCE(prev.metadata->>'source', '') <> 'local_simulator' AND (prev.ts < e.ts OR (prev.ts = e.ts AND prev.id < e.id))))`;
 
 async function aggregates(s: Scope, group?: Group) {
   const timed = isTimeBucket(group);
@@ -135,7 +139,7 @@ async function aggregates(s: Scope, group?: Group) {
       if (typeof group === 'object') this.andOn(s.db.raw(`${groupExpression(group.dimension)} = first_signup."signupGroup"`, [GROUPS[group.dimension]]));
     });
   }
-  const paid = paidExpression(s);
+  const paid = paidExpression();
   const recurring = recurringExpression;
   const eventQuery = grouped(events, s, group, 'e.ts').select(s.db.raw(`
     COUNT(DISTINCT e.id)::int AS "attributedEvents",
@@ -147,16 +151,17 @@ async function aggregates(s: Scope, group?: Group) {
     COALESCE(SUM(CASE WHEN ${paid} THEN e.value*a.weight ELSE 0 END),0)::text AS revenue`, bindings(s)));
   const refunds = attributions(s).join('Event as refund', function () { this.on(s.db.raw("refund.metadata->>'originalEventId' = e.id")); })
     .where({ 'refund.tenantId': s.tenantId, 'refund.type': 'refund' }).where('refund.ts', '>=', s.since).where('refund.ts', '<', s.until)
-    .modify(q => { if (s.filters.currency) q.where('refund.currency', s.filters.currency); });
+    .whereRaw(paid, bindings(s)).where('refund.currency', s.filters.currency ?? 'RUB')
+    .whereRaw("COALESCE(refund.metadata->>'source', '') <> 'local_simulator'");
   const adjustments = s.db('CommissionAdjustment').where({ tenantId: s.tenantId }).groupBy('commissionId').select('commissionId').sum({ adjustment: 'amount' }).as('ca');
-  const earnings = clicks(s).join('Attribution as a', 'a.clickId', 'cl.id').join('Commission as c', 'c.attributionId', 'a.id')
+  const earnings = attributions(s).join('Commission as c', 'c.attributionId', 'a.id')
     .leftJoin(adjustments, 'ca.commissionId', 'c.id')
     .where({ 'a.tenantId': s.tenantId, 'a.partnerId': s.partnerId, 'c.tenantId': s.tenantId, 'c.partnerId': s.partnerId })
     .where('c.accruedAt', '>=', s.since).where('c.accruedAt', '<', s.until)
     .modify(q => { if (s.filters.currency) q.where('c.currency', s.filters.currency); });
   // Conversion rates follow clicks in this period, including their later conversions.
   // Activity totals above follow event dates; this prevents unrelated daily counts becoming a rate.
-  const cohort = attributions(s).whereIn('cl.id', periodClicks.clone().select('cl.id')).where('e.ts', '<=', new Date());
+  const cohort = attributions(s).whereIn('cl.id', periodClicks.clone().select('cl.id')).where('e.ts', '<=', s.asOf);
   const signups = cohort.clone().where('e.type', 'signup').distinct('e.userId')
     .modify(q => { if (group && !isTimeBucket(group)) q.select(s.db.raw(`${groupExpression(group)} AS gid`, [GROUPS[group]])); }).as('registered');
   const paidSignups = cohort.clone().join(signups, function () {
@@ -169,7 +174,7 @@ async function aggregates(s: Scope, group?: Group) {
     grouped(earnings, s, group, 'c.accruedAt').select(s.db.raw(`COALESCE(SUM(CASE WHEN c.status != 'reversed' THEN GREATEST(0,c.amount+COALESCE(ca.adjustment,0)) ELSE 0 END),0)::text AS earnings`)),
     timed ? [] : grouped(cohort.clone(), s, group).select(s.db.raw(`COUNT(DISTINCT CASE WHEN e.type='signup' THEN e."userId" END)::int AS "cohortRegistrations", COUNT(DISTINCT CASE WHEN ${paid} THEN e."userId" END)::int AS "cohortPayingCustomers"`, bindings(s))),
     timed ? [] : grouped(paidSignups, s, group).countDistinct({ cohortPaidRegistrations: 'e.userId' }),
-    timed ? [] : grouped(periodClicks.clone().join('Identity as i', 'i.clickId', 'cl.id').where('i.tenantId', s.tenantId), s, group).countDistinct({ identities: 'i.userId' }),
+    grouped(periodClicks.clone().join('Identity as i', 'i.clickId', 'cl.id').where('i.tenantId', s.tenantId), s, group).countDistinct({ identities: 'i.userId' }),
   ]);
   const rows = new Map<string, Record<string, string|number|undefined>>();
   for (const collection of [clickRows, eventRows, refundRows, earningRows, cohortRows, paidSignupRows, identityRows]) {
@@ -183,7 +188,7 @@ async function aggregates(s: Scope, group?: Group) {
     const rate = (n: number, d: number) => d > 0 ? n / d : null;
     return { id: row.id as string, ...(row.seriesId ? { seriesId: String(row.seriesId) } : {}), counts,
       amountsMinor: { observedPayments: Math.round(Number(row.revenue ?? 0)*100), refunds: Math.round(Number(row.refunds ?? 0)*100), netPayments: Math.round((Number(row.revenue ?? 0)-Number(row.refunds ?? 0))*100), netAccrued: Math.round(Number(row.earnings ?? 0)*100) },
-      conversions: { clickToRegistration: rate(Number(row.cohortRegistrations ?? 0), counts.clicks), registrationToPayment: rate(Number(row.cohortPaidRegistrations ?? 0), Number(row.cohortRegistrations ?? 0)), clickToPayment: rate(Number(row.cohortPayingCustomers ?? 0), counts.clicks), cohortRegistrations: Number(row.cohortRegistrations ?? 0), cohortPayingCustomers: Number(row.cohortPayingCustomers ?? 0) },
+      conversions: { clickToRegistration: rate(Number(row.cohortRegistrations ?? 0), counts.clicks), registrationToPayment: rate(Number(row.cohortPaidRegistrations ?? 0), Number(row.cohortRegistrations ?? 0)), clickToPayment: rate(Number(row.cohortPayingCustomers ?? 0), counts.clicks), cohortRegistrations: Number(row.cohortRegistrations ?? 0), cohortPayingCustomers: Number(row.cohortPayingCustomers ?? 0), cohortPaidRegistrations: Number(row.cohortPaidRegistrations ?? 0) },
     };
   });
 }
@@ -194,7 +199,10 @@ async function globalBalances(s: Scope) {
     .modify(q => { if (s.filters.currency) q.where('c.currency', s.filters.currency); })
     .select('c.id', 'c.amount', 'c.status', 'c.payoutId', 'c.accruedAt', 'p.status as payoutStatus') as Array<{id:string;amount:string;status:string;payoutId:string|null;accruedAt:Date;payoutStatus:string|null}>;
   const adjustments = await adjustmentTotalsByCommission(s.db, rows.map(row => row.id));
-  const balances = { accrued: 0, available: 0, pending: 0, paid: 0, total: 0 };
+  const group = { tenantId: s.tenantId, partnerId: s.partnerId, currency: s.filters.currency ?? 'RUB' };
+  const [cashBalances, payable] = await Promise.all([manualPayoutBalances(s.db, [group]), manualPayableAmounts(s.db, [group])]);
+  const cash = cashBalances.get(commissionGroupKey(group))!;
+  const balances = { accrued: 0, available: 0, pending: 0, paid: cash.cashPaid, debt: cash.debt, netPaidEarnings: cash.netPaidEarnings, total: 0 };
   const commissionByStatus: Record<string, number> = {};
   for (const row of rows) {
     const status = row.payoutId && row.status !== 'reversed' && row.payoutStatus !== 'paid' ? 'pending' : row.status;
@@ -202,14 +210,17 @@ async function globalBalances(s: Scope) {
     if (new Date(row.accruedAt) >= s.since && new Date(row.accruedAt) < s.until) commissionByStatus[status] = (commissionByStatus[status] ?? 0) + amount;
     if (status === 'reversed') continue;
     if (status === 'accrued') balances.accrued += amount;
-    if (status === 'approved') balances.available += amount;
-    if (status === 'pending') balances.pending += amount;
-    if (status === 'paid') balances.paid += amount;
+    if (status === 'approved') balances.available += payable.get(row.id) ?? 0;
+    if (status === 'pending') balances.pending += payable.get(row.id) ?? 0;
     balances.total += amount;
   }
   for (const key of Object.keys(balances) as Array<keyof typeof balances>) balances[key] = Math.round(balances[key]*100)/100;
   for (const key of Object.keys(commissionByStatus)) commissionByStatus[key] = Math.round(commissionByStatus[key]!*100)/100;
-  return { balances, commissionByStatus };
+  return { balances, commissionByStatus,
+    balanceBasis: { scope: 'lifetime_partner_currency' as const, asOf: s.asOf, ignoresActivityFilters: true,
+      paid: 'completed_manual_payout_cash' as const, availableAndPending: 'current_payable_after_debt' as const,
+      total: 'current_net_earnings_before_debt' as const },
+    commissionByStatusBasis: 'selected_accrual_period_current_net_earnings' as const };
 }
 
 async function timeSeries(s: Scope) {
@@ -230,7 +241,7 @@ async function timeSeries(s: Scope) {
   const first = s.filters.period === 'all' ? [...byDate.keys()].sort()[0] : todayWindow(timezone, s.since).day;
   if (!first) return { bucket, points: [], by: s.filters.seriesBy, groups: s.filters.seriesBy ? [] : undefined };
   const cursor = start(first), last = start(todayWindow(timezone, new Date(s.until.getTime() - 1)).day);
-  const points: Array<{date:string;since:string;until:string;clicks:number;registrations:number;payingCustomers:number;payments:number;firstPayments:number;repeatPayments:number;customerPaymentsMinor:number;earningsMinor:number}> = [];
+  const points: Array<{date:string;since:string;until:string;clicks:number;identities:number;registrations:number;payingCustomers:number;payments:number;firstPayments:number;repeatPayments:number;customerPaymentsMinor:number;earningsMinor:number}> = [];
   while (cursor <= last) {
     const date = cursor.toISOString().slice(0, 10), row = byDate.get(date);
     const next = new Date(cursor);
@@ -238,7 +249,7 @@ async function timeSeries(s: Scope) {
     else next.setUTCDate(next.getUTCDate() + (bucket === 'week' ? 7 : 1));
     points.push({ date, since: new Date(Math.max(s.since.getTime(),dayStart(date,timezone).getTime())).toISOString(),
       until: new Date(Math.min(s.until.getTime(),dayStart(next.toISOString().slice(0,10),timezone).getTime())).toISOString(),
-      clicks: row?.counts.clicks ?? 0, registrations: row?.counts.registrations ?? 0,
+      clicks: row?.counts.clicks ?? 0, identities: row?.counts.identities ?? 0, registrations: row?.counts.registrations ?? 0,
       payingCustomers: row?.counts.payingCustomers ?? 0,
       payments: row?.counts.paymentCount ?? 0, firstPayments: row?.counts.firstPaymentCount ?? 0,
       repeatPayments: row?.counts.repeatPaymentCount ?? 0, customerPaymentsMinor: row?.amountsMinor.observedPayments ?? 0, earningsMinor: row?.amountsMinor.netAccrued ?? 0 });
@@ -248,7 +259,7 @@ async function timeSeries(s: Scope) {
   const groups = [...new Set(groupedRows.map(row => row.seriesId!))].map(id => ({ id, points: points.map(point => {
     const row = groupedPoints.get(JSON.stringify([id, point.date]));
     return { date: point.date, since: point.since, until: point.until, clicks: row?.counts.clicks ?? 0, registrations: row?.counts.registrations ?? 0,
-      payingCustomers: row?.counts.payingCustomers ?? 0, payments: row?.counts.paymentCount ?? 0,
+      identities: row?.counts.identities ?? 0, payingCustomers: row?.counts.payingCustomers ?? 0, payments: row?.counts.paymentCount ?? 0,
       firstPayments: row?.counts.firstPaymentCount ?? 0, repeatPayments: row?.counts.repeatPaymentCount ?? 0,
       customerPaymentsMinor: row?.amountsMinor.observedPayments ?? 0, earningsMinor: row?.amountsMinor.netAccrued ?? 0 };
   }) }));
@@ -275,12 +286,12 @@ async function previousPeriod(s: Scope) {
 
 async function conversionFunnel(s: Scope) {
   const selectedClicks = clicks(s).where('cl.ts', '>=', s.since).where('cl.ts', '<', s.until).select('cl.id');
-  const cohort = attributions(s).whereIn('cl.id', selectedClicks).where('e.ts', '<=', new Date()).whereRaw('e.ts >= cl.ts');
+  const cohort = attributions(s).whereIn('cl.id', selectedClicks).where('e.ts', '<=', s.asOf).whereRaw('e.ts >= cl.ts');
   const registered = cohort.clone().where('e.type', 'signup').select('e.userId').min({ signupAt: 'e.ts' }).groupBy('e.userId');
   const [registration, paying] = await Promise.all([
     s.db.from(registered.clone().as('registered')).count({ count: '*' }).first(),
     cohort.clone().join(registered.clone().as('registered'), 'registered.userId', 'e.userId')
-      .whereRaw('e.ts >= registered."signupAt"').whereRaw(paidExpression(s), bindings(s)).whereRaw(`NOT ${recurringExpression}`)
+      .whereRaw('e.ts >= registered."signupAt"').whereRaw(paidExpression(), bindings(s)).whereRaw(`NOT ${recurringExpression}`)
       .countDistinct({ count: 'e.userId' }).first(),
   ]);
   return { registrations: Number(registration?.count ?? 0), firstPayingCustomers: Number(paying?.count ?? 0) };
@@ -291,8 +302,9 @@ export const analyticsDetailsQuerySchema = z.object({ cursor: z.string().max(300
 
 /** Read-only detail view. Reuses the exact scope, payment taxonomy and exclusions of the report. */
 export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partnerId: string, filters: AnalyticsFilters, rawCursor?: string) {
+  filters = { ...filters, currency: filters.currency ?? 'RUB' };
   const since = filters.since ?? new Date(Date.now() - 30 * 86400000), until = filters.until ?? new Date();
-  const s: Scope = { db, tenantId, partnerId, filters, since, until };
+  const s: Scope = { db, tenantId, partnerId, filters, since, until, asOf: new Date() };
   let cursor: z.infer<typeof historyCursor> | undefined;
   if (rawCursor) {
     try { cursor = historyCursor.parse(JSON.parse(rawCursor)); }
@@ -301,12 +313,12 @@ export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partne
   const periodClicks = () => clicks(s).where('cl.ts', '>=', since).where('cl.ts', '<', until);
   const clickEvents = periodClicks().select(db.raw(`'c:' || cl.id AS id, 'click'::text AS kind, cl.ts, NULL::numeric AS "amountMinor", NULL::text AS currency`));
   const events = attributions(s).where('e.ts', '>=', since).where('e.ts', '<', until)
-    .where(q => q.where('e.type', 'signup').orWhereRaw(paidExpression(s), bindings(s)))
+    .where(q => q.where('e.type', 'signup').orWhereRaw(paidExpression(), bindings(s)))
     .select(db.raw(`'e:' || e.id AS id, CASE WHEN e.type='signup' THEN 'signup' WHEN ${recurringExpression} THEN 'repeat_payment' ELSE 'first_payment' END AS kind, e.ts,
       CASE WHEN e.type='signup' THEN NULL ELSE ROUND(SUM(e.value*a.weight)*100) END AS "amountMinor", e.currency`))
     .groupBy('e.id');
   const refunds = attributions(s).join('Event as refund', function () { this.on(db.raw("refund.metadata->>'originalEventId' = e.id")); })
-    .where({ 'refund.tenantId': tenantId, 'refund.type': 'refund' }).whereRaw(paidExpression(s), bindings(s))
+    .where({ 'refund.tenantId': tenantId, 'refund.type': 'refund' }).whereRaw(paidExpression(), bindings(s))
     .where('refund.ts', '>=', since).where('refund.ts', '<', until)
     .whereRaw("COALESCE(refund.metadata->>'source', '') <> 'local_simulator'")
     .modify(q => { if (filters.currency) q.where('refund.currency', filters.currency); })
@@ -343,9 +355,10 @@ export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partne
 }
 
 export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: string, filters: AnalyticsFilters = {}) {
+  filters = { ...filters, currency: filters.currency ?? 'RUB' };
   const since = filters.since ?? new Date(Date.now()-30*86400000), until = filters.until ?? new Date();
   if (!Number.isFinite(since.getTime()) || !Number.isFinite(until.getTime()) || since >= until) throw new Error('invalid_analytics_period');
-  const s: Scope = { db, tenantId, partnerId, filters, since, until };
+  const s: Scope = { db, tenantId, partnerId, filters, since, until, asOf: new Date() };
   const scenarioSelection = selectedIds(filters, 'scenarioId'), platformSelection = selectedIds(filters, 'platformId'), formatSelection = selectedIds(filters, 'formatId');
   const group = filters.groupBy ?? (scenarioSelection.length === 1 && scenarioSelection[0] !== '__none__' ? 'platform' : 'scenario');
   const [totals, rows, ledger, sourceRows, snapshotRows, linkRows, materialRows, series, comparison, funnel] = await Promise.all([
@@ -368,7 +381,7 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: st
     if (!scenarios.has(id)) scenarios.set(id, { id, name: snapshot.data.scenarioName || 'Сценарий', archived: snapshot.status === 'archived' });
   }
   const scopedSources = sources.filter(source => matchesSelection(source.scenarioId,scenarioSelection)&&matchesSelection(source.platformId,platformSelection)&&matchesSelection(source.formatId,formatSelection)&&matchesSelection(source.materialId,selectedIds(filters,'materialId'))&&(!filters.linkId||source.linkId===filters.linkId)&&(!filters.sourceId||source.id===filters.sourceId));
-  const emptyRow=(id:string)=>({id,counts:{clicks:0,identities:0,attributedEvents:0,registrations:0,paymentCount:0,payingCustomers:0,firstPaymentCount:0,repeatPaymentCount:0},amountsMinor:{observedPayments:0,refunds:0,netPayments:0,netAccrued:0},conversions:{clickToRegistration:null,registrationToPayment:null,clickToPayment:null,cohortRegistrations:0,cohortPayingCustomers:0}});
+  const emptyRow=(id:string)=>({id,counts:{clicks:0,identities:0,attributedEvents:0,registrations:0,paymentCount:0,payingCustomers:0,firstPaymentCount:0,repeatPaymentCount:0},amountsMinor:{observedPayments:0,refunds:0,netPayments:0,netAccrued:0},conversions:{clickToRegistration:null,registrationToPayment:null,clickToPayment:null,cohortRegistrations:0,cohortPayingCustomers:0,cohortPaidRegistrations:0}});
   // Only measured activity is a result. Empty rows are an explicit view of existing links, never calendar placeholders.
   const resultRows=rows.filter(row=>row.counts.clicks>0||row.counts.registrations>0||row.counts.paymentCount>0||Object.values(row.amountsMinor).some(value=>value!==0));
   if(filters.includeEmpty==='true'){
@@ -416,12 +429,16 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: st
     const dimension = filters.seriesBy!, choices = reportOptions[`${dimension}s`];
     const grouped = new Map((series.groups ?? []).map(item => [item.id, item]));
     for (const id of selectedIds(filters, `${dimension}Id`)) {
-      if (!grouped.has(id) && (id === '__none__' || choices.some(choice => choice.id === id))) grouped.set(id, { id, points: series.points.map(point => ({...point,clicks:0,registrations:0,payingCustomers:0,payments:0,firstPayments:0,repeatPayments:0,customerPaymentsMinor:0,earningsMinor:0})) });
+      if (!grouped.has(id) && (id === '__none__' || choices.some(choice => choice.id === id))) grouped.set(id, { id, points: series.points.map(point => ({...point,clicks:0,identities:0,registrations:0,payingCustomers:0,payments:0,firstPayments:0,repeatPayments:0,customerPaymentsMinor:0,earningsMinor:0})) });
     }
     return { ...series, by: dimension, groups: [...grouped.values()].map(item => ({ ...item, name: choices.find(choice => choice.id === item.id)?.name ?? (dimension === 'scenario' ? 'Без сценария' : dimension === 'platform' ? 'Площадка не указана' : 'Формат не указан') })) };
   })() : series;
   return {
-    ...totals[0]!, period: { since, until }, generatedAt: new Date(), currency: filters.currency ?? null, timezone: filters.timezone ?? 'Europe/Moscow',
+    ...totals[0]!, period: { since, until }, generatedAt: s.asOf, currency: filters.currency!, timezone: filters.timezone ?? 'Europe/Moscow',
+    metricBasis: { counts: 'activity_in_selected_period' as const, conversions: 'selected_click_cohort_through_generated_at' as const,
+      identities: 'distinct_users_on_selected_clicks' as const, seriesIdentities: 'distinct_users_per_click_time_bucket_not_additive' as const,
+      registrations: 'distinct_users' as const, payments: 'positive_invoice_paid_or_recurring_payment_events' as const,
+      earnings: 'commission_accrued_at_with_current_corrections' as const, refunds: 'refund_event_time' as const },
     ...(chartSeries ? { series: chartSeries } : {}),
     ...(comparison ? { comparison } : {}),
     ...(funnel ? { funnel: { clicks: totals[0]!.counts.clicks, ...funnel } } : {}),
@@ -444,8 +461,9 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: st
     }),
     options: reportOptions,
     ...ledger, views: null, ctr: null,
-    exclusions: ['local_simulator', 'flagged_clicks', 'non_current_attribution_models'],
-    dataQuality: { signupTracking: 'not_verified_end_to_end', paymentTracking: 'not_verified_end_to_end', views: 'unavailable' },
-    warnings: [],
+    exclusions: ['local_simulator', 'flagged_clicks'],
+    // No persisted production verification evidence exists. Test success cannot verify tracking in production.
+    dataQuality: { signupTracking: 'not_verified_end_to_end', paymentTracking: 'not_verified_end_to_end', views: 'unavailable', ctr: 'unavailable' } satisfies Record<string, AnalyticsTrackingStatus>,
+    warnings: ['signup_tracking_unverified', 'payment_tracking_unverified', 'views_unavailable', 'ctr_unavailable'] satisfies AnalyticsWarning[],
   };
 }
