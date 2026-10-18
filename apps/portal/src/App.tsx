@@ -47,6 +47,7 @@ import { CalculatorWork } from './pages/coach/CalculatorWork.js';
 import { CommissionsPage } from './pages/Commissions.js';
 import { PayoutsPage } from './pages/Payouts.js';
 import { AdminPartners } from './pages/AdminPartners.js';
+import { AdminAnalytics } from './pages/AdminAnalytics.js';
 import { AdminPartnerDetail } from './pages/AdminPartnerDetail.js';
 import { AdminPartnerPrograms } from './pages/AdminPartnerPrograms.js';
 import { AdminPartnerCoupons } from './pages/AdminPartnerCoupons.js';
@@ -289,6 +290,7 @@ function Shell() {
           {auth.principal.role === 'admin' && (
             <>
               <Route path="admin/partners" element={<AdminPartners />} />
+              <Route path="admin/analytics" element={<AdminAnalytics />} />
               <Route path="admin/messages" element={<MessagesPage principal={auth.principal} />} />
               <Route path="admin/partners/:id" element={<AdminPartnerDetail />} />
               <Route path="admin/partners/:id/programs" element={<AdminPartnerPrograms />} />
@@ -471,6 +473,7 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
         {principal.role === 'admin' && (
           <NavSection title="Администрирование" collapsible storageKey="admin-admin">
             <NavItem to="/admin/partners" icon={<Users size={16} />}>Партнёры</NavItem>
+            <NavItem to="/admin/analytics" icon={<ChartNoAxesCombined size={16} />}>Аналитика партнёров</NavItem>
             <NavItem to="/admin/programs" icon={<Tag size={16} />}>Программы</NavItem>
             <NavItem to="/admin/calculator" icon={<Calculator size={16} />}>Калькулятор</NavItem>
             <NavItem to="/admin/coach" icon={<Bot size={16} />}>ИИ-куратор</NavItem>

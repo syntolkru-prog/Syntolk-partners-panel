@@ -1,7 +1,7 @@
 import type { AnalyticsReport } from './PartnerAnalytics.js';
 import type { ChartInspection, ChartMetric } from './ResultsChart.js';
 
-export const metricValue = (row:Pick<AnalyticsReport,'counts'|'amountsMinor'>,metric:ChartMetric) => metric==='payments'?row.counts.paymentCount:metric==='customerPaymentsMinor'?row.amountsMinor.observedPayments:metric==='earningsMinor'?row.amountsMinor.netAccrued:row.counts[metric];
+export const metricValue = (row:Pick<AnalyticsReport,'counts'|'amountsMinor'>,metric:ChartMetric) => metric==='payments'?row.counts.paymentCount:metric==='customerPaymentsMinor'?row.amountsMinor.observedPayments:metric==='earningsMinor'?row.amountsMinor.netAccrued:row.counts[metric]??0;
 
 export function inspectionScope(query:string,selection:ChartInspection,report:Pick<AnalyticsReport,'period'|'series'>) {
   const scoped=new URLSearchParams(query);

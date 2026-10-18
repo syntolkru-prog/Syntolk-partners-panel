@@ -1,0 +1,56 @@
+.admin-analytics { max-width:1640px; }
+.admin-analytics__subtitle { margin-top:7px!important; color:var(--results-muted); font-size:12px; }
+.admin-analytics__filters { display:flex; flex-wrap:wrap; gap:16px; align-items:end; padding:18px 20px; }
+.admin-analytics__filters>.coach-field { flex:1 1 180px; display:flex; flex-direction:column; gap:7px; min-width:0; margin:0; color:var(--results-muted); font-size:12px; }
+.admin-analytics__scope,.admin-analytics__detail-heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; color:var(--results-muted,#939eac); font-size:12px; }
+.admin-analytics__scope strong { color:var(--op-text,#e6e8eb); font-size:16px; font-variant-numeric:tabular-nums; }
+.admin-analytics__financial { display:flex; flex-wrap:wrap; gap:18px 32px; margin:0; padding:18px 20px; }
+.admin-analytics__financial>div { flex:1 1 160px; }
+.admin-analytics__financial dt { color:var(--results-muted); font-size:12px; }
+.admin-analytics__financial dd { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:8px 0 0; font-size:17px; font-weight:550; font-variant-numeric:tabular-nums; }
+.admin-analytics__table-scroll { max-height:650px; overflow:auto; scrollbar-width:thin; }
+.admin-analytics__table-scroll[data-pending=true] tbody { visibility:hidden; }
+.admin-analytics__table { min-width:1830px; table-layout:auto; }
+.admin-analytics__table thead th { position:sticky; top:0; z-index:2; background:#19202a; white-space:normal; max-width:180px; }
+.admin-analytics__table th:first-child,.admin-analytics__table td:first-child { position:sticky; left:0; width:240px; min-width:240px; max-width:280px; background:var(--results-surface); z-index:1; box-shadow:1px 0 var(--results-border); }
+.admin-analytics__table thead th:first-child { z-index:3; background:#19202a; }
+.admin-analytics__table td { white-space:nowrap; }
+.admin-analytics__table .results-row-name { color:var(--op-accent,#10cadb); white-space:normal; text-decoration:none; }
+.admin-analytics__partner-meta { display:block; overflow:hidden; text-overflow:ellipsis; margin-top:6px; color:var(--results-muted); font-size:11px; line-height:1.7; }
+.admin-analytics__pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; padding:16px 20px; border-top:1px solid var(--results-border); }
+.admin-analytics__pagination>span { margin-right:auto; color:var(--results-muted); }
+.admin-analytics__pagination label { display:flex; align-items:center; gap:7px; color:var(--results-muted); }
+.admin-analytics__quality { padding:18px 20px; color:var(--results-muted); line-height:1.7; }
+.admin-analytics__quality summary { cursor:pointer; color:var(--op-text,#e6e8eb); }
+.admin-analytics__quality p { margin-top:12px; }
+.admin-analytics__quality .admin-analytics__financial { padding:16px 0; }
+.admin-analytics__picker { position:relative; flex:1 1 180px; min-width:0; }
+.admin-analytics__picker>summary { display:flex; flex-direction:column; gap:7px; cursor:pointer; color:var(--results-muted); font-size:12px; list-style:none; }
+.admin-analytics__picker>summary::-webkit-details-marker { display:none; }
+.admin-analytics__picker>summary span { display:block; padding:9px 11px; border:1px solid var(--results-border); border-radius:8px; background:#191f27; color:var(--op-text,#e6e8eb); min-height:36px; }
+.admin-analytics__picker-menu { position:absolute; top:calc(100% + 8px); left:0; z-index:45; width:min(390px,calc(100vw - 56px)); padding:16px; border:1px solid var(--results-border); border-radius:12px; background:#191f27; box-shadow:0 16px 48px #0008; display:flex; flex-direction:column; gap:14px; }
+.admin-analytics__picker-menu .coach-field { display:flex; flex-direction:column; gap:7px; color:var(--results-muted); font-size:12px; }
+.admin-analytics__picker-options { max-height:280px; overflow:auto; }
+.admin-analytics__picker-options label { display:flex; align-items:center; gap:10px; padding:9px 0; cursor:pointer; }
+.admin-analytics__picker-options span { min-width:0; overflow-wrap:anywhere; }
+.admin-analytics__picker-options small { display:block; color:var(--results-muted); margin-top:4px; font-size:11px; }
+.admin-analytics__picker-footer { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.admin-analytics__picker-footer>span { margin-right:auto; color:var(--results-muted); font-size:11px; }
+.admin-analytics__detail-heading { margin-bottom:24px; }
+.admin-analytics__detail-heading a { color:var(--op-accent,#10cadb); text-decoration:none; }
+@media(max-width:760px) {
+  .admin-analytics__filters { padding:14px; gap:12px; }
+  .admin-analytics__table th:first-child,.admin-analytics__table td:first-child { width:170px; min-width:170px; max-width:170px; }
+  .admin-analytics__table { display:table!important; }
+  .admin-analytics__table thead { display:table-header-group!important; }
+  .admin-analytics__table tbody { display:table-row-group!important; }
+  .admin-analytics__table tr { display:table-row!important; }
+  .admin-analytics__table tbody,.admin-analytics__table tr,.admin-analytics__table td { width:auto; }
+  .admin-analytics__table th,.admin-analytics__table td,.admin-analytics__table td:first-child,.admin-analytics__table td:last-child { display:table-cell!important; padding:14px 12px; text-align:right; border-top:1px solid var(--results-border); }
+  .admin-analytics__table th:first-child,.admin-analytics__table td:first-child { text-align:left; }
+  .admin-analytics__table td:before { content:none!important; }
+  .admin-analytics__financial { padding:14px; gap:16px; }
+  .admin-analytics__financial>div { flex-basis:125px; }
+  .admin-analytics__pagination { padding:14px; }
+  .admin-analytics__pagination>span { flex-basis:100%; }
+}

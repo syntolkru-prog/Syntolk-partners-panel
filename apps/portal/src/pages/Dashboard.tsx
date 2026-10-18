@@ -158,9 +158,9 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
 function FunnelChart({ funnel }: { funnel: Funnel }) {
   const stages = [
     { key: 'clicks', label: 'Переходы', value: funnel.stages.clicks, icon: <MousePointerClick size={14} />, rate: null },
-    { key: 'identities', label: 'Связанные', value: funnel.stages.identities, icon: <UserCheck size={14} />, rate: funnel.rates.stitchRate },
-    { key: 'signups', label: 'Регистрации', value: funnel.stages.signups, icon: <Receipt size={14} />, rate: funnel.rates.signupRate },
-    { key: 'paid', label: 'Оплачено', value: funnel.stages.paid, icon: <CreditCard size={14} />, rate: funnel.rates.paidRate },
+    { key: 'identities', label: 'Связанные', value: funnel.stages.identities, icon: <UserCheck size={14} />, rate: funnel.rates.stitchRate, rateLabel:'от переходов' },
+    { key: 'signups', label: 'Регистрации', value: funnel.stages.signups, icon: <Receipt size={14} />, rate: funnel.rates.signupRate, rateLabel:'от связанных в когорте' },
+    { key: 'paid', label: 'Оплачено', value: funnel.stages.paid, icon: <CreditCard size={14} />, rate: funnel.rates.paidRate, rateLabel:'от регистраций в когорте' },
   ];
   const max = Math.max(1, ...stages.map((s) => s.value));
   const pct = (n: number | null | undefined) => (n == null ? '' : `${Math.round(n * 100)}%`);
@@ -169,6 +169,7 @@ function FunnelChart({ funnel }: { funnel: Funnel }) {
     <>
        <SectionHeading>Воронка</SectionHeading>
       <Card>
+        <p style={{ margin:'0 0 12px',fontSize:12,color:theme.textMuted }}>Числа — действия за период. Проценты — по когорте переходов периода, включая последующие регистрации и оплаты.</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {stages.map((s, i) => {
             const width = `${Math.max(6, (s.value / max) * 100)}%`;
@@ -194,7 +195,7 @@ function FunnelChart({ funnel }: { funnel: Funnel }) {
                 <div style={{ fontSize: 12, color: theme.textMuted, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {i > 0 && (
                     <>
-                       <span style={{ color: theme.textDim }}>от предыдущего этапа</span>{' '}
+                       <span style={{ color: theme.textDim }}>{s.rateLabel}</span>{' '}
                       <span style={{ color: theme.text, fontWeight: 500 }}>{pct(s.rate)}</span>
                     </>
                   )}
@@ -204,7 +205,7 @@ function FunnelChart({ funnel }: { funnel: Funnel }) {
           })}
         </div>
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.borderSubtle}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-           <span style={{ fontSize: 13, color: theme.textMuted }}>Переход → оплата</span>
+           <span style={{ fontSize: 13, color: theme.textMuted }}>Переход → оплата · когорта переходов</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: theme.accent, fontVariantNumeric: 'tabular-nums' }}>
             {pct(funnel.rates.overall)}
           </span>

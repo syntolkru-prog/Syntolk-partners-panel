@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowUpRight, ChevronRight, X } from 'lucide-react';
 import { api, currentTenantSlug } from '../api.js';
-import { ErrorBanner, money } from '../ui.js';
+import { ErrorBanner, money as formatMoney } from '../ui.js';
 import { trackingShareUrl } from '../lib/share-links.js';
 import type { AnalyticsReport, MetricRow } from './PartnerAnalytics.js';
 import { chartMetricKeys, chartMetricLabels, chartSeriesColor, type ChartMetric, type ChartSeriesBy } from './ResultsChart.js';
@@ -12,10 +12,11 @@ import { metricValue } from './results-scope.js';
 export const dateLabel = (value?: string | null, timezone='Europe/Moscow') => value ? new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone:timezone }) : 'Дата не сохранена';
 const percent = (value: number | null) => value === null ? '—' : `${(value * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`;
 
-export function PaymentDetails({ row }: { row: Pick<MetricRow, 'counts' | 'amountsMinor' | 'conversions'> }) {
+export function PaymentDetails({ row,currency='RUB' }: { row: Pick<MetricRow, 'counts' | 'amountsMinor' | 'conversions'>;currency?:string }) {
+  const money=(amount:number)=>formatMoney(amount,currency);
   return <div className="results-detail-metrics">{[
     ['Первые оплаты', row.counts.firstPaymentCount], ['Повторные оплаты', row.counts.repeatPaymentCount], ['Оплачено клиентами', money(row.amountsMinor.observedPayments / 100)], ['Возвраты', money(row.amountsMinor.refunds / 100)],
-    ['Переход → регистрация', percent(row.conversions?.clickToRegistration ?? null)], ['Регистрация → оплата', percent(row.conversions?.registrationToPayment ?? null)], ['Переход → оплата', percent(row.conversions?.clickToPayment ?? null)],
+    ['Переход → регистрация · когорта', percent(row.conversions?.clickToRegistration ?? null)], ['Регистрация → оплата · когорта', percent(row.conversions?.registrationToPayment ?? null)], ['Переход → оплата · когорта', percent(row.conversions?.clickToPayment ?? null)],
   ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
 }
 
@@ -33,13 +34,18 @@ const scopeField: Record<string, string> = { link: 'linkId', material: 'material
 const groupNames:Record<string,string>={platform:'Площадки',scenario:'Сценарии',format:'Форматы',material:'Материалы',source:'Размещения'};
 const comparisonNames:Record<string,string>={platform:'Сравнение площадок',scenario:'Сравнение сценариев',format:'Сравнение форматов'};
 const emptyGroup=(group:{id:string;name:string;archived?:boolean}):MetricRow=>({...group,archived:!!group.archived,counts:{clicks:0,registrations:0,payingCustomers:0,paymentCount:0,firstPaymentCount:0,repeatPaymentCount:0},amountsMinor:{observedPayments:0,refunds:0,netPayments:0,netAccrued:0}});
-const metricLabel = (row:Pick<MetricRow,'counts'|'amountsMinor'>, metric:ChartMetric) => metric.endsWith('Minor')?money(metricValue(row,metric)/100):metricValue(row,metric).toLocaleString('ru-RU');
+const metricLabel = (row:Pick<MetricRow,'counts'|'amountsMinor'>, metric:ChartMetric,currency='RUB') => metric.endsWith('Minor')?formatMoney(metricValue(row,metric)/100,currency):metricValue(row,metric).toLocaleString('ru-RU');
 
-export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup, query, period, timezone='Europe/Moscow', onClose, onScope, inspection,embedded=false }: {
+export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup, query, period, timezone='Europe/Moscow', onClose, onScope, inspection,embedded=false,endpoint }: {
   partnerId: string; row: MetricRow; groupBy: string; query: string; period?: { since: string; until: string }; timezone?:string; onClose: () => void; onScope?: (id: string) => void;
   inspection?:{metric:ChartMetric;context:string;compareBy?:Exclude<ChartSeriesBy,'total'>;groups?:Array<{id:string;name:string;archived?:boolean}>};
   embedded?:boolean;
+  endpoint?:string;
 }) {
+  const analyticsEndpoint=endpoint??`/partners/${partnerId}/analytics`;
+  const currency=new URLSearchParams(query).get('currency')??'RUB';
+  const money=(amount:number)=>formatMoney(amount,currency);
+  const labelMetric=(row:Pick<MetricRow,'counts'|'amountsMinor'>,metric:ChartMetric)=>metricLabel(row,metric,currency);
   const [path,setPath]=useState([{row:currentRow,groupBy:initialGroup}]);
   const {row,groupBy}=path.at(-1)!;
   const [selectedMetric,setSelectedMetric]=useState<ChartMetric|null>(inspection?.metric??null);
@@ -76,9 +82,9 @@ export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup
     document.addEventListener('keydown', keyboard);
     return () => { document.removeEventListener('keydown', keyboard); document.body.style.overflow = overflow; if (!wasInert) app?.removeAttribute('inert'); if (previous?.isConnected) previous.focus({preventScroll:true}); };
   }, [onClose,embedded]);
-  const placements = useQuery({ queryKey: ['partner-analytics', currentTenantSlug(), partnerId, scoped], queryFn: () => api<AnalyticsReport>(`/partners/${partnerId}/analytics?${scoped}`), enabled: tab === 'overview' && groupBy !== 'source' });
-  const detail = useInfiniteQuery({ queryKey: ['partner-analytics-details', currentTenantSlug(), partnerId, scoped], initialPageParam: '',
-    queryFn: ({ pageParam }) => api<DetailsReport>(`/partners/${partnerId}/analytics/details?${scoped}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`),
+  const placements = useQuery({ queryKey: ['partner-analytics', currentTenantSlug(), endpoint??partnerId, scoped], queryFn: () => api<AnalyticsReport>(`${analyticsEndpoint}?${scoped}`), enabled: tab === 'overview' && groupBy !== 'source' });
+  const detail = useInfiniteQuery({ queryKey: ['partner-analytics-details', currentTenantSlug(), endpoint??partnerId, scoped], initialPageParam: '',
+    queryFn: ({ pageParam }) => api<DetailsReport>(`${analyticsEndpoint}/details?${scoped}${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`),
     getNextPageParam: last => last.history.nextCursor ?? undefined, enabled: tab !== 'overview' });
   const history = detail.data?.pages.flatMap(page => page.history.items) ?? [];
   const traffic = detail.data?.pages[0]?.traffic;
@@ -104,22 +110,22 @@ export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup
       }}>{[['overview', 'Обзор'], ['history', 'Действия'], ['audience', 'Аудитория']].map(([key, label]) => <button key={key} type="button" id={`${titleId}-${key}`} role="tab" aria-selected={tab === key} aria-controls={`${titleId}-panel`} tabIndex={tab === key ? 0 : -1} onClick={() => setTab(key!)}>{label}</button>)}</nav>
       <div ref={body} className="results-drawer__body" id={`${titleId}-panel`} role="tabpanel" aria-labelledby={`${titleId}-${tab}`}>
         {tab === 'overview' ? <>
-          {summary?<>{selectedMetric&&<div className="results-drill-total"><span>{chartMetricLabels[selectedMetric]}</span><strong>{metricLabel(summary,selectedMetric)}</strong><small>{selectedMetric==='payingCustomers'?'Клиенты без повторов за выбранный период':selectedMetric==='earningsMinor'?'Начисленные комиссии с учётом возвратов':'За выбранный период и выбранные источники'}</small></div>}
-          {selectedMetric&&placements.data?.comparison&&<div className="results-drill-previous"><span>Предыдущий период<small>{dateLabel(placements.data.comparison.period.since,timezone)} — {dateLabel(new Date(Date.parse(placements.data.comparison.period.until)-1).toISOString(),timezone)}</small></span><strong>{metricLabel(placements.data.comparison,selectedMetric)}</strong></div>}
-          <div className="results-drawer__stats">{chartMetricKeys.map(key=><button type="button" key={key} aria-label={`Показать: ${chartMetricLabels[key]}`} aria-pressed={selectedMetric===key} onClick={()=>setSelectedMetric(key)}><span>{chartMetricLabels[key]}</span><strong>{metricLabel(summary,key)}</strong></button>)}</div>
-          {summary.amountsMinor.observedPayments>0&&summary.amountsMinor.netAccrued===0&&<p className="results-note">Оплаты клиентов учтены. Сумма ваших комиссий с учётом возвратов — 0 ₽.</p>}</>:null}
+          {summary?<>{selectedMetric&&<div className="results-drill-total"><span>{chartMetricLabels[selectedMetric]}</span><strong>{labelMetric(summary,selectedMetric)}</strong><small>{selectedMetric==='payingCustomers'?'Клиенты без повторов за выбранный период':selectedMetric==='earningsMinor'?'Начисленные комиссии с учётом возвратов':'За выбранный период и выбранные источники'}</small></div>}
+          {selectedMetric&&placements.data?.comparison&&<div className="results-drill-previous"><span>Предыдущий период<small>{dateLabel(placements.data.comparison.period.since,timezone)} — {dateLabel(new Date(Date.parse(placements.data.comparison.period.until)-1).toISOString(),timezone)}</small></span><strong>{labelMetric(placements.data.comparison,selectedMetric)}</strong></div>}
+          <div className="results-drawer__stats">{chartMetricKeys.map(key=><button type="button" key={key} aria-label={`Показать: ${chartMetricLabels[key]}`} aria-pressed={selectedMetric===key} onClick={()=>setSelectedMetric(key)}><span>{chartMetricLabels[key]}</span><strong>{labelMetric(summary,key)}</strong></button>)}</div>
+          {summary.amountsMinor.observedPayments>0&&summary.amountsMinor.netAccrued===0&&<p className="results-note">Оплаты клиентов учтены. Сумма ваших комиссий с учётом возвратов — {money(0)}.</p>}</>:null}
           {onScope && groupBy === 'link' && row.id !== '__none__' && <button type="button" className="results-text-button" onClick={() => onScope(row.id)}>Динамика этой ссылки<ArrowUpRight size={14}/></button>}
           {row.placement ? <PlacementInfo row={row} timezone={timezone}/> : groupBy === 'link' && row.linkKey ? <p className="results-link-line"><span>Партнёрская ссылка</span><code>{trackingShareUrl(row.linkKey)}</code></p> : null}
           {groupBy === 'link' && row.id === '__none__' && <p className="results-note">У этих переходов не сохранена связь со ссылкой. Они включены в общий итог.</p>}
           {row.material&&<p className="results-note">{row.material.formatName}{row.material.scenarioName?` · ${row.material.scenarioName}`:''}</p>}
           {groupBy !== 'source' && <section className="results-drawer__placements"><div className="results-drill-list-heading"><h3>{groupNames[breakdownGroup]??'Размещения'}</h3>{selectedMetric&&<span>{chartMetricLabels[selectedMetric]}</span>}</div><ErrorBanner error={placements.error}/>
             {placements.isLoading ? <p className="results-note" role="status">Загружаем статистику…</p> : breakdownRows.length ? breakdownRows.map(source => <div key={source.id} className="results-placement-card">
-              <button type="button" className="results-drill-row" aria-label={source.name} onClick={()=>openRow(source)}>{comparisonMode&&<i className="results-comparison-dot" style={{background:chartSeriesColor(source.id)}}/>}<span className="results-drill-row__name"><strong>{source.id === '__none__'&&!comparisonMode ? breakdownGroup==='material'?'Общие ссылки без материала':'Без указания размещения' : source.name}</strong>{!comparisonMode&&<small>{source.placement?`${source.placement.platformName}${source.placement.channelName?` · ${source.placement.channelName}`:''}`:source.material?.formatName??source.platformNames?.join(' · ')}</small>}</span><b>{metricLabel(source,selectedMetric??'clicks')}</b><ChevronRight size={15}/></button>
+              <button type="button" className="results-drill-row" aria-label={source.name} onClick={()=>openRow(source)}>{comparisonMode&&<i className="results-comparison-dot" style={{background:chartSeriesColor(source.id)}}/>}<span className="results-drill-row__name"><strong>{source.id === '__none__'&&!comparisonMode ? breakdownGroup==='material'?'Общие ссылки без материала':'Без указания размещения' : source.name}</strong>{!comparisonMode&&<small>{source.placement?`${source.placement.platformName}${source.placement.channelName?` · ${source.placement.channelName}`:''}`:source.material?.formatName??source.platformNames?.join(' · ')}</small>}</span><b>{labelMetric(source,selectedMetric??'clicks')}</b><ChevronRight size={15}/></button>
               {comparisonMode?<div className="results-comparison-track" aria-hidden="true"><i style={{width:`${Math.abs(metricValue(source,selectedMetric??'clicks'))/maxValue*100}%`,background:chartSeriesColor(source.id)}}/></div>:<p className="results-placement-card__metrics">Переходы: {source.counts.clicks} · Регистрации: {source.counts.registrations} · Клиенты: {source.counts.payingCustomers}{!selectedMetric&&<strong>{money(source.amountsMinor.netAccrued / 100)}</strong>}</p>}
-            </div>) : !placements.error && <p className="results-note">{selectedMetric==='earningsMinor'?'По выбранным источникам заработок за этот период — 0 ₽.':selectedMetric?`За выбранный период по показателю «${chartMetricLabels[selectedMetric]}» действий нет.`:'За выбранный период нет действий по отдельным размещениям.'}</p>}
+            </div>) : !placements.error && <p className="results-note">{selectedMetric==='earningsMinor'?`По выбранным источникам заработок за этот период — ${money(0)}.`:selectedMetric?`За выбранный период по показателю «${chartMetricLabels[selectedMetric]}» действий нет.`:'За выбранный период нет действий по отдельным размещениям.'}</p>}
             {(selectedMetric==='payingCustomers'||selectedMetric==='registrations')&&breakdownRows.length>1&&<p className="results-note">Один клиент может относиться к нескольким {({platform:'площадкам',scenario:'сценариям',format:'форматам',material:'материалам'} as Record<string,string>)[breakdownGroup]??'размещениям'}. В общем итоге он учитывается один раз.</p>}
           </section>}
-          {summary&&<details className="results-row-payments"><summary>Оплаты и конверсии</summary><PaymentDetails row={summary}/></details>}
+          {summary&&<details className="results-row-payments"><summary>Оплаты и конверсии</summary><PaymentDetails row={summary} currency={currency}/></details>}
         </> : <>
           <ErrorBanner error={detail.error}/>
           {detail.isLoading ? <p className="results-note" role="status">Загружаем данные…</p> : tab === 'history' ? <>

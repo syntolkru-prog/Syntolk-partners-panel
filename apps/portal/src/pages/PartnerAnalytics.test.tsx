@@ -263,7 +263,7 @@ describe('redesigned Results',()=>{
     show(<PartnerAnalyticsPanel partnerId="partner"/>);
     fireEvent.click(await screen.findByRole('button',{name:'Подробнее: Ваш заработок'}));
     const dialog=await screen.findByRole('dialog',{name:'Ваш заработок'});
-    await within(dialog).findByText('Оплаты клиентов учтены. Сумма ваших комиссий с учётом возвратов — 0 ₽.');
+    await within(dialog).findByText(/Оплаты клиентов учтены\. Сумма ваших комиссий с учётом возвратов — 0,00\s₽\./);
     expect(dialog.querySelector('.results-explorer__plot-heading strong')?.textContent).toContain('0,00');
     fireEvent.change(within(dialog).getByLabelText('Показатель большого графика'),{target:{value:'customerPaymentsMinor'}});
     expect(dialog.querySelector('.results-explorer__plot-heading strong')?.textContent).toMatch(/1.*000,00/);
@@ -315,7 +315,7 @@ describe('redesigned Results',()=>{
     expect(screen.getByRole('button',{name:'Регистрации'}).getAttribute('aria-pressed')).toBe('false');
     expect(within(screen.getByRole('article',{name:'Оплачено клиентами'})).getByText(/1.*000,00/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button',{name:'Все показатели'}));
-    expect(screen.getAllByRole('article')).toHaveLength(6);
+    expect(screen.getAllByRole('article')).toHaveLength(7);
   });
   it('narrows platform details to that row instead of retaining the multi-selection union',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?groupBy=platform&platformIds=youtube&platformIds=vk');
