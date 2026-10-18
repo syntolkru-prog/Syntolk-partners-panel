@@ -6,9 +6,19 @@ import { adjustmentTotalsByCommission, commissionGroupKey, manualPayableAmounts,
 import { todayWindow } from './coach/daily-plan.js';
 import { parseUserAgent } from './ua-parse.js';
 
-const selectionSchema = z.union([z.string().min(1).max(100), z.array(z.string().min(1).max(100)).min(1).max(50)])
-  .transform(value => [...new Set(Array.isArray(value) ? value : [value])]);
+const selectionSchema = z.preprocess(value => {
+  // qs represents repeated values as a numeric-keyed object above its array
+  // limit (20). Accept only its contiguous array representation, then apply
+  // exactly the same item and 50-selection limits as an ordinary array.
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+    if (keys.length && keys.every((key, index) => key === String(index))) return Object.values(value);
+  }
+  return value;
+}, z.union([z.string().min(1).max(100), z.array(z.string().min(1).max(100)).min(1).max(50)])
+  .transform(value => [...new Set(Array.isArray(value) ? value : [value])]));
 export const analyticsQuerySchema = z.object({
+  partnerId: z.string().min(1).max(100).optional(), partnerIds: selectionSchema.optional(),
   programId: z.string().min(1).optional(), scenarioId: z.string().min(1).max(100).optional(),
   platformId: z.string().min(1).max(100).optional(), formatId: z.string().min(1).max(100).optional(),
   scenarioIds: selectionSchema.optional(), platformIds: selectionSchema.optional(), formatIds: selectionSchema.optional(),
@@ -16,22 +26,23 @@ export const analyticsQuerySchema = z.object({
   materialId: z.string().min(1).max(32).optional(), linkId: z.string().min(1).max(32).optional(), sourceId: z.string().min(1).max(32).optional(),
   since: z.string().datetime().optional(), until: z.string().datetime().optional(),
   currency: z.string().regex(/^[A-Z]{3}$/).optional(),
-  groupBy: z.enum(['scenario', 'platform', 'format', 'material', 'source', 'link']).optional(),
+  groupBy: z.enum(['scenario', 'platform', 'format', 'material', 'source', 'link', 'partner']).optional(),
   includeEmpty: z.enum(['true', 'false']).optional(), includeSeries: z.enum(['true', 'false']).optional(),
   includeComparison: z.enum(['true', 'false']).optional(), includeFunnel: z.enum(['true', 'false']).optional(),
   period: z.enum(['today', '7d', '30d', 'all', 'custom']).optional(),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
+}).refine(input => new Set([...(input.partnerId ? [input.partnerId] : []), ...(input.partnerIds ?? [])]).size <= 50,
+  { path: ['partnerIds'], message: 'Select at most 50 partners.' });
 export type AnalyticsFilters = Omit<z.infer<typeof analyticsQuerySchema>, 'since' | 'until'> & { since?: Date; until?: Date; timezone?: string };
 export type AnalyticsGroup = NonNullable<AnalyticsFilters['groupBy']>;
 type TimeBucket = 'day' | 'week' | 'month';
 type SeriesDimension = NonNullable<AnalyticsFilters['seriesBy']>;
 type TimeGroup = TimeBucket | { bucket: TimeBucket; dimension: SeriesDimension };
 type Group = AnalyticsGroup | TimeGroup;
-type Scope = { db: Knex; tenantId: string; partnerId: string; filters: AnalyticsFilters; since: Date; until: Date; asOf: Date };
+type Scope = { db: Knex; tenantId: string; partnerIds?: string[]; filters: AnalyticsFilters; since: Date; until: Date; asOf: Date };
 export type AnalyticsTrackingStatus = 'not_verified_end_to_end' | 'unavailable';
 export type AnalyticsWarning = 'signup_tracking_unverified' | 'payment_tracking_unverified' | 'views_unavailable' | 'ctr_unavailable';
-const GROUPS: Record<AnalyticsGroup, string> = { scenario: 'src.scenarioId', platform: 'src.platformId', format: 'src.formatId', material: 'src.materialId', source: 'src.id', link: 'cl.linkId' };
+const GROUPS: Record<AnalyticsGroup, string> = { scenario: 'src.scenarioId', platform: 'src.platformId', format: 'src.formatId', material: 'src.materialId', source: 'src.id', link: 'cl.linkId', partner: 'cl.partnerId' };
 const isTimeBucket = (group?: Group): group is TimeGroup => typeof group === 'object' || group === 'day' || group === 'week' || group === 'month';
 const groupExpression = (group: AnalyticsGroup) => group === 'link' ? `COALESCE(??, src."linkId", '__none__')` : `COALESCE(??, '__none__')`;
 const selectedIds = (filters: AnalyticsFilters, field: 'scenarioId' | 'platformId' | 'formatId' | 'materialId') => {
@@ -39,6 +50,15 @@ const selectedIds = (filters: AnalyticsFilters, field: 'scenarioId' | 'platformI
   return [...new Set([...(filters[field] ? [filters[field]!] : []), ...multiple])];
 };
 const matchesSelection = (value: string | null, selected: string[]) => !selected.length || selected.includes(value ?? '__none__');
+export function analyticsPartnerIds(filters: Pick<AnalyticsFilters, 'partnerId' | 'partnerIds'>): string[] | undefined {
+  const ids = [...new Set([...(filters.partnerId ? [filters.partnerId] : []), ...(filters.partnerIds ?? [])])];
+  return ids.length ? ids : undefined;
+}
+function scopePartners(query: Knex.QueryBuilder, s: Scope, column = 'partnerId') {
+  if (s.partnerIds) query.whereIn(column, s.partnerIds);
+  return query;
+}
+function partners(s: Scope) { return scopePartners(s.db('Partner as partner').where('partner.tenantId', s.tenantId), s, 'partner.id'); }
 
 function dayStart(day: string, timezone: string) {
   if (!Number.isFinite(Date.parse(day)) || new Date(day).toISOString().slice(0,10) !== day) throw new z.ZodError([{ code: 'custom', path: ['from'], message: 'Некорректная дата.' }]);
@@ -73,8 +93,9 @@ export function analyticsFiltersFromQuery(query: unknown, timezone = 'Europe/Mos
   return { ...input, currency: input.currency ?? 'RUB', since, until, timezone };
 }
 
-function scopeClicks(query: Knex.QueryBuilder, s: Scope) {
-  query.where({ 'cl.tenantId': s.tenantId, 'cl.partnerId': s.partnerId }).whereNull('cl.fraudFlag');
+function scopeClicks(query: Knex.QueryBuilder, s: Scope, includeFlagged = false) {
+  scopePartners(query.where('cl.tenantId', s.tenantId), s, 'cl.partnerId');
+  if (!includeFlagged) query.whereNull('cl.fraudFlag');
   // Exclude the synthetic touch itself, never the real history of its user.
   query.whereRaw("COALESCE(cl.\"userAgent\", '') <> 'Syntolk-Local-Payment-Simulator/1'")
     .whereRaw("COALESCE(cl.referer, '') <> 'syntolk://local-simulator'")
@@ -93,14 +114,15 @@ function scopeClicks(query: Knex.QueryBuilder, s: Scope) {
   else if (s.filters.sourceId) query.where('src.id', s.filters.sourceId);
   return query;
 }
-function clicks(s: Scope) {
+function clicks(s: Scope, includeFlagged = false) {
   return scopeClicks(s.db('Click as cl').leftJoin('PartnerLinkSource as src', function () {
     this.on('src.id', '=', 'cl.trackingSourceId').andOn('src.tenantId', '=', 'cl.tenantId').andOn('src.partnerId', '=', 'cl.partnerId');
-  }), s);
+  }), s, includeFlagged);
 }
 function attributions(s: Scope) {
   return clicks(s).join('Attribution as a', 'a.clickId', 'cl.id').join('Event as e', 'e.id', 'a.eventId')
-    .where({ 'a.tenantId': s.tenantId, 'a.partnerId': s.partnerId, 'e.tenantId': s.tenantId })
+    .where({ 'a.tenantId': s.tenantId, 'e.tenantId': s.tenantId })
+    .modify(q => scopePartners(q, s, 'a.partnerId'))
     // Attribution is a frozen allocation; the program's current model is not historical evidence.
     .where('a.weight', '>', 0)
     .whereRaw("COALESCE(e.metadata->>'source', '') <> 'local_simulator'");
@@ -123,7 +145,7 @@ function paidExpression(alias = 'e') {
 const bindings = (s: Scope) => ({ currency: s.filters.currency ?? 'RUB' });
 const recurringExpression = `(e.type = 'recurring_payment' OR EXISTS (SELECT 1 FROM "Event" prev WHERE prev."tenantId" = e."tenantId" AND prev."userId" = e."userId" AND prev.type IN ('invoice_paid','recurring_payment') AND prev.value > 0 AND prev.currency = e.currency AND COALESCE(prev.metadata->>'source', '') <> 'local_simulator' AND (prev.ts < e.ts OR (prev.ts = e.ts AND prev.id < e.id))))`;
 
-async function aggregates(s: Scope, group?: Group) {
+function aggregateQueries(s: Scope, group?: Group) {
   const timed = isTimeBucket(group);
   const periodClicks = clicks(s).where('cl.ts', '>=', s.since).where('cl.ts', '<', s.until);
   const events = attributions(s).where('e.ts', '>=', s.since).where('e.ts', '<', s.until);
@@ -156,7 +178,7 @@ async function aggregates(s: Scope, group?: Group) {
   const adjustments = s.db('CommissionAdjustment').where({ tenantId: s.tenantId }).groupBy('commissionId').select('commissionId').sum({ adjustment: 'amount' }).as('ca');
   const earnings = attributions(s).join('Commission as c', 'c.attributionId', 'a.id')
     .leftJoin(adjustments, 'ca.commissionId', 'c.id')
-    .where({ 'a.tenantId': s.tenantId, 'a.partnerId': s.partnerId, 'c.tenantId': s.tenantId, 'c.partnerId': s.partnerId })
+    .where({ 'c.tenantId': s.tenantId }).whereRaw('c."partnerId" = a."partnerId"')
     .where('c.accruedAt', '>=', s.since).where('c.accruedAt', '<', s.until)
     .modify(q => { if (s.filters.currency) q.where('c.currency', s.filters.currency); });
   // Conversion rates follow clicks in this period, including their later conversions.
@@ -168,59 +190,168 @@ async function aggregates(s: Scope, group?: Group) {
     this.on('registered.userId', '=', 'e.userId');
     if (group && !isTimeBucket(group)) this.andOn(s.db.raw(`${groupExpression(group)} = ??`, [GROUPS[group], 'registered.gid']));
   }).whereRaw(paid, bindings(s));
-  const [clickRows, eventRows, refundRows, earningRows, cohortRows, paidSignupRows, identityRows] = await Promise.all([
+  return [
     grouped(periodClicks.clone(), s, group).count({ clicks: '*' }), eventQuery,
     grouped(refunds, s, group, 'refund.ts').select(s.db.raw('COALESCE(SUM(-refund.value*a.weight),0)::text AS refunds')),
     grouped(earnings, s, group, 'c.accruedAt').select(s.db.raw(`COALESCE(SUM(CASE WHEN c.status != 'reversed' THEN GREATEST(0,c.amount+COALESCE(ca.adjustment,0)) ELSE 0 END),0)::text AS earnings`)),
-    timed ? [] : grouped(cohort.clone(), s, group).select(s.db.raw(`COUNT(DISTINCT CASE WHEN e.type='signup' THEN e."userId" END)::int AS "cohortRegistrations", COUNT(DISTINCT CASE WHEN ${paid} THEN e."userId" END)::int AS "cohortPayingCustomers"`, bindings(s))),
-    timed ? [] : grouped(paidSignups, s, group).countDistinct({ cohortPaidRegistrations: 'e.userId' }),
+    timed ? null : grouped(cohort.clone(), s, group).select(s.db.raw(`COUNT(DISTINCT CASE WHEN e.type='signup' THEN e."userId" END)::int AS "cohortRegistrations", COUNT(DISTINCT CASE WHEN ${paid} THEN e."userId" END)::int AS "cohortPayingCustomers"`, bindings(s))),
+    timed ? null : grouped(paidSignups, s, group).countDistinct({ cohortPaidRegistrations: 'e.userId' }),
     grouped(periodClicks.clone().join('Identity as i', 'i.clickId', 'cl.id').where('i.tenantId', s.tenantId), s, group).countDistinct({ identities: 'i.userId' }),
-  ]);
-  const rows = new Map<string, Record<string, string|number|undefined>>();
-  for (const collection of [clickRows, eventRows, refundRows, earningRows, cohortRows, paidSignupRows, identityRows]) {
+  ];
+}
+type AggregateValues = Record<string, string | number | undefined>;
+function aggregateRow(row: AggregateValues) {
+  const counts = { clicks: Number(row.clicks ?? 0), identities: Number(row.identities ?? 0), attributedEvents: Number(row.attributedEvents ?? 0), registrations: Number(row.registrations ?? 0), paymentCount: Number(row.paymentCount ?? 0), payingCustomers: Number(row.payingCustomers ?? 0), firstPaymentCount: Number(row.firstPaymentCount ?? 0), repeatPaymentCount: Number(row.repeatPaymentCount ?? 0) };
+  const rate = (n: number, d: number) => d > 0 ? n / d : null;
+  return { id: row.id as string, ...(row.seriesId ? { seriesId: String(row.seriesId) } : {}), counts,
+    amountsMinor: { observedPayments: Math.round(Number(row.revenue ?? 0)*100), refunds: Math.round(Number(row.refunds ?? 0)*100), netPayments: Math.round((Number(row.revenue ?? 0)-Number(row.refunds ?? 0))*100), netAccrued: Math.round(Number(row.earnings ?? 0)*100) },
+    conversions: { clickToRegistration: rate(Number(row.cohortRegistrations ?? 0), counts.clicks), registrationToPayment: rate(Number(row.cohortPaidRegistrations ?? 0), Number(row.cohortRegistrations ?? 0)), clickToPayment: rate(Number(row.cohortPayingCustomers ?? 0), counts.clicks), cohortRegistrations: Number(row.cohortRegistrations ?? 0), cohortPayingCustomers: Number(row.cohortPayingCustomers ?? 0), cohortPaidRegistrations: Number(row.cohortPaidRegistrations ?? 0) },
+  };
+}
+async function aggregates(s: Scope, group?: Group) {
+  const collections = await Promise.all(aggregateQueries(s, group).map(query => query ?? []));
+  const rows = new Map<string, AggregateValues>();
+  for (const collection of collections) {
     for (const row of collection) {
       const key = JSON.stringify([row.seriesId ?? null, row.id]);
       rows.set(key, { ...rows.get(key), ...row });
     }
   }
-  return [...rows.values()].map(row => {
-    const counts = { clicks: Number(row.clicks ?? 0), identities: Number(row.identities ?? 0), attributedEvents: Number(row.attributedEvents ?? 0), registrations: Number(row.registrations ?? 0), paymentCount: Number(row.paymentCount ?? 0), payingCustomers: Number(row.payingCustomers ?? 0), firstPaymentCount: Number(row.firstPaymentCount ?? 0), repeatPaymentCount: Number(row.repeatPaymentCount ?? 0) };
-    const rate = (n: number, d: number) => d > 0 ? n / d : null;
-    return { id: row.id as string, ...(row.seriesId ? { seriesId: String(row.seriesId) } : {}), counts,
-      amountsMinor: { observedPayments: Math.round(Number(row.revenue ?? 0)*100), refunds: Math.round(Number(row.refunds ?? 0)*100), netPayments: Math.round((Number(row.revenue ?? 0)-Number(row.refunds ?? 0))*100), netAccrued: Math.round(Number(row.earnings ?? 0)*100) },
-      conversions: { clickToRegistration: rate(Number(row.cohortRegistrations ?? 0), counts.clicks), registrationToPayment: rate(Number(row.cohortPaidRegistrations ?? 0), Number(row.cohortRegistrations ?? 0)), clickToPayment: rate(Number(row.cohortPayingCustomers ?? 0), counts.clicks), cohortRegistrations: Number(row.cohortRegistrations ?? 0), cohortPayingCustomers: Number(row.cohortPayingCustomers ?? 0), cohortPaidRegistrations: Number(row.cohortPaidRegistrations ?? 0) },
-    };
-  });
+  return [...rows.values()].map(aggregateRow);
 }
 
+const emptyBalances = () => ({ accrued: 0, available: 0, pending: 0, paid: 0, debt: 0, netPaidEarnings: 0, total: 0 });
 async function globalBalances(s: Scope) {
-  const rows = await s.db('Commission as c').leftJoin('Payout as p', 'p.id', 'c.payoutId')
-    .where({ 'c.tenantId': s.tenantId, 'c.partnerId': s.partnerId })
-    .modify(q => { if (s.filters.currency) q.where('c.currency', s.filters.currency); })
-    .select('c.id', 'c.amount', 'c.status', 'c.payoutId', 'c.accruedAt', 'p.status as payoutStatus') as Array<{id:string;amount:string;status:string;payoutId:string|null;accruedAt:Date;payoutStatus:string|null}>;
+  const [rows, partnerRows] = await Promise.all([
+    scopePartners(s.db('Commission as c').leftJoin('Payout as p', 'p.id', 'c.payoutId')
+      .where({ 'c.tenantId': s.tenantId, 'c.currency': s.filters.currency ?? 'RUB' }), s, 'c.partnerId')
+      .select('c.id', 'c.partnerId', 'c.amount', 'c.status', 'c.payoutId', 'c.accruedAt', 'p.status as payoutStatus') as PromiseLike<Array<{id:string;partnerId:string;amount:string;status:string;payoutId:string|null;accruedAt:Date;payoutStatus:string|null}>>,
+    partners(s).select('partner.id') as PromiseLike<Array<{ id: string }>>,
+  ]);
   const adjustments = await adjustmentTotalsByCommission(s.db, rows.map(row => row.id));
-  const group = { tenantId: s.tenantId, partnerId: s.partnerId, currency: s.filters.currency ?? 'RUB' };
-  const [cashBalances, payable] = await Promise.all([manualPayoutBalances(s.db, [group]), manualPayableAmounts(s.db, [group])]);
-  const cash = cashBalances.get(commissionGroupKey(group))!;
-  const balances = { accrued: 0, available: 0, pending: 0, paid: cash.cashPaid, debt: cash.debt, netPaidEarnings: cash.netPaidEarnings, total: 0 };
+  const groups = partnerRows.map(row => ({ tenantId: s.tenantId, partnerId: row.id, currency: s.filters.currency ?? 'RUB' }));
+  const [cashBalances, payable] = await Promise.all([manualPayoutBalances(s.db, groups), manualPayableAmounts(s.db, groups)]);
+  const byPartner = new Map(groups.map(group => {
+    const cash = cashBalances.get(commissionGroupKey(group))!;
+    return [group.partnerId, { balances: { ...emptyBalances(), paid: cash.cashPaid, debt: cash.debt, netPaidEarnings: cash.netPaidEarnings }, commissionByStatus: {} as Record<string, number> }];
+  }));
   const commissionByStatus: Record<string, number> = {};
   for (const row of rows) {
+    const ledger = byPartner.get(row.partnerId);
+    if (!ledger) continue;
+    const balances = ledger.balances;
     const status = row.payoutId && row.status !== 'reversed' && row.payoutStatus !== 'paid' ? 'pending' : row.status;
     const amount = netCommissionAmount(row, adjustments, row.id);
-    if (new Date(row.accruedAt) >= s.since && new Date(row.accruedAt) < s.until) commissionByStatus[status] = (commissionByStatus[status] ?? 0) + amount;
+    if (new Date(row.accruedAt) >= s.since && new Date(row.accruedAt) < s.until) {
+      commissionByStatus[status] = (commissionByStatus[status] ?? 0) + amount;
+      ledger.commissionByStatus[status] = (ledger.commissionByStatus[status] ?? 0) + amount;
+    }
     if (status === 'reversed') continue;
     if (status === 'accrued') balances.accrued += amount;
     if (status === 'approved') balances.available += payable.get(row.id) ?? 0;
     if (status === 'pending') balances.pending += payable.get(row.id) ?? 0;
     balances.total += amount;
   }
+  const balances = emptyBalances();
+  for (const ledger of byPartner.values()) {
+    for (const key of Object.keys(balances) as Array<keyof typeof balances>) {
+      ledger.balances[key] = Math.round(ledger.balances[key]*100)/100;
+      balances[key] += ledger.balances[key];
+    }
+    for (const key of Object.keys(ledger.commissionByStatus)) ledger.commissionByStatus[key] = Math.round(ledger.commissionByStatus[key]!*100)/100;
+  }
   for (const key of Object.keys(balances) as Array<keyof typeof balances>) balances[key] = Math.round(balances[key]*100)/100;
   for (const key of Object.keys(commissionByStatus)) commissionByStatus[key] = Math.round(commissionByStatus[key]!*100)/100;
-  return { balances, commissionByStatus,
-    balanceBasis: { scope: 'lifetime_partner_currency' as const, asOf: s.asOf, ignoresActivityFilters: true,
+  return { balances, commissionByStatus, byPartner,
+    balanceBasis: { scope: s.partnerIds?.length === 1 ? 'lifetime_partner_currency' as const : 'lifetime_selected_partners_currency' as const, asOf: s.asOf, ignoresActivityFilters: true,
       paid: 'completed_manual_payout_cash' as const, availableAndPending: 'current_payable_after_debt' as const,
       total: 'current_net_earnings_before_debt' as const },
     commissionByStatusBasis: 'selected_accrual_period_current_net_earnings' as const };
+}
+
+export const adminAnalyticsTableQuerySchema = z.object({
+  search: z.string().trim().max(200).optional(),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  sort: z.enum(['name', 'email', 'status', 'createdAt', 'clicks', 'identities', 'registrations', 'payingCustomers', 'paymentCount', 'observedPayments', 'netAccrued']).default('netAccrued'),
+  direction: z.enum(['asc', 'desc']).default('desc'),
+}).transform(input => ({ ...input, pageSize: input.pageSize ?? input.limit ?? 20 }));
+export type AdminAnalyticsTableOptions = z.infer<typeof adminAnalyticsTableQuerySchema>;
+
+const partnerStatus = `CASE WHEN partner."revokedAt" IS NOT NULL THEN 'revoked' WHEN partner."activatedAt" IS NOT NULL THEN 'active' ELSE 'pending' END`;
+const metricColumns = [
+  ['clicks'], ['attributedEvents', 'registrations', 'paymentCount', 'payingCustomers', 'firstPaymentCount', 'repeatPaymentCount', 'revenue'],
+  ['refunds'], ['earnings'], ['cohortRegistrations', 'cohortPayingCustomers'], ['cohortPaidRegistrations'], ['identities'],
+] as const;
+/** Join the same grouped metric builders used by totals/charts. Pagination and
+ * sorting happen in PostgreSQL; no per-partner report or client-side slicing. */
+function partnerTableQuery(s: Scope) {
+  const query = partners(s).select('partner.id', 'partner.name', 'partner.email', 'partner.createdAt')
+    .select(s.db.raw(`${partnerStatus} AS status`));
+  for (const [index, metrics] of aggregateQueries(s, 'partner').entries()) {
+    const alias = `metric_${index}`;
+    query.leftJoin(metrics!.as(alias), `${alias}.id`, 'partner.id');
+    for (const column of metricColumns[index]!) query.select(s.db.raw('COALESCE(??::numeric, 0) AS ??', [`${alias}.${column}`, column]));
+  }
+  return query;
+}
+
+export async function analyticsPartnerOptions(db: Knex, tenantId: string, input: { search?: string; page?: number; pageSize?: number } = {}) {
+  const page = input.page ?? 1, pageSize = input.pageSize ?? 20;
+  const base = db('Partner as partner').where('partner.tenantId', tenantId);
+  if (input.search) base.where(q => q.whereILike('partner.name', `%${input.search}%`).orWhereILike('partner.email', `%${input.search}%`));
+  const [items, count] = await Promise.all([
+    base.clone().select('partner.id', 'partner.name', 'partner.email').select(db.raw(`${partnerStatus} AS status`))
+      .orderBy('partner.name').orderBy('partner.id').limit(pageSize).offset((page - 1)*pageSize),
+    base.clone().count({ count: '*' }).first(),
+  ]);
+  const total = Number(count?.count ?? 0);
+  return { items, pagination: { page, pageSize, total, totalPages: Math.ceil(total/pageSize) } };
+}
+
+async function adminPartnerTable(s: Scope, input: AdminAnalyticsTableOptions, ledger: Awaited<ReturnType<typeof globalBalances>>) {
+  const all = s.db.from(partnerTableQuery(s).as('metrics'));
+  const searched = all.clone();
+  if (input.search) searched.where(q => q.whereILike('name', `%${input.search}%`).orWhereILike('email', `%${input.search}%`));
+  const sortColumns: Partial<Record<AdminAnalyticsTableOptions['sort'], string>> = { observedPayments: 'revenue', netAccrued: 'earnings' };
+  const column = sortColumns[input.sort] ?? input.sort;
+  const [pageRows, count, summary] = await Promise.all([
+    searched.clone().select('*').orderBy(column, input.direction).orderBy('id').limit(input.pageSize).offset((input.page - 1)*input.pageSize),
+    searched.clone().count({ count: '*' }).first(),
+    all.clone().select(s.db.raw(`COUNT(*)::int AS partners, COUNT(*) FILTER (WHERE clicks > 0 OR "attributedEvents" > 0 OR refunds > 0 OR earnings > 0)::int AS "activePartners"`)).first(),
+  ]);
+  const rows = pageRows.map(row => ({ ...aggregateRow(row), name: String(row.name), email: String(row.email), status: String(row.status), createdAt: row.createdAt,
+    balances: ledger.byPartner.get(row.id)?.balances ?? emptyBalances(), commissionByStatus: ledger.byPartner.get(row.id)?.commissionByStatus ?? {} }));
+  const total = Number(count?.count ?? 0);
+  return { rows, pagination: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.ceil(total/input.pageSize), sort: input.sort, direction: input.direction, search: input.search ?? '' },
+    summary: { partners: Number(summary?.partners ?? 0), activePartners: Number(summary?.activePartners ?? 0) } };
+}
+
+async function adminDiagnostics(s: Scope, debt: number) {
+  const scoped = s.partnerIds !== undefined || !!s.filters.programId || !!s.filters.linkId || !!s.filters.sourceId ||
+    (['scenarioId', 'platformId', 'formatId', 'materialId'] as const).some(field => selectedIds(s.filters, field).length);
+  const legacy = s.db('Event as legacy').where({ 'legacy.tenantId': s.tenantId, 'legacy.currency': s.filters.currency ?? 'RUB' })
+    .where('legacy.ts', '>=', s.since).where('legacy.ts', '<', s.until)
+    .where(q => q.whereNull('legacy.externalEventId').orWhereRaw("btrim(legacy.\"externalEventId\") = ''"))
+    .where(q => q.whereNotNull('legacy.value').orWhereIn('legacy.type', ['invoice_paid', 'recurring_payment', 'payment', 'refund']))
+    .whereRaw("COALESCE(legacy.metadata->>'source', '') <> 'local_simulator'");
+  if (scoped) legacy.where(q => q.whereIn('legacy.id', attributions(s).select('e.id'))
+    .orWhereExists(attributions(s).select(s.db.raw('1')).whereRaw("e.id = legacy.metadata->>'originalEventId'")));
+  const [flagged, missing, corrections] = await Promise.all([
+    clicks(s, true).whereNotNull('cl.fraudFlag').where('cl.ts', '>=', s.since).where('cl.ts', '<', s.until).countDistinct({ count: 'cl.id' }).first(),
+    legacy.countDistinct({ count: 'legacy.id' }).first(),
+    attributions(s).join('Commission as diagnostic_c', 'diagnostic_c.attributionId', 'a.id')
+      .join('CommissionAdjustment as diagnostic_adj', 'diagnostic_adj.commissionId', 'diagnostic_c.id')
+      .where({ 'diagnostic_c.tenantId': s.tenantId, 'diagnostic_adj.tenantId': s.tenantId, 'diagnostic_c.currency': s.filters.currency ?? 'RUB' })
+      .whereNotNull('diagnostic_adj.metadata')
+      .whereRaw("diagnostic_adj.metadata->>'refundExternalEventId' IS NOT NULL")
+      .where('diagnostic_adj.createdAt', '>=', s.since).where('diagnostic_adj.createdAt', '<', s.until)
+      .countDistinct({ count: 'diagnostic_adj.id' }).sum({ amount: 'diagnostic_adj.amount' }).first(),
+  ]);
+  return { flaggedClicks: Number(flagged?.count ?? 0), legacyFinancialEventsWithoutExternalId: Number(missing?.count ?? 0),
+    refundAdjustments: { count: Number(corrections?.count ?? 0), amountMinor: Math.round(Number(corrections?.amount ?? 0)*100) },
+    outstandingDebtMinor: Math.round(debt*100), basis: { activity: 'selected_period_currency_and_source_scope', legacyEvents: scoped ? 'selected_attributions_and_linked_refunds' : 'tenant_including_unattributed', debt: 'lifetime_selected_partners_currency' } };
 }
 
 async function timeSeries(s: Scope) {
@@ -301,10 +432,10 @@ const historyCursor = z.object({ ts: z.string().datetime(), id: z.string().min(1
 export const analyticsDetailsQuerySchema = z.object({ cursor: z.string().max(300).optional() });
 
 /** Read-only detail view. Reuses the exact scope, payment taxonomy and exclusions of the report. */
-export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partnerId: string, filters: AnalyticsFilters, rawCursor?: string) {
+export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partnerId?: string, filters: AnalyticsFilters = {}, rawCursor?: string) {
   filters = { ...filters, currency: filters.currency ?? 'RUB' };
   const since = filters.since ?? new Date(Date.now() - 30 * 86400000), until = filters.until ?? new Date();
-  const s: Scope = { db, tenantId, partnerId, filters, since, until, asOf: new Date() };
+  const s: Scope = { db, tenantId, partnerIds: partnerId ? [partnerId] : analyticsPartnerIds(filters), filters, since, until, asOf: new Date() };
   let cursor: z.infer<typeof historyCursor> | undefined;
   if (rawCursor) {
     try { cursor = historyCursor.parse(JSON.parse(rawCursor)); }
@@ -354,23 +485,30 @@ export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partne
     nextCursor: actions.length > 20 && last ? JSON.stringify({ ts: last.ts, id: last.id }) : null } };
 }
 
-export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: string, filters: AnalyticsFilters = {}) {
+export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: string, filters: AnalyticsFilters = {}, tableOptions?: AdminAnalyticsTableOptions) {
   filters = { ...filters, currency: filters.currency ?? 'RUB' };
   const since = filters.since ?? new Date(Date.now()-30*86400000), until = filters.until ?? new Date();
   if (!Number.isFinite(since.getTime()) || !Number.isFinite(until.getTime()) || since >= until) throw new Error('invalid_analytics_period');
-  const s: Scope = { db, tenantId, partnerId, filters, since, until, asOf: new Date() };
+  const s: Scope = { db, tenantId, partnerIds: partnerId ? [partnerId] : analyticsPartnerIds(filters), filters, since, until, asOf: new Date() };
   const scenarioSelection = selectedIds(filters, 'scenarioId'), platformSelection = selectedIds(filters, 'platformId'), formatSelection = selectedIds(filters, 'formatId');
-  const group = filters.groupBy ?? (scenarioSelection.length === 1 && scenarioSelection[0] !== '__none__' ? 'platform' : 'scenario');
+  const group = filters.groupBy ?? (tableOptions ? 'partner' : scenarioSelection.length === 1 && scenarioSelection[0] !== '__none__' ? 'platform' : 'scenario');
   const [totals, rows, ledger, sourceRows, snapshotRows, linkRows, materialRows, series, comparison, funnel] = await Promise.all([
-    aggregates(s), aggregates(s, group), globalBalances(s),
-    db('PartnerLinkSource').where({ tenantId, partnerId }).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }),
-    db('CoachForecastSnapshot').where({ tenantId, partnerId }).whereIn('status', ['confirmed', 'archived']).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }).orderBy('createdAt', 'desc').select('id', 'status', 'data'),
-    db('Link').where({ tenantId, partnerId }).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }).select('id', 'linkKey', 'label', 'channel', 'createdAt'),
-    db<PartnerMaterialRow>('PartnerMaterial').where({tenantId,partnerId}).modify(q=>{if(filters.programId)q.where({programId:filters.programId});}),
+    aggregates(s), group === 'partner' ? [] : aggregates(s, group), globalBalances(s),
+    scopePartners(db('PartnerLinkSource').where({ tenantId }), s).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }),
+    scopePartners(db('CoachForecastSnapshot').where({ tenantId }), s).whereIn('status', ['confirmed', 'archived']).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }).orderBy('createdAt', 'desc').select('id', 'status', 'data'),
+    scopePartners(db('Link').where({ tenantId }), s).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }).select('id', 'linkKey', 'label', 'channel', 'createdAt'),
+    scopePartners(db<PartnerMaterialRow>('PartnerMaterial').where({tenantId}), s).modify(q=>{if(filters.programId)q.where({programId:filters.programId});}),
     filters.includeSeries === 'true' ? timeSeries(s) : undefined,
     filters.includeComparison === 'true' && filters.period !== 'all' ? previousPeriod(s) : undefined,
     filters.includeFunnel === 'true' ? conversionFunnel(s) : undefined,
   ]);
+  const [table, diagnostics] = await Promise.all([
+    tableOptions || group === 'partner' ? adminPartnerTable(s, tableOptions ?? adminAnalyticsTableQuerySchema.parse({}), ledger) : undefined,
+    tableOptions ? adminDiagnostics(s, ledger.balances.debt) : undefined,
+  ]);
+  const partnerRows = new Map((table?.rows ?? []).map(row => [row.id, row]));
+  const publicLedger = { balances: ledger.balances, commissionByStatus: ledger.commissionByStatus,
+    balanceBasis: ledger.balanceBasis, commissionByStatusBasis: ledger.commissionByStatusBasis };
   const sources = sourceRows as PartnerLinkSourceRow[];
   const snapshots = snapshotRows as Array<{id:string;status:string;data:{scenarioId?:string;scenarioName?:string;formats?:Array<{id:string;name:string}>;channels?:Array<{id:string;name:string}>;settings?:{frequency?:Record<string,number>;channels?:Record<string,{enabled:boolean;formats:string[]}>}}}>;
   const links = linkRows as LinkRow[];
@@ -383,9 +521,9 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: st
   const scopedSources = sources.filter(source => matchesSelection(source.scenarioId,scenarioSelection)&&matchesSelection(source.platformId,platformSelection)&&matchesSelection(source.formatId,formatSelection)&&matchesSelection(source.materialId,selectedIds(filters,'materialId'))&&(!filters.linkId||source.linkId===filters.linkId)&&(!filters.sourceId||source.id===filters.sourceId));
   const emptyRow=(id:string)=>({id,counts:{clicks:0,identities:0,attributedEvents:0,registrations:0,paymentCount:0,payingCustomers:0,firstPaymentCount:0,repeatPaymentCount:0},amountsMinor:{observedPayments:0,refunds:0,netPayments:0,netAccrued:0},conversions:{clickToRegistration:null,registrationToPayment:null,clickToPayment:null,cohortRegistrations:0,cohortPayingCustomers:0,cohortPaidRegistrations:0}});
   // Only measured activity is a result. Empty rows are an explicit view of existing links, never calendar placeholders.
-  const resultRows=rows.filter(row=>row.counts.clicks>0||row.counts.registrations>0||row.counts.paymentCount>0||Object.values(row.amountsMinor).some(value=>value!==0));
-  if(filters.includeEmpty==='true'){
-    const field:Record<AnalyticsGroup,keyof PartnerLinkSourceRow>={scenario:'scenarioId',platform:'platformId',format:'formatId',material:'materialId',source:'id',link:'linkId'};
+  const resultRows=group === 'partner' ? [...table!.rows] : rows.filter(row=>row.counts.clicks>0||row.counts.registrations>0||row.counts.paymentCount>0||Object.values(row.amountsMinor).some(value=>value!==0));
+  if(filters.includeEmpty==='true' && group !== 'partner'){
+    const field:Record<AnalyticsGroup,keyof PartnerLinkSourceRow>={scenario:'scenarioId',platform:'platformId',format:'formatId',material:'materialId',source:'id',link:'linkId',partner:'partnerId'};
     const ids=new Set(scopedSources.filter(source=>new Date(source.createdAt)<until).map(source=>String(source[field[group]]??'__none__')));
     if(!scenarioSelection.length&&!platformSelection.length&&!formatSelection.length&&!filters.materialId&&!filters.sourceId){
       for(const link of links)if(new Date(link.createdAt)<until&&(!filters.linkId||link.id===filters.linkId))ids.add(group==='link'?link.id:'__none__');
@@ -415,6 +553,7 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: st
     return [...entries.values()];
   };
   const label = (id: string) => {
+    if (group === 'partner') return partnerRows.get(id)?.name ?? 'Партнёр';
     if (id === '__none__') return group === 'link' ? 'Без привязки к ссылке' : group === 'material' ? 'Общие ссылки' : group === 'scenario' ? 'Без сценария' : 'Без указанного источника';
     if (group === 'scenario') return scenarios.get(id)?.name ?? sources.find(source => source.scenarioId === id)?.scenarioName ?? 'Сценарий';
     if (group === 'link') return links.find(link => link.id === id)?.label || links.find(link => link.id === id)?.linkKey || 'Ссылка без названия';
@@ -447,10 +586,10 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: st
       const source=group==='source'?sources.find(s=>s.id===row.id):undefined;
       const base=links.find(link=>link.id===(group==='link'?row.id:source?.linkId));
       const placements=material?sources.filter(s=>s.materialId===material.id):[];
-      const relatedSources=scopedSources.filter(s=>String(s[({link:'linkId',material:'materialId',source:'id',platform:'platformId',scenario:'scenarioId',format:'formatId'} as const)[group]]??'__none__')===row.id);
-      return {...row,name:label(row.id),linkKey:group==='link'?links.find(link=>link.id===row.id)?.linkKey??null:null,
+      const relatedSources=scopedSources.filter(s=>String(s[({link:'linkId',material:'materialId',source:'id',platform:'platformId',scenario:'scenarioId',format:'formatId',partner:'partnerId'} as const)[group]]??'__none__')===row.id);
+      return {...row,...(group === 'partner' ? partnerRows.get(row.id) : {}),name:label(row.id),linkKey:group==='link'?links.find(link=>link.id===row.id)?.linkKey??null:null,
         platformNames:[...new Set(relatedSources.map(s=>s.platformName))],
-        createdAt: base && group==='link' ? base.createdAt : material?.createdAt ?? source?.createdAt ?? null,
+        createdAt: group === 'partner' ? partnerRows.get(row.id)?.createdAt ?? null : base && group==='link' ? base.createdAt : material?.createdAt ?? source?.createdAt ?? null,
         archived:group==='scenario'?scenarios.get(row.id)?.archived??false:!!scenarios.get((material?.scenarioId??source?.scenarioId)??'')?.archived||!!material?.archivedAt,
         ...(source?{placement:{materialTitle:materials.find(m=>m.id===source.materialId)?.title??source.materialTitle,
           formatName:source.formatName,platformName:source.platformName,channelName:source.channelName,
@@ -459,8 +598,10 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId: st
           published:placements.filter(p=>p.publishedAt).length,placements:placements.length+material.platforms.filter(p=>!placements.some(s=>s.platformId===p.id)).length}}:{}),
       };
     }),
+    ...(tableOptions && table ? { partnerTable: { rows: table.rows, pagination: table.pagination }, pagination: table.pagination,
+      summary: table.summary, activePartners: table.summary.activePartners, diagnostics } : {}),
     options: reportOptions,
-    ...ledger, views: null, ctr: null,
+    ...publicLedger, views: null, ctr: null,
     exclusions: ['local_simulator', 'flagged_clicks'],
     // No persisted production verification evidence exists. Test success cannot verify tracking in production.
     dataQuality: { signupTracking: 'not_verified_end_to_end', paymentTracking: 'not_verified_end_to_end', views: 'unavailable', ctr: 'unavailable' } satisfies Record<string, AnalyticsTrackingStatus>,

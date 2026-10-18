@@ -161,7 +161,7 @@ describe.skipIf(skipIntegration)('api integration', () => {
 
     // 10. Dashboard reflects the attributed revenue.
     const dashRes = await request(app)
-      .get(`/partners/${partnerId}/dashboard`)
+      .get(`/partners/${partnerId}/dashboard?currency=USD`)
       .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(dashRes.status).toBe(200);
     expect(dashRes.body.clicks).toBe(1);
@@ -171,7 +171,7 @@ describe.skipIf(skipIntegration)('api integration', () => {
     expect(dashRes.body.balances).toMatchObject({ available: 0, pending: 40, paid: 0, total: 40 });
     const confirm = await request(app).post(`/payouts/${payoutRes.body.payouts[0].payoutId}/confirm`).set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(confirm.status).toBe(200);
-    const completed = await request(app).get(`/partners/${partnerId}/dashboard`).set('Authorization', `Bearer ${ADMIN_KEY}`);
+    const completed = await request(app).get(`/partners/${partnerId}/dashboard?currency=USD`).set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(completed.body.balances).toMatchObject({ available: 0, pending: 0, paid: 40, total: 40 });
   });
 
@@ -417,7 +417,7 @@ describe.skipIf(skipIntegration)('api integration', () => {
       .send({ userId: u2, type: 'signup' });
 
     const funnel = await request(app)
-      .get(`/partners/${partner.id}/funnel`)
+      .get(`/partners/${partner.id}/funnel?currency=USD`)
       .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(funnel.status).toBe(200);
     expect(funnel.body.stages.clicks).toBe(2); // fraud-flagged excluded

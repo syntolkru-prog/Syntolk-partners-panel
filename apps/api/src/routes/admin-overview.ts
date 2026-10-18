@@ -1,87 +1,80 @@
 import { Router } from 'express';
-import { TABLES, type PartnerRow } from '@openpartner/db';
+import { z } from 'zod';
+import type { Knex } from 'knex';
 import { requireAdmin, requireAuth } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
-import { adjustmentTotalsByCommission, netCommissionAmount } from '../commission-net.js';
+import {
+  adminAnalyticsTableQuerySchema, analyticsDetailsQuerySchema, analyticsFiltersFromQuery,
+  analyticsPartnerIds, analyticsPartnerOptions, analyticsQuerySchema, partnerAnalytics, partnerAnalyticsDetails,
+} from '../partner-analytics.js';
 
 export const adminOverviewRouter = Router();
 
-/**
- * One-shot admin dashboard payload. Composed in a single endpoint so the
- * portal's home view doesn't need N+1 per-partner fetches.
- *
- * Window defaults to 30 days; the Dub-style partner cards don't need more
- * granularity than that for the high-level view.
- */
-adminOverviewRouter.get('/admin/overview', requireAuth, requireAdmin, async (req, res) => {
-  const { db } = tenantOf(req);
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+async function filtersForAdmin(db: Knex, tenantId: string, query: unknown) {
+  const input = analyticsQuerySchema.parse(query), ids = analyticsPartnerIds(input);
+  // Resolve a single partner's civil dates exactly as the partner route does.
+  // More than one requested partner uses the explicit tenant-wide default.
+  const profile = ids?.length === 1 ? await db('CoachProfile').where({ tenantId, partnerId: ids[0] }).first() : undefined;
+  return analyticsFiltersFromQuery(query, profile?.data?.timezone ?? 'Europe/Moscow');
+}
 
-  const partners = await db<PartnerRow>(TABLES.Partner).orderBy('createdAt', 'desc').limit(200);
-
-  const clicksByPartner = (await db(TABLES.Click)
-    .where('ts', '>=', since)
-    .groupBy('partnerId')
-    .select('partnerId')
-    .count<{ partnerId: string; count: string }[]>({ count: '*' })) as Array<{ partnerId: string; count: string }>;
-
-  const revenueByPartner = (await db(TABLES.Attribution)
-    .join(TABLES.Event, `${TABLES.Event}.id`, `${TABLES.Attribution}.eventId`)
-    .where(`${TABLES.Attribution}.computedAt`, '>=', since)
-    .groupBy(`${TABLES.Attribution}.partnerId`)
-    .select(`${TABLES.Attribution}.partnerId as partnerId`)
-    .select(
-      db.raw('COALESCE(SUM("Event".value * "Attribution".weight), 0) as revenue'),
-      db.raw('COUNT(*) as events'),
-    )) as Array<{ partnerId: string; revenue: string; events: string }>;
-
-  const commissionRows = (await db(`${TABLES.Commission} as c`)
-    .leftJoin(`${TABLES.Payout} as p`, 'p.id', 'c.payoutId')
-    .where('c.accruedAt', '>=', since)
-    .select('c.id', 'c.partnerId', 'c.amount')
-    .select(db.raw(`CASE WHEN "c"."payoutId" IS NOT NULL AND "c"."status" IN ('approved','paid') AND COALESCE("p"."status", 'pending') <> 'paid' THEN 'pending' ELSE "c"."status" END as status`))) as Array<{
-    id: string;
-    partnerId: string;
-    status: string;
-    amount: string;
-  }>;
-  const adjustments = await adjustmentTotalsByCommission(db, commissionRows.map((c) => c.id));
-
-  const clicks = new Map(clicksByPartner.map((r) => [r.partnerId, Number(r.count ?? 0)]));
-  const rev = new Map(revenueByPartner.map((r) => [r.partnerId, { revenue: Number(r.revenue ?? 0), events: Number(r.events ?? 0) }]));
-  const comm = new Map<string, Record<string, number>>();
-  for (const row of commissionRows) {
-    const bucket = comm.get(row.partnerId) ?? {};
-    bucket[row.status] = (bucket[row.status] ?? 0) + netCommissionAmount(row, adjustments, row.id);
-    comm.set(row.partnerId, bucket);
+adminOverviewRouter.get('/admin/analytics', requireAuth, requireAdmin, async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  try {
+    const table = adminAnalyticsTableQuerySchema.parse(req.query);
+    const filters = await filtersForAdmin(db, tenantId, req.query);
+    res.json(await partnerAnalytics(db, tenantId, undefined, { ...filters, groupBy: filters.groupBy ?? 'partner' }, table));
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
+    throw error;
   }
+});
 
-  const partnerRows = partners.map((p) => ({
-    id: p.id,
-    name: p.name,
-    email: p.email,
-    clicks: clicks.get(p.id) ?? 0,
-    revenue: rev.get(p.id)?.revenue ?? 0,
-    events: rev.get(p.id)?.events ?? 0,
-    commission: comm.get(p.id) ?? {},
-    netRevenue: Math.round(((rev.get(p.id)?.revenue ?? 0) - Object.values(comm.get(p.id) ?? {}).reduce((a, b) => a + b, 0)) * 100) / 100,
-  }));
+adminOverviewRouter.get('/admin/analytics/details', requireAuth, requireAdmin, async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  try {
+    const filters = await filtersForAdmin(db, tenantId, req.query);
+    const { cursor } = analyticsDetailsQuerySchema.parse(req.query);
+    res.json(await partnerAnalyticsDetails(db, tenantId, undefined, filters, cursor));
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
+    throw error;
+  }
+});
 
-  const totals = {
-    partners: partners.length,
-    clicks: Array.from(clicks.values()).reduce((a, b) => a + b, 0),
-    attributedRevenue: Array.from(rev.values()).reduce((a, b) => a + b.revenue, 0),
-    attributedEvents: Array.from(rev.values()).reduce((a, b) => a + b.events, 0),
-    commissionAccrued: partnerRows.reduce((a, p) => a + (p.commission.accrued ?? 0), 0),
-    commissionApproved: partnerRows.reduce((a, p) => a + (p.commission.approved ?? 0), 0),
-    commissionPending: partnerRows.reduce((a, p) => a + (p.commission.pending ?? 0), 0),
-    commissionPaid: partnerRows.reduce((a, p) => a + (p.commission.paid ?? 0), 0),
-    netRevenue: partnerRows.reduce((a, p) => a + p.netRevenue, 0),
-  };
+const partnerOptionsQuery = z.object({
+  search: z.string().trim().max(200).optional(),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+});
+adminOverviewRouter.get('/admin/analytics/partners', requireAuth, requireAdmin, async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  try { res.json(await analyticsPartnerOptions(db, tenantId, partnerOptionsQuery.parse(req.query))); }
+  catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
+    throw error;
+  }
+});
 
-  res.json({
-    since: since.toISOString(),
-    totals,
-    partners: partnerRows,
-  });
+// Keep the existing overview wire shape, but derive every metric from the
+// canonical scope, taxonomy, saved allocations and corrected ledger.
+adminOverviewRouter.get('/admin/overview', requireAuth, requireAdmin, async (req, res) => {
+  const { db, tenantId } = tenantOf(req);
+  try {
+    const filters = await filtersForAdmin(db, tenantId, req.query);
+    const report = await partnerAnalytics(db, tenantId, undefined, { ...filters, groupBy: 'partner' },
+      { ...adminAnalyticsTableQuerySchema.parse({ sort: 'createdAt', direction: 'desc' }), pageSize: 200 });
+    const partnerRows = report.partnerTable!.rows.map(row => ({ id: row.id, name: row.name, email: row.email,
+      clicks: row.counts.clicks, revenue: row.amountsMinor.observedPayments/100, events: row.counts.attributedEvents,
+      commission: { ...row.commissionByStatus, paid: row.balances.paid }, netRevenue: (row.amountsMinor.netPayments-row.amountsMinor.netAccrued)/100 }));
+    res.json({ since: report.period.since.toISOString(), totals: {
+      partners: report.summary!.partners, clicks: report.counts.clicks, attributedRevenue: report.amountsMinor.observedPayments/100,
+      attributedEvents: report.counts.attributedEvents, commissionAccrued: report.commissionByStatus.accrued ?? 0,
+      commissionApproved: report.commissionByStatus.approved ?? 0, commissionPending: report.commissionByStatus.pending ?? 0,
+      commissionPaid: report.balances.paid, netRevenue: (report.amountsMinor.netPayments-report.amountsMinor.netAccrued)/100,
+    }, partners: partnerRows });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
+    throw error;
+  }
 });
