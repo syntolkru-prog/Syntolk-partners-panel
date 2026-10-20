@@ -17,6 +17,19 @@ function setup(principal = partner, url = '/messages', widget = false, history: 
   vi.mocked(api).mockImplementation(async (path, init) => {
     if (path === '/messages/unread') return { unread: 2 } as never;
     if (path === '/admin/messages') return { conversations: [{ partnerId: 'p1', name: 'Локальный партнёр', email: 'partner@example.test', body: 'Нужна помощь', senderRole: 'partner', createdAt: received.createdAt, unread: 1 }], nextCursor: null } as never;
+    if (path.startsWith('/partners?')) return { partners: [
+      { id: 'p1', name: 'Локальный партнёр', email: 'partner@example.test', activatedAt: received.createdAt, revokedAt: null, createdAt: received.createdAt },
+      { id: 'p-new', name: 'Новый партнёр', email: 'new@example.test', activatedAt: null, revokedAt: null, createdAt: received.createdAt },
+    ], nextCursor: null } as never;
+    if (path.startsWith('/admin/messages/partners?')) {
+      const partners = [
+        { partnerId: 'p1', name: 'Локальный партнёр', email: 'partner@example.test', activatedAt: received.createdAt, revokedAt: null, lastMessageId: received.id, lastMessage: 'Нужна помощь', lastSenderRole: 'partner', lastMessageAt: received.createdAt, unread: 1, hasConversation: true },
+        { partnerId: 'p-new', name: 'Новый партнёр', email: 'new@example.test', activatedAt: null, revokedAt: null, lastMessageId: null, lastMessage: null, lastSenderRole: null, lastMessageAt: null, unread: 0, hasConversation: false },
+      ];
+      const search = new URLSearchParams(path.split('?')[1]).get('search')?.toLocaleLowerCase('ru-RU');
+      return { partners: search ? partners.filter(row => `${row.name} ${row.email}`.toLocaleLowerCase('ru-RU').includes(search)) : partners, nextCursor: null } as never;
+    }
+    if (path === '/admin/messages/p-new') return { partner: { id: 'p-new', name: 'Новый партнёр', email: 'new@example.test' }, messages: [], nextCursor: null } as never;
     if (path.endsWith('/read')) return { ok: true } as never;
     if (init?.method === 'POST') return { message: received } as never;
     return history as never;
@@ -345,6 +358,27 @@ describe('partner correspondence', () => {
     fireEvent.change(input, { target: { value: 'Отвечаю партнёру' } });
     fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
     await waitFor(() => expect(vi.mocked(api)).toHaveBeenCalledWith('/admin/messages/p1', expect.objectContaining({ method: 'POST', body: expect.objectContaining({ text: 'Отвечаю партнёру' }) })));
+  });
+  it('closes the selected admin chat without removing the partner list', async () => {
+    setup(admin, '/admin/messages?partnerId=p1');
+    await screen.findByLabelText('Ответ партнёру');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть сообщение' }));
+    expect(screen.queryByLabelText('Ответ партнёру')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Партнёры' })).toBeTruthy();
+  });
+  it('keeps the partner list visible and starts a chat with a partner who has no conversation yet', async () => {
+    setup(admin, '/admin/messages');
+    expect(await screen.findByRole('heading', { name: 'Партнёры' })).toBeTruthy();
+    const search = await screen.findByRole('textbox', { name: 'Найти партнёра' });
+    fireEvent.change(search, { target: { value: 'Новый партнёр' } });
+    const recipient = await screen.findByRole('button', { name: /new@example\.test/ });
+    fireEvent.click(recipient);
+    const input = await screen.findByLabelText('Ответ партнёру') as HTMLTextAreaElement;
+    await waitFor(() => expect(input.disabled).toBe(false));
+    expect(screen.getByText('Сообщений пока нет.')).toBeTruthy();
+    fireEvent.change(input, { target: { value: 'Первое сообщение партнёру' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(vi.mocked(api)).toHaveBeenCalledWith('/admin/messages/p-new', expect.objectContaining({ method: 'POST', body: expect.objectContaining({ text: 'Первое сообщение партнёру' }) })));
   });
 });
 

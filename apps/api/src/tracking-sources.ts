@@ -13,8 +13,14 @@ export const trackingSourceSchema = z.object({
 }).strict();
 
 export async function partnerTrackingSources(db: Knex, tenantId: string, partnerId: string, programId?: string, scenarioId?: string) {
-  return db<PartnerLinkSourceRow>('PartnerLinkSource').where({ tenantId, partnerId })
-    .modify(q => { if (programId) q.where({ programId }); if (scenarioId) q.where({ scenarioId }); }).orderBy('createdAt', 'desc');
+  const sources=await db('PartnerLinkSource as s')
+    .leftJoin('PartnerMaterial as m',function(){this.on('m.id','=','s.materialId').andOn('m.tenantId','=','s.tenantId').andOn('m.partnerId','=','s.partnerId').andOn('m.programId','=','s.programId');})
+    .leftJoin('Link as l',function(){this.on('l.id','=','s.linkId').andOn('l.tenantId','=','s.tenantId').andOn('l.partnerId','=','s.partnerId').andOn('l.programId','=','s.programId');})
+    .where({'s.tenantId':tenantId,'s.partnerId':partnerId})
+    .modify(q=>{if(programId)q.where('s.programId',programId);if(scenarioId)q.where('s.scenarioId',scenarioId);})
+    .select('s.*','l.linkKey','m.archivedAt as materialArchivedAt',db.raw('COALESCE(m.title,s."materialTitle") as "materialTitle"'))
+    .orderBy('s.createdAt','desc') as Array<PartnerLinkSourceRow&{linkKey:string|null;materialArchivedAt:Date|null}>;
+  return sources.map(source=>({...source,params:trackingSourceParams(source)}));
 }
 
 export async function createTrackingSource(db: Knex, tenantId: string, partnerId: string, linkId: string, input: z.infer<typeof trackingSourceSchema>) {

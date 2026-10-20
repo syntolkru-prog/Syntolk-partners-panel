@@ -5,7 +5,7 @@ import { ErrorBanner, Page } from '../ui.js';
 import '../calculator/forecast.css';
 import '../calculator/portal-theme.css';
 
-const CALCULATOR_VERSION = 'calculator-onboarding-v14-2026-10-15';
+const CALCULATOR_VERSION = 'calculator-fact-inspection-v6-2026-10-20';
 let calculatorInstance = 0;
 
 // Share the portal's tokens, including tenant-specific accent colors.
@@ -29,7 +29,7 @@ const calculatorTheme = {
   '--pf-radius-sm': `${theme.radiusSm}px`,
 } as CSSProperties;
 
-const calculatorMarkup = String.raw`
+const calculatorMarkup = (withCurrentValues:boolean) => String.raw`
   <section class="pf-section" id="rewards" aria-label="Сценарный расчёт партнёрского дохода">
     <div class="pf-container">
       <div class="pf-app" id="partner-forecast">
@@ -50,8 +50,8 @@ const calculatorMarkup = String.raw`
           </div>
           <div class="pf-result" aria-label="Результаты сценарного расчёта">
             <p class="pf-quick-only pf-quick-scenario" id="pf-quick-scenario"></p>
-            <div class="pf-scenarios pf-full-only" role="group" aria-label="Сравнить сценарии">
-              <button type="button" data-scenario="low" aria-pressed="false">Ниже ожиданий</button><button type="button" data-scenario="base" aria-pressed="true">Мой сценарий</button><button type="button" data-scenario="high" aria-pressed="false">Выше ожиданий</button>
+            <div class="pf-scenarios pf-full-only${withCurrentValues?' pf-scenarios--with-refresh':''}" role="group" aria-label="Сравнить сценарии">
+              ${withCurrentValues?'':'<button type="button" data-scenario="low" aria-pressed="false">Ниже ожиданий</button>'}<button type="button" data-scenario="base" aria-pressed="true">Мой сценарий</button>${withCurrentValues?'<button type="button" data-current-values aria-pressed="false">Текущие значения</button><button type="button" class="pf-refresh" data-current-refresh aria-label="Обновить" title="Обновить фактические данные"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></button>':'<button type="button" data-scenario="high" aria-pressed="false">Выше ожиданий</button>'}
             </div>
             <p class="pf-scenario-note pf-full-only" id="pf-scenario-note"></p>
             <label class="pf-field pf-horizon">Период прогноза<select id="pf-horizon">${Array.from({length:12},(_,i)=>`<option value="${i+1}"${i===11?' selected':''}>${i+1} мес.</option>`).join('')}</select></label>
@@ -83,10 +83,12 @@ function loadScript(src: string): Promise<HTMLScriptElement> {
   });
 }
 
-export function CalculatorPage({scope,connection,actions,intro,planning,onCreateScenario}: { principal: Principal; scope?: {key:string;settings?:Record<string,unknown>}; connection?:ReactNode;actions?:ReactNode;intro?:ReactNode;planning?:ReactNode;onCreateScenario?: (root: HTMLElement) => void }) {
+export function CalculatorPage({principal,scope,connection,actions,intro,planning,onCreateScenario,currentValues,onCurrentValuesChange}: { principal: Principal; scope?: {key:string;settings?:Record<string,unknown>}; connection?:ReactNode;actions?:ReactNode;intro?:ReactNode;planning?:ReactNode;onCreateScenario?: (root: HTMLElement) => void;currentValues?:ReactNode|((root:HTMLElement|null)=>ReactNode);onCurrentValuesChange?:(active:boolean)=>void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const createScenarioRef = useRef(onCreateScenario);
   const [error, setError] = useState<Error | null>(null);
+  const withCurrentValues=principal.role==='partner'&&currentValues!==undefined;
+  const [calculatorRoot,setCalculatorRoot]=useState<HTMLElement|null>(null);
   createScenarioRef.current = onCreateScenario;
 
   useEffect(() => {
@@ -94,6 +96,7 @@ export function CalculatorPage({scope,connection,actions,intro,planning,onCreate
     if (!root) return;
     const instance = ++calculatorInstance;
     root.dataset.storageKey = scope?.key??'syntolk-partner-forecast-v1';
+    setCalculatorRoot(root);
     if(scope?.settings)root.dataset.initialState=JSON.stringify({version:1,settings:scope.settings});
     else delete root.dataset.initialState;
     const handleCreateScenario = (event: Event) => {
@@ -130,7 +133,13 @@ export function CalculatorPage({scope,connection,actions,intro,planning,onCreate
         <ErrorBanner error={error} />
       {intro}
       {planning}
-        <div ref={rootRef} dangerouslySetInnerHTML={{ __html: calculatorMarkup }} />
+        <div ref={rootRef} onClickCapture={event=>{
+          if(!withCurrentValues)return;
+          const button=(event.target as Element).closest('button');
+          if(button?.hasAttribute('data-current-values'))onCurrentValuesChange?.(true);
+          else if(button?.hasAttribute('data-scenario'))onCurrentValuesChange?.(false);
+        }} dangerouslySetInnerHTML={{ __html: calculatorMarkup(withCurrentValues) }} />
+        {withCurrentValues&&(typeof currentValues==='function'?currentValues(calculatorRoot):currentValues)}
         {connection}
       </Page>
     </div>

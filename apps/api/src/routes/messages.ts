@@ -8,6 +8,11 @@ import { tenantOf } from '../tenancy.js';
 
 const nextId = monotonicFactory();
 const idSchema = z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+const partnerDirectoryQuerySchema = z.object({
+  search: z.string().trim().min(1).max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional().default(50),
+  cursor: z.string().trim().min(1).max(500).optional(),
+});
 const sendSchema = z.object({ text: z.string().trim().max(8000).default(''), attachmentIds: z.array(idSchema).max(5).default([]), requestId: z.string().min(8).max(100) }).strict()
   .refine(body => body.text.length > 0 || body.attachmentIds.length > 0)
   .refine(body => new Set(body.attachmentIds).size === body.attachmentIds.length);
@@ -135,6 +140,49 @@ messagesRouter.get('/admin/messages', async (req, res) => {
     .select('p.id as partnerId', 'p.name', 'p.email', 'latest.id as lastMessageId', 'latest.body', 'latest.senderRole', 'latest.createdAt', db.raw('coalesce(unread.unread, 0)::int as unread'))
     .modify(q => { if (before) q.where('latest.id', '<', before); }).orderBy('latest.id', 'desc').limit(51);
   res.json({ conversations: rows.slice(0, 50), nextCursor: rows.length > 50 ? rows[49]!.lastMessageId : null });
+});
+messagesRouter.get('/admin/messages/partners', async (req, res) => {
+  const query = partnerDirectoryQuerySchema.safeParse(req.query);
+  if (!query.success) return void res.status(400).json({ error: 'invalid_query', detail: query.error.flatten() });
+  const { db, tenantId } = tenantOf(req);
+  const escaped = query.data.search?.replace(/[!%_]/g, '!$&');
+  let cursor: { createdAt: Date; id: string } | null = null;
+  if (query.data.cursor) {
+    try {
+      const decoded = Buffer.from(query.data.cursor, 'base64url').toString('utf8');
+      const separator = decoded.indexOf('|');
+      const createdAt = new Date(decoded.slice(0, separator));
+      const id = decoded.slice(separator + 1);
+      if (separator < 0 || !id || Number.isNaN(createdAt.getTime())) throw new Error('invalid cursor');
+      cursor = { createdAt, id };
+    } catch {
+      return void res.status(400).json({ error: 'invalid_cursor' });
+    }
+  }
+  const latest = db('PartnerMessage').where({ tenantId }).distinctOn('partnerId')
+    .select('partnerId', 'id', 'body', 'senderRole', 'createdAt').orderBy('partnerId').orderBy('id', 'desc').as('latest');
+  const unread = db('PartnerMessage').where({ tenantId, senderRole: 'partner' }).whereNull('readAt')
+    .select('partnerId').count({ unread: '*' }).groupBy('partnerId').as('unread');
+  const rows = await db('Partner as p').where('p.tenantId', tenantId)
+    .leftJoin(latest, 'latest.partnerId', 'p.id').leftJoin(unread, 'unread.partnerId', 'p.id')
+    .select('p.id as partnerId', 'p.name', 'p.email', 'p.activatedAt', 'p.revokedAt', 'p.createdAt')
+    .select('latest.id as lastMessageId', 'latest.body as lastMessage', 'latest.senderRole as lastSenderRole', 'latest.createdAt as lastMessageAt')
+    .select(db.raw('coalesce(unread.unread, 0)::int as unread'))
+    .modify(q => {
+      if (escaped) q.andWhere(inner => inner.whereRaw("?? ILIKE ? ESCAPE '!'", ['p.name', `%${escaped}%`])
+        .orWhereRaw("?? ILIKE ? ESCAPE '!'", ['p.email', `%${escaped}%`]));
+    })
+    .modify(q => {
+      if (cursor) q.andWhere(inner => inner.where('p.createdAt', '<', cursor!.createdAt)
+        .orWhere(nested => nested.where('p.createdAt', cursor!.createdAt).andWhere('p.id', '<', cursor!.id)));
+    })
+    .orderBy('p.createdAt', 'desc').orderBy('p.id', 'desc').limit(query.data.limit + 1);
+  const partners = rows.slice(0, query.data.limit);
+  const last = partners.at(-1);
+  const nextCursor = rows.length > query.data.limit && last
+    ? Buffer.from(`${new Date(last.createdAt).toISOString()}|${last.partnerId}`).toString('base64url')
+    : null;
+  res.json({ partners: partners.map((partner: { lastMessageId: string | null; [key: string]: unknown }) => ({ ...partner, hasConversation: Boolean(partner.lastMessageId) })), nextCursor });
 });
 messagesRouter.use('/admin/messages/:partnerId', thread);
 messagesRouter.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

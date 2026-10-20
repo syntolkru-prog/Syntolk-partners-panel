@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import { money } from '../ui.js';
 
@@ -7,22 +7,26 @@ export interface SeriesPoint {
   firstPayments?:number; repeatPayments?:number; customerPaymentsMinor?:number; earningsMinor:number;
 }
 export type ChartMetric = 'clicks'|'identities'|'registrations'|'payingCustomers'|'payments'|'customerPaymentsMinor'|'earningsMinor';
-export type ChartSeriesBy = 'total'|'platform'|'format'|'scenario';
+export type ChartSeriesBy = 'total'|'platform'|'format'|'scenario'|'partner';
 export interface ChartInspection {metric:ChartMetric;by?:ChartSeriesBy;point?:SeriesPoint;group?:{by:Exclude<ChartSeriesBy,'total'>;id:string;name:string}}
 export const chartMetricLabels:Record<ChartMetric,string> = {
   clicks:'Переходы', identities:'Связанные пользователи', registrations:'Регистрации', payingCustomers:'Платящие клиенты', payments:'Оплаты',
   customerPaymentsMinor:'Оплачено клиентами', earningsMinor:'Ваш заработок',
 };
 export const chartMetricKeys = Object.keys(chartMetricLabels) as ChartMetric[];
-export const defaultChartMetrics = chartMetricKeys.filter(key=>key!=='identities');
+export const defaultChartMetrics:ChartMetric[] = chartMetricKeys.filter(key=>key!=='identities');
 export const chartColors:Record<ChartMetric,string> = {clicks:'#28c6d8',identities:'#73cdb8',registrations:'#8e9dff',payingCustomers:'#c295f5',payments:'#eabb70',customerPaymentsMinor:'#65d7b0',earningsMinor:'#83bcff'};
-export const chartModeLabels:Record<ChartSeriesBy,string> = {total:'Общая динамика',platform:'Сравнить площадки',scenario:'Сравнить сценарии',format:'Сравнить форматы'};
+export const chartModeLabels:Record<ChartSeriesBy,string> = {total:'Общая динамика',platform:'По площадкам',scenario:'По сценариям',format:'По форматам',partner:'По партнёрам'};
+export const AnalyticsAudience = createContext(false);
+export function useMetricLabels() { return useContext(AnalyticsAudience)?{...chartMetricLabels,earningsMinor:'Начислено партнёрам'}:chartMetricLabels; }
+export function useChartModes(comparePartners=false) { return comparePartners?{total:chartModeLabels.total,partner:chartModeLabels.partner,platform:chartModeLabels.platform,format:chartModeLabels.format}:{total:chartModeLabels.total,platform:chartModeLabels.platform,scenario:chartModeLabels.scenario,format:chartModeLabels.format}; }
 export const chartSeriesColor = (id:string) => `hsl(${[...id].reduce((hash,char)=>(hash*31+char.charCodeAt(0))%360,0)} 68% 68%)`;
 const currencyMetric = (key:ChartMetric) => key.endsWith('Minor');
 const dateLabel = (date:string,full=false) => new Date(`${date}T12:00:00Z`).toLocaleDateString('ru-RU',{day:'numeric',month:'short',year:full?'numeric':undefined,timeZone:'UTC'});
 const formatValue = (value:number,monetary:boolean,currency='RUB') => monetary?money(value/100,currency):value.toLocaleString('ru-RU');
 type Series = {bucket:string;points:SeriesPoint[];by?:Exclude<ChartSeriesBy,'total'>;groups?:Array<{id:string;name:string;points:SeriesPoint[]}>};
 interface ChartProps {
+  comparePartners?:boolean;
   currency?:string;
   series?:Series;
   metric:ChartMetric;
@@ -35,11 +39,25 @@ interface ChartProps {
   changes?:Partial<Record<ChartMetric,ReactNode>>;
   paymentCounts?:{first:number;repeat:number};
   comparison?:ReactNode;
+  comparisonTotals?:Partial<Record<ChartMetric,number>>;
+  periodCaption?:string;
+  toolbarControls?:ReactNode;
   onInspect?:(selection:ChartInspection)=>void;
   onExpand?:(metric:ChartMetric)=>void;
 }
 
-export function ResultsChart({currency='RUB',series,metric,onChange,metrics,onMetricsChange,seriesBy='total',onSeriesByChange,totals,changes,paymentCounts,comparison,onInspect,onExpand}:ChartProps) {
+/** Reuse the real chart layout so the first request does not collapse the page. */
+export function ResultsChartSkeleton({metrics=defaultChartMetrics,label='Загружаем статистику…'}:{metrics?:ChartMetric[];label?:string}) {
+  return <div className="results-report" data-pending="true" aria-busy="true">
+    <span className="results-report__pending" role="status">{label}</span>
+    <div className="results-report__content" aria-hidden="true" {...{inert:''}}>
+      <ResultsChart metric={metrics[0]??'clicks'} metrics={metrics} onChange={()=>{}} onSeriesByChange={()=>{}}/>
+    </div>
+  </div>;
+}
+
+export function ResultsChart({comparePartners=false,currency='RUB',series,metric,onChange,metrics,onMetricsChange,seriesBy='total',onSeriesByChange,totals,changes,paymentCounts,comparison,comparisonTotals,periodCaption,toolbarControls,onInspect,onExpand}:ChartProps) {
+  const chartMetricLabels=useMetricLabels(),modes=useChartModes(comparePartners),admin=useContext(AnalyticsAudience);
   const selected = metrics?.length?metrics:[metric];
   const groups = seriesBy==='total'?[]:[...(series?.groups??[])].sort((a,b)=>a.name.localeCompare(b.name,'ru'));
   const inspect=(selection:ChartInspection)=>onInspect?.({...selection,by:seriesBy});
@@ -49,31 +67,35 @@ export function ResultsChart({currency='RUB',series,metric,onChange,metrics,onMe
     if(onMetricsChange)onMetricsChange(next);else onChange(key);
   };
   const hints:Record<ChartMetric,string> = {
-    clicks:'Переходы по вашим партнёрским ссылкам',
+    clicks:admin?'Переходы по ссылкам выбранных партнёров':'Переходы по вашим партнёрским ссылкам',
     identities:'Разные пользователи, связанные с переходами',
     registrations:'Клиенты, зарегистрировавшиеся по ссылкам',
-    payingCustomers:'Уникальные клиенты за весь период',
+    payingCustomers:'Уникальные клиенты за выбранный период',
     payments:paymentCounts?`${paymentCounts.first} первых · ${paymentCounts.repeat} повторных`:'Первые и повторные оплаты',
     customerPaymentsMinor:'Сумма оплат привлечённых клиентов',
-    earningsMinor:totals?.earningsMinor===0&&(totals?.customerPaymentsMinor??0)>0?'Оплаты есть, начислений пока нет':'Начисленные комиссии с учётом возвратов',
+    earningsMinor:totals?.earningsMinor===0&&(totals?.customerPaymentsMinor??0)>0?'Чистая сумма комиссий за период — 0':'Начисленные комиссии с учётом возвратов',
   };
   return <section className="results-chart" aria-label="Динамика результатов">
     <div className="results-overview-toolbar">
-      <div><h2>Динамика результатов</h2><p>{series?.points.length?`${dateLabel(series.points[0]!.date,true)} — ${dateLabel(series.points.at(-1)!.date,true)}`:'За выбранный период'}</p></div>
+      <div><h2>Динамика результатов</h2><p>{periodCaption??(series?.points.length?`${dateLabel(series.points[0]!.date,true)} — ${dateLabel(series.points.at(-1)!.date,true)}`:'За выбранный период')}</p></div>
       <div className="results-overview-actions">
-        {onSeriesByChange&&<select aria-label="Режим графика" value={seriesBy} onChange={event=>onSeriesByChange(event.target.value as ChartSeriesBy)}>{Object.entries(chartModeLabels).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>}
+        {toolbarControls}
+        {onSeriesByChange&&<select aria-label="Режим графика" value={seriesBy} onChange={event=>onSeriesByChange(event.target.value as ChartSeriesBy)}>{Object.entries(modes).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>}
       </div>
     </div>
-    <div className="results-metric-options" aria-label="Показатели графиков">
-      {onMetricsChange&&<button type="button" className="results-metric-all" aria-pressed={selected.length===chartMetricKeys.length} onClick={()=>onMetricsChange(chartMetricKeys)}>Все показатели</button>}
-      {chartMetricKeys.map(key=><button type="button" key={key} aria-pressed={selected.includes(key)} onClick={()=>choose(key)} style={{'--metric-color':chartColors[key]} as CSSProperties}><span className="results-metric-check">{selected.includes(key)&&<Check size={11}/>}</span>{chartMetricLabels[key]}</button>)}
-    </div>
+    {onMetricsChange&&<div className="results-metric-options" aria-label="Показатели графиков">
+      <button type="button" className="results-metric-all" aria-pressed={defaultChartMetrics.every(key=>selected.includes(key))} onClick={()=>onMetricsChange(defaultChartMetrics)}>Все показатели</button>
+      {defaultChartMetrics.map(key=><button type="button" key={key} aria-pressed={selected.includes(key)} onClick={()=>choose(key)} style={{'--metric-color':chartColors[key]} as CSSProperties}><span className="results-metric-check">{selected.includes(key)&&<Check size={11}/>}</span>{chartMetricLabels[key]}</button>)}
+    </div>}
     <div className="results-series-legend" aria-label={seriesBy==='total'?'Интервал графиков':'Сравниваемые источники'}>{seriesBy==='total'?<span>{series?.bucket==='week'?'По неделям':series?.bucket==='month'?'По месяцам':'По дням'} · Все выбранные источники</span>:groups.length?groups.map(group=><button type="button" key={group.id} title={`Открыть статистику: ${group.name}`} onClick={()=>inspect({metric:selected[0]!,group:{by:seriesBy as Exclude<ChartSeriesBy,'total'>,id:group.id,name:group.name}})}><i style={{background:chartSeriesColor(group.id)}}/>{group.name}<ChevronRight size={12}/></button>):<span>За выбранный период действий по источникам нет</span>}</div>
+    {comparison&&<div className="results-overview-comparison">{comparison}</div>}
     <div className="results-chart-grid" aria-label="Итоги за выбранный период">{selected.map(key=>{
       const lines=seriesBy==='total'?[{id:key,name:chartMetricLabels[key],color:chartColors[key],points:series?.points??[]}]:groups.map(group=>({...group,color:chartSeriesColor(group.id)}));
       const total=totals?.[key]??(series?.points??[]).reduce((sum,point)=>sum+(point[key]??0),0);
       const heading=<><div className="results-metric-card__heading"><span><i/>{chartMetricLabels[key]}</span>{changes?.[key]&&<small className="results-change">{changes[key]}</small>}{onInspect&&<ChevronRight size={14} aria-hidden="true"/>}</div>
-        <strong className="results-metric-card__value" title={formatValue(total,currencyMetric(key),currency)}>{formatValue(total,currencyMetric(key),currency)}</strong></>;
+        {comparisonTotals&&<small className="results-metric-card__period-label">Основной период</small>}
+        <strong className="results-metric-card__value" title={formatValue(total,currencyMetric(key),currency)}>{formatValue(total,currencyMetric(key),currency)}</strong>
+        {comparisonTotals&&<span className="results-metric-card__comparison">Период сравнения: <b>{formatValue(comparisonTotals[key]??0,currencyMetric(key),currency)}</b></span>}</>;
       const expand=()=>onExpand?onExpand(key):inspect({metric:key});
       return <article className="results-metric-card results-surface" key={key} style={{'--metric-color':chartColors[key]} as CSSProperties} aria-label={chartMetricLabels[key]} data-expandable={!!onExpand} onClick={onExpand?expand:undefined}>
         {onInspect||onExpand?<button type="button" className="results-metric-card__inspect" aria-label={`Подробнее: ${chartMetricLabels[key]}`} aria-haspopup="dialog" onClick={event=>{event.stopPropagation();expand();}}>{heading}</button>:heading}
@@ -81,11 +103,11 @@ export function ResultsChart({currency='RUB',series,metric,onChange,metrics,onMe
         <MetricPlot currencyCode={currency} series={series} lines={lines} metric={key} onInspect={onInspect?(point,group)=>inspect({metric:key,point,...(group&&seriesBy!=='total'?{group:{by:seriesBy,id:group.id,name:group.name}}:{})}):undefined}/>
       </article>;
     })}</div>
-    {comparison&&<div className="results-overview-comparison">{comparison}</div>}
   </section>;
 }
 
 export function MetricPlot({series,lines,metric,onInspect,large=false,range,currencyCode='RUB'}:{series?:Series;lines:Array<{id:string;name:string;color:string;points:SeriesPoint[]}>;metric:ChartMetric;onInspect?:(point:SeriesPoint,group?:{id:string;name:string})=>void;large?:boolean;range?:{min:number;max:number};currencyCode?:string}) {
+  const chartMetricLabels=useMetricLabels();
   const id=useId().replace(/:/g,''),root=useRef<HTMLDivElement>(null),[width,setWidth]=useState(360),[active,setActive]=useState<number|null>(null);
   const [hoveredSeries,setHoveredSeries]=useState<string|null>(null);
   useEffect(()=>{

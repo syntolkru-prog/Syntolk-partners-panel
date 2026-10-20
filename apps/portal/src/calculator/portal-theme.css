@@ -272,6 +272,65 @@
   color: var(--pf-muted);
 }
 
+.calculator-page .pf-section .pf-scenarios--with-refresh {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) 40px;
+}
+
+.calculator-page .pf-section .pf-scenarios .pf-refresh {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  justify-self: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  transition: color .15s, background .15s, border-color .15s;
+}
+
+.calculator-page .pf-section .pf-refresh svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.calculator-page .pf-section .pf-scenarios .pf-refresh:hover:not(:disabled) {
+  color: var(--pf-text);
+  background: var(--pf-surface-raised);
+  border-color: var(--pf-border);
+}
+
+.calculator-page .pf-section .pf-scenarios .pf-refresh:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.calculator-page .pf-section .pf-refresh[aria-busy="true"] svg {
+  animation: pf-refresh-spin .8s linear infinite;
+}
+@keyframes pf-refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .calculator-page .pf-section .pf-refresh[aria-busy="true"] svg { animation: none; }
+}
+
+.calculator-page #partner-forecast[data-values-mode="current"] .pf-month-select {
+  flex-basis: 140px;
+  max-width: 42%;
+}
+
+.calculator-page .pf-section #pf-income-range [data-fact-clear] {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pf-accent);
+  font: inherit;
+  line-height: inherit;
+}
+
 /* The selected rule must follow the neutral button rule. */
 .calculator-page .pf-section .pf-scenarios button[aria-pressed="true"] {
   color: var(--pf-accent);

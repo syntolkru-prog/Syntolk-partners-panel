@@ -6,7 +6,6 @@ import {
   Receipt,
   Wallet,
   Users,
-  UserCheck,
   CreditCard,
   CheckCircle2,
   Circle,
@@ -16,8 +15,9 @@ import { api, type Principal } from '../api.js';
 import { useTenantBase } from '../tenant-base.js';
 import { theme } from '../theme.js';
 import { CoachDay } from './coach/CoachDay.js';
+import {PartnerQuickActions} from './PartnerQuickActions.js';
 import { useBrand } from '../lib/useBrand.js';
-import { Avatar, Button, Card, EmptyState, ErrorBanner, Page, SectionHeading, Stat, StatusPill, money } from '../ui.js';
+import { Avatar, Button, Card, EmptyState, ErrorBanner, Page, SectionHeading, Stat, money } from '../ui.js';
 
 // ---------- Partner ----------
 
@@ -30,8 +30,10 @@ interface PartnerDashboard {
   payingClients: number;
   conversionRate: number;
   attributedRevenue: number;
+  periodEarnings?:number;
+  currency?:string;
   commissionByStatus: Record<string, number>;
-  balances: { accrued: number; available: number; pending: number; paid: number; total: number };
+  balances: { debt?:number; accrued: number; available: number; pending: number; paid: number; total: number };
   links?: Array<{ linkKey: string; clicks: number; attributedEvents: number; attributedRevenue: number }>;
 }
 
@@ -49,22 +51,13 @@ export function Dashboard({ principal }: { principal: Principal }) {
   return null;
 }
 
-interface Funnel {
-  stages: { clicks: number; identities: number; signups: number; paid: number };
-  rates: { stitchRate: number; signupRate: number; paidRate: number; overall: number };
-  revenue: number;
-}
-
 function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string }) {
   const { programTermsUrl } = useBrand();
+  const base=useTenantBase();
   const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'all'>('30d');
   const { data, error, isLoading } = useQuery({
-    queryKey: ['dashboard', partnerId, period],
+    queryKey: ['dashboard', partnerId, period],refetchOnWindowFocus:true,
     queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard?period=${period}`),
-  });
-  const funnel = useQuery({
-    queryKey: ['funnel', partnerId, period],
-    queryFn: () => api<Funnel>(`/partners/${partnerId}/funnel?period=${period}`),
   });
   const profile = useQuery({
     queryKey: ['partner-profile', partnerId],
@@ -91,7 +84,8 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
         </select>
       }
     >
-      <ErrorBanner error={error ?? funnel.error} />
+      <ErrorBanner error={error} />
+      <PartnerQuickActions/>
       <CoachDay partnerId={partnerId} />
       {!profile.isLoading && profile.data && !profile.data.termsAcceptedAt && (
         <Card style={{ marginBottom: 14, borderColor: `${theme.warn}66`, background: theme.warnSoft }}>
@@ -112,106 +106,24 @@ function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string
         <Card>Загрузка…</Card>
       ) : data ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 14 }}>
             <Stat label="Переходы" value={data.clicks} icon={<MousePointerClick size={16} />} />
             <Stat label="Регистрации" value={data.registrations} icon={<Receipt size={16} />} />
             <Stat label="Платящие клиенты" value={data.payingClients} icon={<CreditCard size={16} />} />
-            <Stat label="Конверсия" value={`${(data.conversionRate * 100).toFixed(1)}%`} icon={<CreditCard size={16} />} />
-            <Stat label="Доход от клиентов" value={money(data.attributedRevenue)} icon={<Wallet size={16} />} />
-            <Stat label="Начислено всего" value={money(data.balances.total)} icon={<Wallet size={16} />} />
-            <Stat label="Доступно к выплате" value={money(data.balances.available)} icon={<Wallet size={16} />} />
-            <Stat label="Ожидает выплаты" value={money(data.balances.pending ?? 0)} icon={<Wallet size={16} />} />
-            <Stat label="Выплачено" value={money(data.balances.paid)} icon={<Wallet size={16} />} />
+            <Stat label="Выручка" value={money(data.attributedRevenue,data.currency??'RUB')} icon={<Wallet size={16} />} />
+            <Stat label="Начислено" value={money(data.balances.total,data.currency??'RUB')} icon={<Wallet size={16} />} />
+            <Stat label="Доступно" value={money(data.balances.available,data.currency??'RUB')} icon={<Wallet size={16} />} />
+            <Stat label="Ожидает выплаты" value={money(data.balances.pending??0,data.currency??'RUB')} icon={<Wallet size={16} />} />
+            <Stat label="Выплачено" value={money(data.balances.paid,data.currency??'RUB')} icon={<Wallet size={16} />} />
           </div>
-
-          {funnel.data && <FunnelChart funnel={funnel.data} />}
-
-          <SectionHeading>Начисления</SectionHeading>
-          <Card>
-            {Object.keys(data.commissionByStatus).length === 0 ? (
-              <div style={{ color: theme.textMuted, fontSize: 14 }}>
-                Здесь появятся начисления после регистрации и оплаты клиентов.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {(['accrued', 'approved', 'pending', 'paid', 'reversed'] as const).map((status) => {
-                  const amount = data.commissionByStatus[status] ?? 0;
-                  if (amount === 0) return null;
-                  return (
-                    <div key={status} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <StatusPill status={status} />
-                      <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 15, fontWeight: 500 }}>
-                        {money(amount)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+          <div style={{display:'flex',flexWrap:'wrap',justifyContent:'space-between',gap:12,marginTop:14,fontSize:12,color:theme.textMuted}}>
+            <span>Переходы, регистрации, клиенты и выручка — за выбранный период. Начисления и выплаты — за всё время.</span>
+            <Link to={`${base}/payouts`} style={{color:theme.accent}}>История выплат →</Link>
+          </div>
+          {(data.balances.debt??0)>0&&<p style={{color:theme.textMuted,fontSize:12}}>Корректировка прошлых выплат: {money(data.balances.debt??0,data.currency??'RUB')}. Учитывается при следующей выплате.</p>}
         </>
       ) : null}
     </Page>
-  );
-}
-
-function FunnelChart({ funnel }: { funnel: Funnel }) {
-  const stages = [
-    { key: 'clicks', label: 'Переходы', value: funnel.stages.clicks, icon: <MousePointerClick size={14} />, rate: null },
-    { key: 'identities', label: 'Связанные', value: funnel.stages.identities, icon: <UserCheck size={14} />, rate: funnel.rates.stitchRate, rateLabel:'от переходов' },
-    { key: 'signups', label: 'Регистрации', value: funnel.stages.signups, icon: <Receipt size={14} />, rate: funnel.rates.signupRate, rateLabel:'от связанных в когорте' },
-    { key: 'paid', label: 'Оплачено', value: funnel.stages.paid, icon: <CreditCard size={14} />, rate: funnel.rates.paidRate, rateLabel:'от регистраций в когорте' },
-  ];
-  const max = Math.max(1, ...stages.map((s) => s.value));
-  const pct = (n: number | null | undefined) => (n == null ? '' : `${Math.round(n * 100)}%`);
-
-  return (
-    <>
-       <SectionHeading>Воронка</SectionHeading>
-      <Card>
-        <p style={{ margin:'0 0 12px',fontSize:12,color:theme.textMuted }}>Числа — действия за период. Проценты — по когорте переходов периода, включая последующие регистрации и оплаты.</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {stages.map((s, i) => {
-            const width = `${Math.max(6, (s.value / max) * 100)}%`;
-            return (
-              <div key={s.key} className="op-grid-collapse" style={{ display: 'grid', gridTemplateColumns: '120px 1fr 140px', gap: 12, alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: theme.textMuted }}>
-                  <span style={{ color: theme.accent, display: 'inline-flex' }}>{s.icon}</span>
-                  {s.label}
-                </div>
-                <div style={{ background: theme.bg, border: `1px solid ${theme.borderSubtle}`, borderRadius: theme.radiusSm, height: 28, position: 'relative', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      width,
-                      height: '100%',
-                      background: `linear-gradient(90deg, ${theme.accent}, ${theme.accentHover})`,
-                      opacity: 0.85,
-                    }}
-                  />
-                  <div style={{ position: 'absolute', left: 12, top: 0, bottom: 0, display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 600, color: theme.accentInk, mixBlendMode: 'multiply' }}>
-                    {s.value.toLocaleString()}
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: theme.textMuted, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  {i > 0 && (
-                    <>
-                       <span style={{ color: theme.textDim }}>{s.rateLabel}</span>{' '}
-                      <span style={{ color: theme.text, fontWeight: 500 }}>{pct(s.rate)}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.borderSubtle}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-           <span style={{ fontSize: 13, color: theme.textMuted }}>Переход → оплата · когорта переходов</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: theme.accent, fontVariantNumeric: 'tabular-nums' }}>
-            {pct(funnel.rates.overall)}
-          </span>
-        </div>
-      </Card>
-    </>
   );
 }
 
@@ -222,6 +134,7 @@ interface AdminOverview {
   totals: {
     partners: number;
     clicks: number;
+    registrations: number;
     attributedRevenue: number;
     attributedEvents: number;
     commissionAccrued: number;
@@ -235,6 +148,7 @@ interface AdminOverview {
     name: string;
     email: string;
     clicks: number;
+    registrations: number;
     revenue: number;
     events: number;
     commission: Record<string, number>;
@@ -259,6 +173,7 @@ function AdminDashboard() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             <Stat label="Партнёры" value={data.totals.partners} icon={<Users size={16} />} />
             <Stat label="Переходы (30 дн.)" value={data.totals.clicks} icon={<MousePointerClick size={16} />} />
+            <Stat label="Регистрации (30 дн.)" value={data.totals.registrations} icon={<Receipt size={16} />} />
             <Stat label="Выручка от партнёров" value={money(data.totals.attributedRevenue)} icon={<Wallet size={16} />} />
             <Stat label="Осталось Syntolk" value={money(data.totals.netRevenue)} icon={<Wallet size={16} />} />
             <Stat
@@ -315,6 +230,7 @@ function PartnerCard({
           value={money((partner.commission.paid ?? 0) + (partner.commission.approved ?? 0))}
         />
         <MiniStat label="Переходы" value={String(partner.clicks)} />
+        <MiniStat label="Регистрации" value={String(partner.registrations)} />
         <MiniStat label="События" value={String(partner.events)} />
       </div>
     </Card>

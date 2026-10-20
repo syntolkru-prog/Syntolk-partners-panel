@@ -2,20 +2,40 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod';
 import { requireAuth, requirePartnerOrAdmin, grantScope } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
-import { createMaterial, materialSource, materialView, ownedMaterial, materialFormats } from '../materials-service.js';
+import { createMaterial, materialSource, materialView, ownedMaterial } from '../materials-service.js';
 import { calculateCoachForecast } from '../coach/forecast-adapter.js';
 import { LinkError } from '../links-service.js';
 import { CoachError, safePublicationUrl } from '../coach/schemas.js';
 import { assertPartner, assertProgram } from '../coach/policy.js';
+import {analyticsSourceOptions} from '../analytics-source-options.js';
+import {createPublication} from '../publications-service.js';
 
 export const materialsRouter=Router();
 const read=[requireAuth,requirePartnerOrAdmin('id')];
 const write=[...read,grantScope('links:write')];
 const platformSchema=z.object({id:z.string().trim().min(1).max(100),name:z.string().trim().min(1).max(120)}).strict();
 
-materialsRouter.get('/partners/:id/material-catalog',...read,async(_req,res)=>{
+materialsRouter.get('/partners/:id/material-catalog',...read,async(req,res)=>{
+  const {db,tenantId}=tenantOf(req),partnerId=req.params.id!;
+  const programId=z.string().min(1).optional().parse(req.query.programId);
+  if(programId)await assertProgram(db,tenantId,partnerId,programId,false);
   const model=await calculateCoachForecast({});
-  res.json({formats:materialFormats,platforms:model.channels.map((p:{id:string;name:string;formats:string[]})=>({id:p.id,name:p.name,formats:p.formats}))});
+  const options=await analyticsSourceOptions(db,tenantId,[partnerId],programId);
+  const definitions=db('CoachForecastSnapshot').where({tenantId,partnerId,status:'confirmed'}).modify(q=>{if(programId)q.where({programId});})
+    .select('programId','createdAt',db.raw("COALESCE(data->>'scenarioId',id) as id"),db.raw("COALESCE(NULLIF(data->>'scenarioName',''),'Сценарий') as name"));
+  const scenarios=await db.from(definitions.as('definitions')).distinctOn('programId','id')
+    .select('programId','id','name').orderBy('programId').orderBy('id').orderBy('createdAt','desc');
+  res.json({formats:options.formats,platforms:options.platforms.map(p=>({...p,formats:model.channels.find((item:{id:string})=>item.id===p.id)?.formats})),scenarios});
+});
+
+materialsRouter.post('/partners/:id/publications',...write,async(req,res)=>{
+  const {db,tenantId}=tenantOf(req);
+  const input=z.object({requestId:z.string().regex(/^[a-zA-Z0-9_-]{16,32}$/),programId:z.string().min(1),
+    title:z.string().trim().min(1).max(200),formatId:z.string().min(1).max(100),platform:platformSchema,
+    scenarioId:z.string().min(1).max(100).nullable().optional(),linkId:z.string().min(1).max(32).optional(),
+    channelName:z.string().trim().max(120).optional(),publicationUrl:z.string().trim().max(2048).optional(),published:z.boolean().optional(),
+  }).strict().parse(req.body);
+  res.status(201).json(await createPublication(db,tenantId,req.params.id!,input));
 });
 
 materialsRouter.post('/partners/:id/materials',...write,async(req,res)=>{

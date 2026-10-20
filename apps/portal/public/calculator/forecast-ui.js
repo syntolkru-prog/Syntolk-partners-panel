@@ -5,6 +5,7 @@
   const KEY=root.dataset.storageKey||'syntolk-partner-forecast-v1';
   let settings=M.newScenario(), scenario='base', month=3, tab='content', results;
   let canSave=true, statusTimer, mobileExpanded=false, formatMenuOpen=false, platformMenuOpen=false, channelFormatMenu=null, suppressPersist=false;
+  let facts=null, factViews={}, factStorageKey='', factCatalog='';
   const mobileQuery=globalThis.matchMedia?.('(max-width:760px)');
   let stored;
   try {
@@ -26,8 +27,16 @@
   const money=v=>integer.format(Math.abs(v)<0.5?0:v)+' ₽';
   const count=v=>v>0&&v<0.1?'< 0,1':number.format(v);
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const channels=()=>M.allChannels(settings);
-  const formats=()=>M.allFormats(settings);
+  const isFact=()=>facts?.active===true;
+  const metric=(dimension,id)=>facts?.report?.breakdown?.[dimension]?.find(row=>row.id===id);
+  const augment=(base,rows,kind)=>{
+    const result=[...base];
+    for(const row of rows??[])if(!result.some(item=>item.id===row.id))result.push(kind==='format'?{id:row.id,name:row.name,base:'post'}:{id:row.id,name:row.name,url:'',note:'',group:'custom',formats:row.formats?.map(item=>item.id)??[]});
+    return result;
+  };
+  const channels=()=>isFact()?augment(M.allChannels(settings),facts.report?.breakdown?.platforms,'platform').map(c=>({...c,formats:[...new Set([...c.formats,...metric('platforms',c.id)?.formats?.map(f=>f.id)??[]])]})):M.allChannels(settings);
+  const formats=()=>isFact()?augment(M.allFormats(settings),facts.report?.breakdown?.formats,'format'):M.allFormats(settings);
+  const channelState=id=>isFact()?{enabled:!!metric('platforms',id),formats:metric('platforms',id)?.formats?.map(row=>row.id)??[]}:settings.channels[id];
   const visibleFormats=()=>formats();
   const newId=prefix=>prefix+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
   const formatIcons={
@@ -37,18 +46,26 @@
     article:'<path d="M14 3H5v18h14V8Z"/><path d="M14 3v5h5M8 12h8M8 16h6"/>',
     circle:'<circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4Z"/>'
   };
-  const get=path=>path.split('.').reduce((v,k)=>v[k],settings);
+  const get=path=>{
+    if(!isFact())return path.split('.').reduce((v,k)=>v[k],settings);
+    if(path.startsWith('frequency.'))return facts.report?metric('formats',path.slice(10))?.content.preparedMaterials??0:null;
+    const channel=/^channels\.(.+)\.(views|ctr)$/.exec(path);
+    if(channel){const value=factViews[channel[1]];return channel[2]==='views'?value??null:value>0&&facts.report?Math.round((metric('platforms',channel[1])?.counts.clicks??0)/value*10000)/100:null;}
+    const rate=path==='registration'?facts.report?.conversions.clickToRegistration:path==='paidConversion'?facts.report?.conversions.registrationToPayment:null;
+    return rate==null?null:Math.round(rate*10000)/100;
+  };
   function set(path,value) {
     const keys=path.split('.'), last=keys.pop();
     keys.reduce((v,k)=>v[k],settings)[last]=value;
   }
   function input(path,label,{min=0,max=100,unit='',hint='',ariaLabel='',idPrefix='pf-'}={}) {
     const id=idPrefix+path.replaceAll('.','-');
-    return `<label class="pf-field" for="${id}"><span>${escape(label)}</span><span class="pf-input-wrap"><input id="${id}" data-pf-path="${path}"${ariaLabel?` aria-label="${escape(ariaLabel)}"`:''} type="number" inputmode="decimal" min="${min}" max="${max}" step="any" value="${get(path)}">${unit?`<span aria-hidden="true">${unit}</span>`:''}</span>${hint?`<small>${hint}</small>`:''}</label>`;
+    const manual=isFact()&&/^channels\..+\.views$/.test(path);
+    return `<label class="pf-field" for="${id}"><span>${escape(label)}</span><span class="pf-input-wrap"><input id="${id}" ${isFact()?`data-fact-path="${escape(path)}"${manual?'':' readonly'}`:`data-pf-path="${path}"`}${ariaLabel?` aria-label="${escape(ariaLabel)}"`:''} type="number" inputmode="decimal" min="${min}"${isFact()?'':` max="${max}"`} step="any" value="${get(path)??''}"${isFact()?' placeholder="—"':''}>${unit?`<span aria-hidden="true">${unit}</span>`:''}</span>${hint?`<small>${hint}</small>`:''}</label>`;
   }
   function select(path,label,options,prefix='pf-') {
     const id=prefix+path.replaceAll('.','-');
-    return `<label class="pf-field" for="${id}"><span>${escape(label)}</span><select id="${id}" data-pf-path="${path}">${options.map(([value,name])=>`<option value="${value}"${String(get(path))===String(value)?' selected':''}>${escape(name)}</option>`).join('')}</select></label>`;
+    return `<label class="pf-field" for="${id}"><span>${escape(label)}</span><select id="${id}" data-pf-path="${path}"${isFact()?' disabled':''}>${options.map(([value,name])=>`<option value="${value}"${String(get(path))===String(value)?' selected':''}>${escape(name)}</option>`).join('')}</select></label>`;
   }
   // Each source is shown as its own card. Variants such as VK Clips and
   // YouTube Shorts have separate metrics and must not be hidden inside a
@@ -63,16 +80,18 @@
   const platformGroupKey=c=>c.id;
   function platformGroups(){return channels().map(c=>({key:c.id,name:c.name,members:[c]}));}
   function selectedFormats(group){
-    return [...new Set(group.members.flatMap(c=>settings.channels[c.id].formats))]
+    return [...new Set(group.members.flatMap(c=>channelState(c.id).formats))]
       .map(id=>formats().find(f=>f.id===id)?.name).filter(Boolean);
   }
   function platformSourceSettings(c,nested){
-    const state=settings.channels[c.id];
-    const body=`<div class="pf-fields-grid"><label class="pf-field"><span>Название</span><input type="text" maxlength="80" data-channel-name="${c.id}" aria-label="Название площадки ${escape(c.name)}" value="${escape(c.name)}"></label><label class="pf-field"><span>Ссылка на площадку</span><input type="url" maxlength="300" data-channel-url="${c.id}" aria-label="Ссылка площадки ${escape(c.name)}" value="${escape(c.url||'')}"></label></div><div class="pf-fields-grid">${input('channels.'+c.id+'.views','Просмотры / размещение',{max:1000000})}${input('channels.'+c.id+'.ctr','Переходы из просмотров',{unit:'%'})}</div><p class="pf-help">${escape(c.note)}${c.url?` <a href="${escape(c.url)}" target="_blank" rel="noopener">О площадке ↗</a>`:''}</p><button class="pf-remove-platform" type="button" data-remove-channel="${c.id}">Убрать площадку из сценария</button>`;
+    const state=channelState(c.id),row=metric('platforms',c.id);
+    const details=isFact()?`Размещено: ${row?.content.publishedPlacements??0}. Регистрации: ${row?.counts.registrations??0}. Оплаты: ${row?.counts.paymentCount??0}. Регистрация из переходов: ${factRate(row?.conversions.clickToRegistration)}. Оплата из регистраций: ${factRate(row?.conversions.registrationToPayment)}. Просмотры вводятся вручную за весь выбранный период.`:escape(c.note);
+    const identity=isFact()?`<label class="pf-field"><span>Размещено</span><input type="number" readonly data-fact-count="${escape(c.id)}:placements" aria-label="${escape(c.name)}: фактические размещения" value="${facts.report?row?.content.publishedPlacements??0:''}" placeholder="—"></label><label class="pf-field"><span>Переходы</span><input type="number" readonly data-fact-count="${escape(c.id)}:clicks" aria-label="${escape(c.name)}: фактические переходы" value="${facts.report?row?.counts.clicks??0:''}" placeholder="—"></label>`:`<label class="pf-field"><span>Название</span><input type="text" maxlength="80" data-channel-name="${c.id}" aria-label="Название площадки ${escape(c.name)}" value="${escape(c.name)}"></label><label class="pf-field"><span>Ссылка на площадку</span><input type="url" maxlength="300" data-channel-url="${c.id}" aria-label="Ссылка площадки ${escape(c.name)}" value="${escape(c.url||'')}"></label>`;
+    const body=`<div class="pf-fields-grid">${identity}</div><div class="pf-fields-grid">${input('channels.'+c.id+'.views',isFact()?'Просмотры за период':'Просмотры / размещение',{max:1000000})}${input('channels.'+c.id+'.ctr','Переходы из просмотров',{unit:'%'})}</div><p class="pf-help" data-source-help="${escape(c.id)}">${details}${c.url?` <a href="${escape(c.url)}" target="_blank" rel="noopener">О площадке ↗</a>`:''}</p><button class="pf-remove-platform" type="button" data-remove-channel="${c.id}"${isFact()?' disabled':''}>Убрать площадку из сценария</button>`;
     return nested?`<details class="pf-channel pf-channel-variant" data-channel="${c.id}"><summary><span>${escape(c.name)}</span><span class="pf-channel-summary">${state.formats.length?state.formats.map(id=>formats().find(f=>f.id===id)?.name).filter(Boolean).join(' · '):'Форматы не выбраны'}</span></summary><div class="pf-channel-body">${body}</div></details>`:`<div class="pf-channel-source" data-channel="${c.id}">${body}</div>`;
   }
   function channelFormatBase(c){
-    const ids=settings.channels[c.id]?.formats||[];
+    const ids=channelState(c.id)?.formats||[];
     const candidate=[...ids,...c.formats].map(id=>formats().find(f=>f.id===id)).find(f=>f&&M.FORMATS.some(base=>base.id===f.base));
     return candidate?.base||'post';
   }
@@ -85,8 +104,8 @@
     return `<div class="pf-channel-format-add"><button type="button" class="pf-channel-add-format" data-channel-format-menu="${escape(c.id)}" aria-expanded="${open?'true':'false'}" aria-label="${open?'Закрыть форму добавления формата':'Добавить свой формат для '+escape(c.name)}" title="${open?'Закрыть форму':'Добавить свой формат'}">${open?'×':'+'}</button>${open?`<div class="pf-channel-format-menu"><strong>Свой формат для ${escape(c.name)}</strong><div class="pf-fields-grid"><label class="pf-field"><span>Название формата</span><input type="text" maxlength="80" data-channel-format-name="${escape(c.id)}" placeholder="Например, сообщение в группе"></label><label class="pf-field"><span>Материалов в неделю</span><input type="number" min="0" max="35" step="any" data-channel-format-count="${escape(c.id)}" value="1"></label></div><button type="button" data-channel-format-save="${escape(c.id)}">Сохранить формат</button></div>`:''}</div>`;
   }
   function renderPlatformGroup(group){
-    const enabled=group.members.some(c=>settings.channels[c.id].enabled),chosen=selectedFormats(group);
-    const formatOptions=group.members.flatMap(c=>c.formats.filter(id=>formats().some(f=>f.id===id)).map(id=>`<label class="pf-check"><input type="checkbox" data-channel-format="${c.id}" value="${id}"${settings.channels[c.id].formats.includes(id)?' checked':''}>${escape(formats().find(f=>f.id===id).name)}</label>`));
+    const enabled=group.members.some(c=>channelState(c.id).enabled),chosen=selectedFormats(group);
+    const formatOptions=group.members.flatMap(c=>c.formats.filter(id=>formats().some(f=>f.id===id)).map(id=>{const measured=metric('platforms',c.id)?.formats?.find(row=>row.id===id);return `<label class="pf-check"${isFact()?` title="${measured?.counts.clicks??0} переходов; ${measured?.counts.registrations??0} регистраций; регистрация из переходов ${factRate(measured?.conversions.clickToRegistration)}"`:''}><input type="checkbox" data-channel-format="${c.id}" value="${id}"${channelState(c.id).formats.includes(id)?' checked':''}${isFact()?' disabled':''}>${escape(formats().find(f=>f.id===id).name)}</label>`;}));
     const sources=group.members.length===1?platformSourceSettings(group.members[0],false):`<details class="pf-channel-variants"><summary>Настройки источников расчёта</summary>${group.members.map(c=>platformSourceSettings(c,true)).join('')}</details>`;
     const formatAdders=`<div class="pf-channel-format-adders">${channelFormatControl(group)}</div>`;
     return `<details class="pf-channel pf-channel-group" data-channel-group="${escape(group.key)}"${group.members.length===1?` data-channel="${group.members[0].id}"`:''}><summary><span>${escape(group.name)}</span><span class="pf-channel-summary" data-summary="${escape(group.key)}">${enabled?(chosen.length?chosen.join(' · '):'Форматы не выбраны'):'Не выбрана'}</span></summary><div class="pf-channel-body"><label class="pf-check pf-enable"><input type="checkbox" data-channel-enable="${escape(group.key)}"${enabled?' checked':''}>Использовать площадку</label><div class="pf-format-checks">${formatOptions.join('')}</div>${formatAdders}${sources}</div></details>`;
@@ -126,38 +145,39 @@
     syncControls();
   }
   function syncControls() {
-    $$('[data-pf-path]').forEach(el=>{if(el.type==='checkbox')el.checked=Boolean(get(el.dataset.pfPath));else el.value=String(get(el.dataset.pfPath));});
-    $('#pf-delayShare').disabled=!settings.paymentDelayEnabled;
+    $$('[data-pf-path],[data-fact-path]').forEach(el=>{if(el===document.activeElement&&el.dataset.factPath?.endsWith('.views'))return;const value=get(el.dataset.factPath||el.dataset.pfPath);if(el.type==='checkbox')el.checked=Boolean(value);else el.value=value==null?'':String(value);});
+    $('#pf-delayShare').disabled=isFact()||!settings.paymentDelayEnabled;
     platformGroups().forEach(group=>{
-      const enabled=group.members.some(c=>settings.channels[c.id].enabled);
+      const enabled=group.members.some(c=>channelState(c.id).enabled);
       $(`[data-channel-enable="${group.key}"]`).checked=enabled;
       group.members.forEach(c=>{
-        const chosen=settings.channels[c.id].formats;
+        const chosen=channelState(c.id).formats;
         $$(`[data-channel-format="${c.id}"]`).forEach(el=>{el.checked=chosen.includes(el.value);});
       });
     });
-    $('#pf-month').value=String(month);
+    if(!isFact())$('#pf-month').value=String(month);
+    if(isFact())decorateFacts();
     filterChannels();
   }
   function filterChannels() {
     const filter=$('#pf-channel-filter').value;
-    const activeFormats=formats().filter(format=>settings.frequency[format.id]>0);
+    const activeFormats=formats().filter(format=>isFact()?!!metric('formats',format.id):settings.frequency[format.id]>0);
     let enabled=0,visible=0;
     platformGroups().forEach(group=>{
-      const chosen=selectedFormats(group), active=group.members.some(c=>settings.channels[c.id].enabled), card=$(`[data-channel-group="${group.key}"]`);
+      const chosen=selectedFormats(group), active=group.members.some(c=>channelState(c.id).enabled), card=$(`[data-channel-group="${group.key}"]`);
       if(active)enabled++;
       $(`[data-summary="${group.key}"]`).textContent=active?(chosen.length?chosen.join(' · '):'Форматы не выбраны'):'Не выбрана';
       card.classList.toggle('pf-is-selected',active);
-      const matching=group.members.some(c=>c.formats.some(id=>settings.frequency[id]>0));
+      const matching=isFact()?active:group.members.some(c=>c.formats.some(id=>settings.frequency[id]>0));
       card.hidden=filter==='matching'?!matching:filter==='selected'?!active:filter!=='all'&&!group.members.some(c=>c.group===filter);
       if(!card.hidden)visible++;
-      card.querySelectorAll('[data-channel-format]').forEach(input=>{input.closest('label').hidden=activeFormats.length>0&&settings.frequency[input.value]<=0;});
+      card.querySelectorAll('[data-channel-format]').forEach(input=>{input.closest('label').hidden=isFact()?!channelState(input.dataset.channelFormat).formats.includes(input.value):activeFormats.length>0&&settings.frequency[input.value]<=0;});
       if(card.hidden&&card.contains(document.activeElement))$('#pf-channel-filter').focus();
     });
     $('#pf-channel-count').textContent=enabled+' из '+platformGroups().length;
-    $('#pf-select-matching').disabled=!activeFormats.length;
+    $('#pf-select-matching').disabled=isFact()||!activeFormats.length;
     $('#pf-matching-empty').hidden=visible>0;
-    $('#pf-matching-empty').textContent=activeFormats.length?'Подходящих площадок нет. Добавьте свою площадку.':'Укажите количество материалов во вкладке «Контент».';
+    $('#pf-matching-empty').textContent=isFact()?'В выбранном периоде и сценарии действий на площадках нет.':activeFormats.length?'Подходящих площадок нет. Добавьте свою площадку.':'Укажите количество материалов во вкладке «Контент».';
   }
   function setTab(next,focus=false) {
     if(!['content','platforms','sales'].includes(next))return;
@@ -202,6 +222,8 @@
   });
   root.addEventListener('syntolk-calculator-reset',event=>resetScenario(event.detail?.persist!==false));
   function renderResults() {
+    if(isFact()){renderFacts();return;}
+    restoreForecastLabels();
     results=Object.fromEntries(Object.keys(M.SCENARIOS).map(id=>[id,M.forecast(settings,id)]));
     month=Math.min(month,settings.forecastMonths);
     const result=results[scenario], visibleMonths=result.months.slice(0,settings.forecastMonths), current=result.months[month-1], year=visibleMonths.at(-1), work=result.work;
@@ -217,8 +239,8 @@
     $('#pf-quick-scenario').textContent=M.SCENARIOS[scenario].name+' · комиссия 20%';
     $$('[data-scenario]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.scenario===scenario)));
     const sc=M.SCENARIOS[scenario];
-    $('#pf-scenario-note').textContent=`К вашим значениям: просмотры ×${number.format(sc.views)}, регистрации ×${number.format(sc.registration)}, оплаты из регистраций ×${number.format(sc.payment)}. Удержание и цены одинаковы.`;
-    $('#pf-income-label').textContent='Начисления за '+month+'-й месяц';
+    $('#pf-scenario-note').textContent=$('[data-current-values]')?'Прогноз по вашему плану публикаций, не фактический заработок.':`К вашим значениям: просмотры ×${number.format(sc.views)}, регистрации ×${number.format(sc.registration)}, оплаты из регистраций ×${number.format(sc.payment)}. Удержание и цены одинаковы.`;
+    $('#pf-income-label').textContent=($('[data-current-values]')?'Прогноз за ':'Начисления за ')+month+'-й месяц';
     $('#pf-income').textContent=money(current.reward);
     $('#pf-income-range').textContent='Другие сценарии: '+money(results.low.months[month-1].reward)+' — '+money(results.high.months[month-1].reward);
     $('#pf-year').textContent=money(year.cumulative);
@@ -246,6 +268,11 @@
   }
   root.addEventListener('input',event=>{
     const el=event.target;
+    if(isFact()){
+      const path=/^channels\.(.+)\.views$/.exec(el.dataset.factPath||'');
+      if(path){const value=el.value===''?null:Number(el.value);if(value===null)delete factViews[path[1]];else if(Number.isFinite(value)&&value>=0)factViews[path[1]]=value;else return;try{localStorage.setItem(factStorageKey,JSON.stringify(factViews));}catch{}syncControls();renderFacts();}
+      return;
+    }
     if(!el.dataset.pfPath||el.type!=='number'||el.value==='')return;
     const entered=Number(el.value);
     const path=el.dataset.pfPath;
@@ -258,6 +285,12 @@
   });
   root.addEventListener('change',event=>{
     const el=event.target;
+    if(isFact()){
+      if(el.id==='pf-channel-filter'){filterChannels();return;}
+      if(el.id==='pf-horizon')root.dispatchEvent(new CustomEvent('syntolk-calculator-fact-filter',{detail:{period:el.value}}));
+      if(el.id==='pf-month')root.dispatchEvent(new CustomEvent('syntolk-calculator-fact-filter',{detail:{allContent:el.value==='all'}}));
+      return;
+    }
     if(el.id==='pf-channel-filter'){filterChannels();return;}
     if(el.id==='pf-horizon'){settings.forecastMonths=Number(el.value);renderResults();return;}
     if(el.id==='pf-month'){month=Number(el.value);renderResults();return;}
@@ -293,6 +326,10 @@
   });
   root.addEventListener('click',event=>{
     const button=event.target.closest('button,a');if(!button)return;
+    if(button.hasAttribute('data-current-refresh')){root.dispatchEvent(new CustomEvent('syntolk-calculator-refresh'));return;}
+    if(isFact()&&(button.dataset.factPoint||button.hasAttribute('data-fact-clear'))){root.dispatchEvent(new CustomEvent('syntolk-calculator-fact-point',{detail:button.dataset.factPoint||null}));return;}
+    if(isFact()&&button.hasAttribute('data-fact-dates')){root.dispatchEvent(new CustomEvent('syntolk-calculator-fact-filter',{detail:{period:'custom'}}));return;}
+    if(isFact()&&button.dataset.month)return;
     if(button.id==='pf-select-matching'){
       settings=M.selectMatchingChannels(settings);$('#pf-channel-filter').value='matching';syncControls();renderResults();return;
     }
@@ -377,6 +414,14 @@
   });
   root.addEventListener('keydown',event=>{
     const tabs=['content','platforms','sales'], el=event.target;
+    if(isFact()&&el.dataset.factPoint){
+      if(event.key==='Escape'){event.preventDefault();root.dispatchEvent(new CustomEvent('syntolk-calculator-fact-point',{detail:null}));return;}
+      if(['ArrowRight','ArrowLeft','Home','End'].includes(event.key)){
+        event.preventDefault();const bars=$$('[data-fact-point]'),index=bars.indexOf(el);
+        const next=event.key==='Home'?0:event.key==='End'?bars.length-1:Math.max(0,Math.min(bars.length-1,index+(event.key==='ArrowRight'?1:-1)));
+        if(next!==index){bars[next].focus();root.dispatchEvent(new CustomEvent('syntolk-calculator-fact-point',{detail:bars[next].dataset.factPoint}));}return;
+      }
+    }
     if(el.dataset.pfTab&&['ArrowRight','ArrowLeft','Home','End'].includes(event.key)){
       event.preventDefault();let i=tabs.indexOf(tab);
       i=event.key==='Home'?0:event.key==='End'?2:(i+(event.key==='ArrowRight'?1:2))%3;setTab(tabs[i],true);
@@ -386,7 +431,123 @@
       renderResults();$(`[data-month="${month}"]`).focus();
     }
   });
+  function factCount(value){return value==null?'—':integer.format(value);}
+  function factRate(value){return value==null?'—':number.format(value*100)+'%';}
+  function factMoney(value){return value==null?'—':new Intl.NumberFormat('ru-RU',{style:'currency',currency:facts.report?.currency||'RUB'}).format(value/100);}
+  function leadText(node,text){if(node?.firstChild)node.firstChild.nodeValue=text;}
+  function decorateFacts(){
+    if(!isFact())return;
+    $('#pf-panel-content .pf-row-head').lastElementChild.textContent='За период';
+    visibleFormats().forEach(format=>{
+      const field=$(`#pf-frequency-${format.id}`);if(!field)return;
+      field.readOnly=true;field.removeAttribute('max');field.placeholder='—';
+      field.setAttribute('aria-label',format.name+': создано за период');
+      const content=metric('formats',format.id)?.content;
+      field.title='Фактически подготовлено: '+factCount(facts.report?content?.preparedMaterials??0:null)+'. Опубликовано: '+factCount(facts.report?content?.publishedMaterials??0:null)+'.';
+    });
+    $('#pf-panel-content > p.pf-help').textContent='Оригиналы за выбранный период. Копии на других площадках не увеличивают число материалов.';
+    $('#pf-panel-platforms > p.pf-help:not([id])').textContent='Фактические размещения и переходы. Просмотры можно ввести вручную за тот же период — процент рассчитается автоматически.';
+    $('#pf-panel-sales > p.pf-help').textContent='Конверсии рассчитаны по переходам выбранного периода и связанным с ними регистрациям и оплатам. Неизвестные показатели — «—».';
+    $$('[data-format-name],[data-channel-name],[data-channel-url]').forEach(field=>{field.readOnly=true;});
+    $$('[data-channel-enable],[data-channel-format],[data-pf-path="paymentDelayEnabled"]').forEach(field=>{field.disabled=true;});
+    $$('#pf-format-menu-toggle,#pf-platform-menu-toggle,#pf-select-matching,[data-remove-format],[data-remove-channel],[data-channel-format-menu]').forEach(button=>{button.disabled=true;button.title='Структура сценария редактируется в режиме «Мой сценарий». Факт подставляется автоматически.';});
+    $$('#pf-restore-format,#pf-restore-channel').forEach(field=>{field.disabled=true;});
+    $$('[data-fact-count]').forEach(field=>{
+      const split=field.dataset.factCount.lastIndexOf(':'),id=field.dataset.factCount.slice(0,split),kind=field.dataset.factCount.slice(split+1),row=metric('platforms',id);
+      field.value=facts.report?String(kind==='clicks'?row?.counts.clicks??0:row?.content.publishedPlacements??0):'';
+    });
+    channels().forEach(c=>{
+      const row=metric('platforms',c.id),help=$(`[data-source-help="${c.id}"]`);
+      if(help?.firstChild)help.firstChild.nodeValue=`Размещено: ${factCount(facts.report?row?.content.publishedPlacements??0:null)}. Регистрации: ${factCount(facts.report?row?.counts.registrations??0:null)}. Оплаты: ${factCount(facts.report?row?.counts.paymentCount??0:null)}. Регистрация из переходов: ${factRate(row?.conversions.clickToRegistration)}. Оплата из регистраций: ${factRate(row?.conversions.registrationToPayment)}. Просмотры вводятся вручную за весь выбранный период. `;
+      $$(`[data-channel-format="${c.id}"]`).forEach(field=>{const format=row?.formats?.find(item=>item.id===field.value);field.closest('label').title=`Переходы: ${format?.counts.clicks??0}; регистрации: ${format?.counts.registrations??0}; оплаты: ${format?.counts.paymentCount??0}; регистрация из переходов: ${factRate(format?.conversions.clickToRegistration)}; оплата из регистраций: ${factRate(format?.conversions.registrationToPayment)}.`;});
+    });
+  }
+  function restoreForecastLabels(){
+    root.dataset.valuesMode='forecast';
+    leadText($('#pf-horizon').parentElement,'Период прогноза');
+    $('#pf-horizon').removeAttribute('aria-label');$('#pf-month').removeAttribute('aria-label');$('#pf-month').removeAttribute('title');
+    delete $('#pf-chart').dataset.factsSeries;
+    delete $('#pf-income-range').dataset.factsMarkup;
+    if($('#pf-horizon').options[0]?.value!=='1')$('#pf-horizon').innerHTML=Array.from({length:12},(_,i)=>`<option value="${i+1}">${i+1} мес.</option>`).join('');
+    leadText($('#pf-month').parentElement,'Месяц');
+    $('.pf-year-totals > div:last-child > span').textContent='Накоплено к выбранному месяцу';
+    $('.pf-chart-caption > span:first-child').textContent='Начисления по месяцам';
+    $('.pf-funnel > div:last-child > span').textContent='Первые оплаты';
+    leadText($('#pf-new-income').parentElement,'Первые оплаты');leadText($('#pf-repeat-income').parentElement,'Повторные оплаты');
+    $('#pf-income').removeAttribute('aria-label');
+    $('#pf-scenario-note').removeAttribute('role');$('#pf-scenario-note').classList.remove('pf-warning');
+    $('[data-current-values]')?.setAttribute('aria-pressed','false');
+  }
+  function renderFacts(){
+    const report=facts.report;
+    root.dataset.valuesMode='current';clearTimeout(statusTimer);
+    leadText($('#pf-horizon').parentElement,'Период факта');
+    $('#pf-horizon').setAttribute('aria-label','Период факта');$('#pf-month').setAttribute('aria-label','Контент для текущих значений');
+    if($('#pf-horizon').options[0]?.value!=='today')$('#pf-horizon').innerHTML=[['today','Сегодня'],['7d','7 дней'],['30d','30 дней'],['all','Всё время'],['custom','Свои даты']].map(([id,name])=>`<option value="${id}">${name}</option>`).join('');
+    $('#pf-horizon').value=facts.filter.period;
+    leadText($('#pf-month').parentElement,'Учитывать');
+    if($('#pf-month').options[0]?.value!=='all'||$('#pf-month').options[1]?.textContent!==facts.scenarioName)$('#pf-month').innerHTML=`<option value="all">Весь контент</option><option value="scenario">${escape(facts.scenarioName)}</option>`;
+    $('#pf-month').value=facts.filter.allContent?'all':'scenario';
+    const scope=facts.filter.allContent?'Весь мой контент и площадки':facts.scenarioName;
+    $('#pf-month').title=scope;
+    const empty=report&&!report.counts.clicks&&!report.counts.registrations&&!report.counts.paymentCount&&!report.content.preparedMaterials;
+    $('#pf-scenario-note').textContent=facts.error||(empty?(facts.filter.allContent?'За выбранный период действий нет.':`За этот период в «${scope}» действий нет. Данные других сценариев сюда не подмешиваются.`):`${facts.filter.allContent?'Весь контент.':`Сценарий «${facts.scenarioName}».`} Факт обновляется автоматически. Просмотры — вручную в «Площадках».`);
+    $('#pf-scenario-note').classList.toggle('pf-warning',!!facts.error);
+    if(facts.error)$('#pf-scenario-note').setAttribute('role','alert');else $('#pf-scenario-note').removeAttribute('role');
+    const selected=facts.selectedPoint;
+    const rangeLabel=selected?selected.from===selected.to?selected.from:selected.from+' — '+selected.to:'';
+    $('#pf-income-label').textContent=selected?'Начислено: '+rangeLabel:'Начислено за период';$('#pf-income').textContent=factMoney(report?.amountsMinor.netAccrued);$('#pf-income').setAttribute('aria-label','Фактически начислено');
+    const rangeMarkup=`Подготовлено: ${factCount(report?.content.preparedMaterials)} · Опубликовано: ${factCount(report?.content.publishedMaterials)} · Оплат: ${factCount(report?.counts.paymentCount)}${selected?' · <button type="button" data-fact-clear class="pf-text-button">Весь период</button>':facts.filter.period==='custom'?` · <button type="button" data-fact-dates class="pf-text-button">${escape(facts.filter.from)} — ${escape(facts.filter.to)}</button>`:''}`;
+    if($('#pf-income-range').dataset.factsMarkup!==rangeMarkup){$('#pf-income-range').innerHTML=rangeMarkup;$('#pf-income-range').dataset.factsMarkup=rangeMarkup;}
+    $('#pf-total-label').textContent='Оплачено клиентами';$('#pf-year').textContent=factMoney(report?.amountsMinor.observedPayments);
+    $('.pf-year-totals > div:last-child > span').textContent='С учётом возвратов';$('#pf-cumulative').textContent=factMoney(report?.amountsMinor.netPayments);
+    $('#pf-work').innerHTML=`<div><strong>${factCount(report?.content.preparedMaterials)} оригиналов за период</strong></div><div><strong>${factCount(report?.content.publishedPlacements)} размещений за период</strong></div>`;
+    const chart=facts.chartReport??report,points=chart?.series?.points??[],peak=Math.max(1,...points.map(point=>Math.abs(point.earningsMinor)));
+    $('.pf-chart-caption > span:first-child').textContent='Фактические начисления';$('#pf-chart-hint').textContent=chart?.series?.bucket==='month'?'По месяцам · выберите столбец':chart?.series?.bucket==='week'?'По неделям · выберите столбец':'По дням · выберите столбец';
+    $('#pf-chart').setAttribute('aria-label','Фактические начисления за выбранный период');$('#pf-chart').style.setProperty('--pf-months',String(Math.max(1,points.length)));
+    const seriesKey=JSON.stringify([chart?.currency,chart?.series?.bucket,points.map(point=>[point.date,point.earningsMinor])]);
+    if($('#pf-chart').dataset.factsSeries!==seriesKey){
+      const focusedPoint=$('#pf-chart').contains(document.activeElement)?document.activeElement.closest('[data-fact-point]')?.dataset.factPoint:null;
+      $('#pf-chart').dataset.factsSeries=seriesKey;
+      $('#pf-chart').innerHTML=points.map((point,index)=>{const label=chart.series.bucket==='month'?point.date.slice(0,7):String(new Date(point.date+'T12:00:00Z').getUTCDate());const visible=points.length<=12||index===0||index===points.length-1||index<points.length-2&&index%Math.ceil(points.length/8)===0;return `<button type="button" class="pf-chart-month" data-fact-point="${point.date}" aria-label="${point.date}: ${factMoney(point.earningsMinor)}" title="${point.date}: ${factMoney(point.earningsMinor)}"><span class="pf-chart-track"><span style="--pf-bar:${point.earningsMinor?Math.max(2,Math.abs(point.earningsMinor)/peak*100):0}%"></span></span><span>${visible?label:'&nbsp;'}</span></button>`;}).join('');
+      if(focusedPoint)$(`[data-fact-point="${focusedPoint}"]`)?.focus({preventScroll:true});
+    }
+    $$('[data-fact-point]').forEach((button,index)=>{const active=button.dataset.factPoint===selected?.date;button.classList.toggle('pf-active-month',active);button.setAttribute('aria-pressed',String(active));button.tabIndex=active||!selected&&index===0?0:-1;});
+    const measuredViews=(report?.breakdown?.platforms??[]).filter(row=>Object.hasOwn(factViews,row.id));
+    $('#pf-views').textContent=measuredViews.length?factCount(measuredViews.reduce((sum,row)=>sum+factViews[row.id],0)):'—';
+    $('#pf-views').title=`Просмотры введены вручную для ${measuredViews.length} из ${report?.breakdown?.platforms.length??0} площадок выбранного периода. Не заполняются плановыми просмотрами.`;
+    $('#pf-clicks').textContent=factCount(report?.counts.clicks);$('#pf-signups').textContent=factCount(report?.counts.registrations);$('#pf-paid').textContent=factCount(report?.counts.firstPaymentCount);
+    $('#pf-new-income').textContent=factCount(report?.counts.firstPaymentCount);$('#pf-repeat-income').textContent=factCount(report?.counts.repeatPaymentCount);
+    leadText($('#pf-new-income').parentElement,'Первые оплаты, шт.');leadText($('#pf-repeat-income').parentElement,'Повторные оплаты, шт.');
+    $('#pf-repeat-bar').style.setProperty('--pf-repeat',report?.counts.paymentCount?report.counts.repeatPaymentCount/report.counts.paymentCount*100+'%':'0%');
+    $('#pf-buyer-mix').textContent='Регистрации: '+factCount(report?.counts.registrations)+'. Платящие клиенты: '+factCount(report?.counts.payingCustomers)+'. Оплаты: '+factCount(report?.counts.paymentCount)+'.';
+    $('#pf-active-delay').hidden=true;$('#pf-mix-summary').textContent='Фактический состав тарифов и удержание не подменяются плановыми допущениями.';
+    $('#pf-registration').title=`${report?.conversions.cohortRegistrations??0} регистраций из ${report?.counts.clicks??0} переходов выбранного периода.`;
+    $('#pf-paidConversion').title=`${report?.conversions.cohortPaidRegistrations??0} плательщиков из ${report?.conversions.cohortRegistrations??0} регистраций, связанных с переходами выбранного периода.`;
+    $('#pf-quick-assumptions').textContent=scope;$('#pf-quick-scenario').textContent='Текущие значения';
+    $('[data-current-values]')?.setAttribute('aria-pressed','true');$$('[data-scenario]').forEach(button=>button.setAttribute('aria-pressed','false'));
+    $('#pf-live').textContent=facts.error||(!report?'Загружаем фактические значения…':facts.refreshState==='loading'?'Обновляем фактические данные…':'Фактические значения обновлены: '+factCount(report.counts.clicks)+' переходов, '+factCount(report.counts.registrations)+' регистраций.');
+  }
+  root.addEventListener('syntolk-calculator-current-values',event=>{
+    const wasActive=isFact();facts=event.detail;
+    const refresh=$('[data-current-refresh]');
+    if(refresh){
+      refresh.disabled=facts.refreshState==='loading';refresh.setAttribute('aria-busy',String(refresh.disabled));
+      refresh.title=facts.refreshState==='loading'?'Обновляем фактические данные…':facts.refreshState==='success'?'Фактические данные обновлены':facts.refreshState==='error'?'Не удалось обновить. Нажмите, чтобы повторить':'Обновить фактические данные';
+      if(facts.refreshState&&facts.refreshState!=='idle')$('#pf-live').textContent=refresh.title;
+    }
+    if(!facts?.active&&!wasActive)return;
+    if(isFact()&&factStorageKey!==facts.storageKey){
+      factStorageKey=facts.storageKey;factViews={};
+      try{const storedViews=JSON.parse(localStorage.getItem(factStorageKey)||'{}');for(const [id,value]of Object.entries(storedViews))if(typeof value==='number'&&Number.isFinite(value)&&value>=0)factViews[id]=value;}catch{}
+    }
+    const catalog=JSON.stringify([isFact(),facts.storageKey,facts.report?.breakdown?.formats?.map(row=>[row.id,row.name]).sort((a,b)=>a[0].localeCompare(b[0])),facts.report?.breakdown?.platforms?.map(row=>[row.id,row.name,row.formats?.map(format=>format.id).sort()]).sort((a,b)=>a[0].localeCompare(b[0]))]);
+    if(wasActive!==isFact()||catalog!==factCatalog){formatMenuOpen=false;platformMenuOpen=false;channelFormatMenu=null;renderControls();setTab(tab);}else syncControls();
+    factCatalog=catalog;renderResults();
+  });
+  if(scenario!=='base'&&$('[data-current-values]'))scenario='base';
   renderControls();setTab(tab);setMobileMode(false);renderResults();
+  root.dispatchEvent(new CustomEvent('syntolk-calculator-ready'));
   mobileQuery?.addEventListener?.('change',()=>{
     if(mobileQuery.matches&&!mobileExpanded)setTab('content');
     updateMobileTitle();

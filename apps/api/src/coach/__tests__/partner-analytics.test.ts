@@ -347,11 +347,11 @@ describe('scenario tracking and shared partner analytics',()=>{
     await click(placement,new Date('2026-10-02T12:00:00Z'));await click(placement,new Date('2026-10-03T12:00:00Z'));
     await click(placement,new Date('2026-09-25T12:00:00Z'));
     const excluded=await click(placement,new Date('2026-09-26T12:00:00Z'));await db('Click').where({id:excluded}).update({fraudFlag:'manual'});
-    const response=await get(`/partners/${partnerId}/analytics?period=custom&from=2026-10-01&to=2026-10-07&sourceId=${placement.id}&includeComparison=true&currency=RUB`);
+    const response=await get(`/partners/${partnerId}/analytics?period=custom&from=2026-10-01&to=2026-10-07&compareFrom=2026-09-24&compareTo=2026-09-30&sourceId=${placement.id}&includeComparison=true&currency=RUB`);
     expect(response.status,response.text).toBe(200);
     expect(response.body.counts.clicks).toBe(2);expect(response.body.comparison.counts.clicks).toBe(1);
     expect(response.body.comparison.period).toEqual({since:'2026-09-23T21:00:00.000Z',until:'2026-09-30T21:00:00.000Z'});
-    expect((await report('&includeComparison=true')).comparison).toBeUndefined();
+    expect((await get(`/partners/${partnerId}/analytics?period=all&includeComparison=true`)).status).toBe(400);
   });
   it('builds a registration-to-first-payment funnel for the selected click cohort only',async()=>{
     const placement=await source(),oldUser=ulid();

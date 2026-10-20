@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { trackingSourceParams, type LinkRow, type PartnerMaterialRow, type PartnerLinkSourceRow } from '@openpartner/db';
 import { LinkError } from './links-service.js';
 import { assertPartner, assertProgram } from './coach/policy.js';
+import {analyticsSourceOptions} from './analytics-source-options.js';
 
 export const materialFormats = [
   {id:'post',name:'Пост'},{id:'short',name:'Короткое видео'},{id:'long',name:'Длинное видео'},
@@ -31,7 +32,7 @@ export async function createMaterial(db:Knex,tenantId:string,partnerId:string,in
   await assertPartner(db,tenantId,partnerId);
   await assertProgram(db,tenantId,partnerId,input.programId);
   if(input.scenarioId&&!await db('CoachForecastSnapshot').where({tenantId,partnerId,programId:input.programId,status:'confirmed'}).whereRaw("COALESCE(data->>'scenarioId',id)=?",[input.scenarioId]).first())throw new LinkError('scenario_not_found',404,'Сценарий не найден.');
-  const format=materialFormats.find(f=>f.id===input.formatId);
+  const format=materialFormats.find(f=>f.id===input.formatId)??(await analyticsSourceOptions(db,tenantId,[partnerId],input.programId)).formats.find(f=>f.id===input.formatId);
   if(!format)throw new LinkError('invalid_format',422,'Выберите формат материала.');
   const id=input.id??ulid();
   const existing=await db<PartnerMaterialRow>('PartnerMaterial').where({id,tenantId,partnerId}).first();

@@ -5,6 +5,7 @@ import { trackingSourceParams } from '@openpartner/db';
 import { adjustmentTotalsByCommission, commissionGroupKey, manualPayableAmounts, manualPayoutBalances, netCommissionAmount } from './commission-net.js';
 import { todayWindow } from './coach/daily-plan.js';
 import { parseUserAgent } from './ua-parse.js';
+import { analyticsSourceOptions } from './analytics-source-options.js';
 
 const selectionSchema = z.preprocess(value => {
   // qs represents repeated values as a numeric-keyed object above its array
@@ -22,7 +23,9 @@ export const analyticsQuerySchema = z.object({
   programId: z.string().min(1).optional(), scenarioId: z.string().min(1).max(100).optional(),
   platformId: z.string().min(1).max(100).optional(), formatId: z.string().min(1).max(100).optional(),
   scenarioIds: selectionSchema.optional(), platformIds: selectionSchema.optional(), formatIds: selectionSchema.optional(),
-  seriesBy: z.enum(['platform', 'format', 'scenario']).optional(),
+  seriesBy: z.enum(['platform', 'format', 'scenario', 'partner']).optional(),
+  timezone: z.string().max(100).refine(value => { try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; } }, 'Invalid timezone').optional(),
+  bucket: z.enum(['day','week','month']).optional(),
   materialId: z.string().min(1).max(32).optional(), linkId: z.string().min(1).max(32).optional(), sourceId: z.string().min(1).max(32).optional(),
   since: z.string().datetime().optional(), until: z.string().datetime().optional(),
   currency: z.string().regex(/^[A-Z]{3}$/).optional(),
@@ -31,6 +34,7 @@ export const analyticsQuerySchema = z.object({
   includeComparison: z.enum(['true', 'false']).optional(), includeFunnel: z.enum(['true', 'false']).optional(),
   period: z.enum(['today', '7d', '30d', 'all', 'custom']).optional(),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  compareFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), compareTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 }).refine(input => new Set([...(input.partnerId ? [input.partnerId] : []), ...(input.partnerIds ?? [])]).size <= 50,
   { path: ['partnerIds'], message: 'Select at most 50 partners.' });
 export type AnalyticsFilters = Omit<z.infer<typeof analyticsQuerySchema>, 'since' | 'until'> & { since?: Date; until?: Date; timezone?: string };
@@ -38,13 +42,14 @@ export type AnalyticsGroup = NonNullable<AnalyticsFilters['groupBy']>;
 type TimeBucket = 'day' | 'week' | 'month';
 type SeriesDimension = NonNullable<AnalyticsFilters['seriesBy']>;
 type TimeGroup = TimeBucket | { bucket: TimeBucket; dimension: SeriesDimension };
-type Group = AnalyticsGroup | TimeGroup;
+type BreakdownGroup = AnalyticsGroup | 'platformFormat';
+type Group = BreakdownGroup | TimeGroup;
 type Scope = { db: Knex; tenantId: string; partnerIds?: string[]; filters: AnalyticsFilters; since: Date; until: Date; asOf: Date };
 export type AnalyticsTrackingStatus = 'not_verified_end_to_end' | 'unavailable';
 export type AnalyticsWarning = 'signup_tracking_unverified' | 'payment_tracking_unverified' | 'views_unavailable' | 'ctr_unavailable';
-const GROUPS: Record<AnalyticsGroup, string> = { scenario: 'src.scenarioId', platform: 'src.platformId', format: 'src.formatId', material: 'src.materialId', source: 'src.id', link: 'cl.linkId', partner: 'cl.partnerId' };
+const GROUPS: Record<BreakdownGroup, string> = { scenario: 'src.scenarioId', platform: 'src.platformId', format: 'src.formatId', material: 'src.materialId', source: 'src.id', link: 'cl.linkId', partner: 'cl.partnerId', platformFormat:'src.platformId' };
 const isTimeBucket = (group?: Group): group is TimeGroup => typeof group === 'object' || group === 'day' || group === 'week' || group === 'month';
-const groupExpression = (group: AnalyticsGroup) => group === 'link' ? `COALESCE(??, src."linkId", '__none__')` : `COALESCE(??, '__none__')`;
+const groupExpression = (group: BreakdownGroup) => group === 'platformFormat' ? `jsonb_build_array(??, src."formatId")::text` : group === 'link' ? `COALESCE(??, src."linkId", '__none__')` : `COALESCE(??, '__none__')`;
 const selectedIds = (filters: AnalyticsFilters, field: 'scenarioId' | 'platformId' | 'formatId' | 'materialId') => {
   const multiple = field === 'materialId' ? [] : filters[`${field}s`] ?? [];
   return [...new Set([...(filters[field] ? [filters[field]!] : []), ...multiple])];
@@ -71,8 +76,16 @@ function dayStart(day: string, timezone: string) {
   throw new z.ZodError([{ code: 'custom', path: ['from'], message: 'Некорректная дата.' }]);
 }
 
-export function analyticsFiltersFromQuery(query: unknown, timezone = 'Europe/Moscow'): AnalyticsFilters {
+export function analyticsFiltersFromQuery(query: unknown, defaultTimezone = 'Europe/Moscow'): AnalyticsFilters {
   const input = analyticsQuerySchema.parse(query), now = new Date();
+  const invalid = (field: string, message: string): never => { throw new z.ZodError([{ code: 'custom', path: [field], message }]); };
+  if (!!input.from !== !!input.to) invalid('from', 'Выберите начало и конец периода.');
+  if (input.from && input.to && input.from > input.to) invalid('from', 'Конец периода не может быть раньше начала.');
+  if (!!input.compareFrom !== !!input.compareTo) throw new z.ZodError([{ code: 'custom', path: ['compareFrom'], message: 'Выберите начало и конец периода сравнения.' }]);
+  if (input.compareFrom && input.compareTo && input.compareFrom > input.compareTo) throw new z.ZodError([{ code: 'custom', path: ['compareFrom'], message: 'Начало периода сравнения должно быть раньше конца.' }]);
+  const timezone = input.timezone ?? defaultTimezone;
+  for (const value of [input.from, input.to, input.compareFrom, input.compareTo]) if (value) dayStart(value, timezone);
+  if (input.includeComparison === 'true' && (!input.compareFrom || !input.compareTo)) invalid('compareFrom', 'Выберите даты обоих сравниваемых периодов.');
   let since = input.since ? new Date(input.since) : new Date(now.getTime()-30*86400000);
   let until = input.until ? new Date(input.until) : now;
   if (!input.since) {
@@ -230,7 +243,8 @@ async function globalBalances(s: Scope) {
   ]);
   const adjustments = await adjustmentTotalsByCommission(s.db, rows.map(row => row.id));
   const groups = partnerRows.map(row => ({ tenantId: s.tenantId, partnerId: row.id, currency: s.filters.currency ?? 'RUB' }));
-  const [cashBalances, payable] = await Promise.all([manualPayoutBalances(s.db, groups), manualPayableAmounts(s.db, groups)]);
+  const cashBalances = await manualPayoutBalances(s.db, groups);
+  const payable = await manualPayableAmounts(s.db, groups, cashBalances);
   const byPartner = new Map(groups.map(group => {
     const cash = cashBalances.get(commissionGroupKey(group))!;
     return [group.partnerId, { balances: { ...emptyBalances(), paid: cash.cashPaid, debt: cash.debt, netPaidEarnings: cash.netPaidEarnings }, commissionByStatus: {} as Record<string, number> }];
@@ -276,6 +290,7 @@ export const adminAnalyticsTableQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   sort: z.enum(['name', 'email', 'status', 'createdAt', 'clicks', 'identities', 'registrations', 'payingCustomers', 'paymentCount', 'observedPayments', 'netAccrued']).default('netAccrued'),
   direction: z.enum(['asc', 'desc']).default('desc'),
+  activity: z.enum(['results','all']).default('all'),
 }).transform(input => ({ ...input, pageSize: input.pageSize ?? input.limit ?? 20 }));
 export type AdminAnalyticsTableOptions = z.infer<typeof adminAnalyticsTableQuerySchema>;
 
@@ -297,22 +312,10 @@ function partnerTableQuery(s: Scope) {
   return query;
 }
 
-export async function analyticsPartnerOptions(db: Knex, tenantId: string, input: { search?: string; page?: number; pageSize?: number } = {}) {
-  const page = input.page ?? 1, pageSize = input.pageSize ?? 20;
-  const base = db('Partner as partner').where('partner.tenantId', tenantId);
-  if (input.search) base.where(q => q.whereILike('partner.name', `%${input.search}%`).orWhereILike('partner.email', `%${input.search}%`));
-  const [items, count] = await Promise.all([
-    base.clone().select('partner.id', 'partner.name', 'partner.email').select(db.raw(`${partnerStatus} AS status`))
-      .orderBy('partner.name').orderBy('partner.id').limit(pageSize).offset((page - 1)*pageSize),
-    base.clone().count({ count: '*' }).first(),
-  ]);
-  const total = Number(count?.count ?? 0);
-  return { items, pagination: { page, pageSize, total, totalPages: Math.ceil(total/pageSize) } };
-}
-
-async function adminPartnerTable(s: Scope, input: AdminAnalyticsTableOptions, ledger: Awaited<ReturnType<typeof globalBalances>>) {
+async function adminPartnerTable(s: Scope, input: AdminAnalyticsTableOptions, ledger?: Awaited<ReturnType<typeof globalBalances>>) {
   const all = s.db.from(partnerTableQuery(s).as('metrics'));
   const searched = all.clone();
+  if(input.activity==='results') searched.where(q=>q.where('clicks','>',0).orWhere('registrations','>',0).orWhere('paymentCount','>',0).orWhere('refunds','<>',0).orWhere('earnings','<>',0));
   if (input.search) searched.where(q => q.whereILike('name', `%${input.search}%`).orWhereILike('email', `%${input.search}%`));
   const sortColumns: Partial<Record<AdminAnalyticsTableOptions['sort'], string>> = { observedPayments: 'revenue', netAccrued: 'earnings' };
   const column = sortColumns[input.sort] ?? input.sort;
@@ -322,10 +325,58 @@ async function adminPartnerTable(s: Scope, input: AdminAnalyticsTableOptions, le
     all.clone().select(s.db.raw(`COUNT(*)::int AS partners, COUNT(*) FILTER (WHERE clicks > 0 OR "attributedEvents" > 0 OR refunds > 0 OR earnings > 0)::int AS "activePartners"`)).first(),
   ]);
   const rows = pageRows.map(row => ({ ...aggregateRow(row), name: String(row.name), email: String(row.email), status: String(row.status), createdAt: row.createdAt,
-    balances: ledger.byPartner.get(row.id)?.balances ?? emptyBalances(), commissionByStatus: ledger.byPartner.get(row.id)?.commissionByStatus ?? {} }));
+    ...(ledger ? { balances: ledger.byPartner.get(row.id)?.balances ?? emptyBalances(), commissionByStatus: ledger.byPartner.get(row.id)?.commissionByStatus ?? {} } : {}) }));
   const total = Number(count?.count ?? 0);
   return { rows, pagination: { page: input.page, pageSize: input.pageSize, total, totalPages: Math.ceil(total/input.pageSize), sort: input.sort, direction: input.direction, search: input.search ?? '' },
     summary: { partners: Number(summary?.partners ?? 0), activePartners: Number(summary?.activePartners ?? 0) } };
+}
+
+/** Lightweight views share metric builders, but never load lifetime ledgers or calendar snapshots. */
+function reportScope(db: Knex, tenantId: string, partnerId: string | undefined, input: AnalyticsFilters): Scope {
+  const filters={...input,currency:input.currency??'RUB'};
+  return {db,tenantId,partnerIds:partnerId?[partnerId]:analyticsPartnerIds(filters),filters,
+    since:filters.since??new Date(Date.now()-30*86400000),until:filters.until??new Date(),asOf:new Date()};
+}
+export async function analyticsPartnerResults(db: Knex,tenantId:string,filters:AnalyticsFilters,input:AdminAnalyticsTableOptions) {
+  const result=await adminPartnerTable(reportScope(db,tenantId,undefined,filters),input);
+  const {page,pageSize,total,totalPages}=result.pagination;
+  return {items:result.rows,pagination:{page,pageSize,total,totalPages},summary:result.summary};
+}
+async function availableCurrencies(s:Scope) {
+  const [commissions,events]=await Promise.all([
+    attributions(s).join('Commission as currency_commission','currency_commission.attributionId','a.id').where('currency_commission.tenantId',s.tenantId).whereRaw('currency_commission."partnerId" = a."partnerId"').distinct('currency_commission.currency as currency'),
+    attributions(s).whereIn('e.type',['invoice_paid','recurring_payment']).where('e.value','>',0).distinct('e.currency as currency'),
+  ]);
+  return [...new Set([...commissions,...events].map(row=>String(row.currency)))].sort();
+}
+function trackingMetadata() {return {views:null,ctr:null,dataQuality:{signupTracking:'not_verified_end_to_end',paymentTracking:'not_verified_end_to_end',views:'unavailable',ctr:'unavailable'},warnings:['signup_tracking_unverified','payment_tracking_unverified','views_unavailable','ctr_unavailable']};}
+export async function partnerAnalyticsDiagnostics(db:Knex,tenantId:string,filters:AnalyticsFilters) {
+  const s=reportScope(db,tenantId,undefined,filters),owners=await partners(s).select('partner.id');
+  const cash=await manualPayoutBalances(db,owners.map((owner:{id:string})=>({tenantId,partnerId:String(owner.id),currency:filters.currency??'RUB'})));
+  return {...trackingMetadata(),diagnostics:await adminDiagnostics(s,[...cash.values()].reduce((total,item)=>total+item.debt,0))};
+}
+export async function partnerAnalyticsOverview(db:Knex,tenantId:string,partnerId:string|undefined,filters:AnalyticsFilters,withOptions=true) {
+  const s=reportScope(db,tenantId,partnerId,filters);
+  const [totals,series,comparison]=await Promise.all([aggregates(s),filters.includeSeries==='true'?timeSeries(s):undefined,
+    filters.includeComparison==='true'?comparisonPeriod(s):undefined]);
+  const options=withOptions?await analyticsSourceOptions(db,tenantId,s.partnerIds,filters.programId):{platforms:[],formats:[]};
+  const ids=[...new Set([...(s.partnerIds??[]),...(filters.seriesBy==='partner'?series?.groups?.map(g=>g.id)??[]:[])])];
+  const selectedPartners=ids.length?await db('Partner').where({tenantId}).whereIn('id',ids).select('id','name'):[];
+  const dimension=filters.seriesBy;
+  const names=dimension==='partner'?selectedPartners:dimension==='platform'?options.platforms:dimension==='format'?options.formats:dimension?await scopePartners(db('PartnerLinkSource').where({tenantId}),s).whereIn(`${dimension}Id`,series?.groups?.map(g=>g.id)??[]).distinct(`${dimension}Id as id`,`${dimension}Name as name`):[];
+  const currencies=withOptions?await availableCurrencies(s):[];
+  return {...totals[0]!,groupBy:'partner',rows:[],period:{since:s.since,until:s.until},currency:s.filters.currency,timezone:s.filters.timezone??'Europe/Moscow',generatedAt:s.asOf,availableCurrencies:currencies,
+    options:{scenarios:[],...options,partners:selectedPartners},selectedPartners,
+    ...(series?{series:{...series,...(dimension?{groups:series.groups?.map(g=>({...g,name:names.find(n=>n.id===g.id)?.name??'Не указан'}))}:{})}}:{}),...(comparison?{comparison}:{})};
+}
+
+/** Reuse Results counts, cohort denominators and exclusions for calculator facts. */
+export async function calculatorAnalyticsBreakdown(db:Knex,tenantId:string,partnerId:string,filters:AnalyticsFilters) {
+  const scope=reportScope(db,tenantId,partnerId,filters);
+  const [formats,platforms,platformFormats]=await Promise.all([
+    aggregates(scope,'format'),aggregates(scope,'platform'),aggregates(scope,'platformFormat'),
+  ]);
+  return {formats,platforms,platformFormats};
 }
 
 async function adminDiagnostics(s: Scope, debt: number) {
@@ -356,7 +407,7 @@ async function adminDiagnostics(s: Scope, debt: number) {
 
 async function timeSeries(s: Scope) {
   const days = (s.until.getTime() - s.since.getTime()) / 86400000;
-  const bucket: TimeBucket = days <= 90 ? 'day' : days <= 730 ? 'week' : 'month';
+  const bucket: TimeBucket = s.filters.bucket ?? (days <= 90 ? 'day' : days <= 730 ? 'week' : 'month');
   const [rows, groupedRows] = await Promise.all([
     aggregates(s, bucket),
     s.filters.seriesBy ? aggregates(s, { bucket, dimension: s.filters.seriesBy }) : [],
@@ -397,20 +448,14 @@ async function timeSeries(s: Scope) {
   return { bucket, points, ...(s.filters.seriesBy ? { by: s.filters.seriesBy, groups } : {}) };
 }
 
-async function previousPeriod(s: Scope) {
+async function comparisonPeriod(s: Scope) {
+  const compareFrom = s.filters.compareFrom, compareTo = s.filters.compareTo;
+  if (!compareFrom || !compareTo) throw new z.ZodError([{ code: 'custom', path: ['compareFrom'], message: 'Выберите даты периода сравнения.' }]);
   const timezone = s.filters.timezone ?? 'Europe/Moscow';
-  const firstDay = todayWindow(timezone, s.since).day;
-  if(s.since.getTime()!==dayStart(firstDay,timezone).getTime()) {
-    const since=new Date(s.since.getTime()-(s.until.getTime()-s.since.getTime())),until=s.since;
-    const [total]=await aggregates({...s,since,until});
-    return {period:{since,until},counts:total!.counts,amountsMinor:total!.amountsMinor};
-  }
-  const lastDay = todayWindow(timezone, new Date(s.until.getTime() - 1)).day;
-  const days = Math.round((Date.parse(lastDay) - Date.parse(firstDay)) / 86400000) + 1;
-  const shift = (day: string) => new Date(Date.parse(day) - days * 86400000).toISOString().slice(0, 10);
-  const since = dayStart(shift(firstDay), timezone);
-  const endWindow = todayWindow(timezone, s.until);
-  const until = new Date(dayStart(shift(endWindow.day), timezone).getTime() + s.until.getTime() - endWindow.since.getTime());
+  const since = dayStart(compareFrom, timezone);
+  dayStart(compareTo, timezone);
+  const until = dayStart(new Date(Date.parse(compareTo) + 86400000).toISOString().slice(0, 10), timezone);
+  if (since >= until) throw new Error('invalid_comparison_period');
   const [total] = await aggregates({ ...s, since, until });
   return { period: { since, until }, counts: total!.counts, amountsMinor: total!.amountsMinor };
 }
@@ -442,18 +487,19 @@ export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partne
     catch { throw new z.ZodError([{ code: 'custom', path: ['cursor'], message: 'Некорректный курсор истории.' }]); }
   }
   const periodClicks = () => clicks(s).where('cl.ts', '>=', since).where('cl.ts', '<', until);
-  const clickEvents = periodClicks().select(db.raw(`'c:' || cl.id AS id, 'click'::text AS kind, cl.ts, NULL::numeric AS "amountMinor", NULL::text AS currency`));
-  const events = attributions(s).where('e.ts', '>=', since).where('e.ts', '<', until)
+  const owner=(q:Knex.QueryBuilder)=>q.leftJoin('Partner as history_partner',function(){this.on('history_partner.id','cl.partnerId').andOn('history_partner.tenantId','cl.tenantId');}).leftJoin('Link as history_link',function(){this.on('history_link.id','cl.linkId').andOn('history_link.tenantId','cl.tenantId');});
+  const clickEvents = owner(periodClicks()).select(db.raw(`'c:' || cl.id AS id, 'click'::text AS kind, cl.ts, NULL::numeric AS "amountMinor", NULL::text AS currency, ARRAY[history_partner.name] AS "partnerNames", ARRAY[history_link."linkKey"] AS "linkKeys"`));
+  const events = owner(attributions(s)).where('e.ts', '>=', since).where('e.ts', '<', until)
     .where(q => q.where('e.type', 'signup').orWhereRaw(paidExpression(), bindings(s)))
     .select(db.raw(`'e:' || e.id AS id, CASE WHEN e.type='signup' THEN 'signup' WHEN ${recurringExpression} THEN 'repeat_payment' ELSE 'first_payment' END AS kind, e.ts,
-      CASE WHEN e.type='signup' THEN NULL ELSE ROUND(SUM(e.value*a.weight)*100) END AS "amountMinor", e.currency`))
+      CASE WHEN e.type='signup' THEN NULL ELSE ROUND(SUM(e.value*a.weight)*100) END AS "amountMinor", e.currency, ARRAY_AGG(DISTINCT history_partner.name) AS "partnerNames", ARRAY_AGG(DISTINCT history_link."linkKey") AS "linkKeys"`))
     .groupBy('e.id');
-  const refunds = attributions(s).join('Event as refund', function () { this.on(db.raw("refund.metadata->>'originalEventId' = e.id")); })
+  const refunds = owner(attributions(s)).join('Event as refund', function () { this.on(db.raw("refund.metadata->>'originalEventId' = e.id")); })
     .where({ 'refund.tenantId': tenantId, 'refund.type': 'refund' }).whereRaw(paidExpression(), bindings(s))
     .where('refund.ts', '>=', since).where('refund.ts', '<', until)
     .whereRaw("COALESCE(refund.metadata->>'source', '') <> 'local_simulator'")
     .modify(q => { if (filters.currency) q.where('refund.currency', filters.currency); })
-    .select(db.raw(`'r:' || refund.id AS id, 'refund'::text AS kind, refund.ts, ROUND(SUM(refund.value*a.weight)*100) AS "amountMinor", refund.currency`)).groupBy('refund.id');
+    .select(db.raw(`'r:' || refund.id AS id, 'refund'::text AS kind, refund.ts, ROUND(SUM(refund.value*a.weight)*100) AS "amountMinor", refund.currency, ARRAY_AGG(DISTINCT history_partner.name) AS "partnerNames", ARRAY_AGG(DISTINCT history_link."linkKey") AS "linkKeys"`)).groupBy('refund.id');
   const history = db.from(db.unionAll([clickEvents, events, refunds], true).as('history')).select('*')
     .modify(q => { if (cursor) q.whereRaw('(ts, id) < (?::timestamptz, ?)', [cursor.ts, cursor.id]); })
     .orderBy('ts', 'desc').orderBy('id', 'desc').limit(21);
@@ -492,15 +538,18 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
   const s: Scope = { db, tenantId, partnerIds: partnerId ? [partnerId] : analyticsPartnerIds(filters), filters, since, until, asOf: new Date() };
   const scenarioSelection = selectedIds(filters, 'scenarioId'), platformSelection = selectedIds(filters, 'platformId'), formatSelection = selectedIds(filters, 'formatId');
   const group = filters.groupBy ?? (tableOptions ? 'partner' : scenarioSelection.length === 1 && scenarioSelection[0] !== '__none__' ? 'platform' : 'scenario');
-  const [totals, rows, ledger, sourceRows, snapshotRows, linkRows, materialRows, series, comparison, funnel] = await Promise.all([
+  const partnerList=group==='partner'&&!filters.seriesBy;
+  const storedSources=()=>scopePartners(db('PartnerLinkSource').where({tenantId}),s).modify(q=>{if(filters.programId)q.where({programId:filters.programId});});
+  const [totals, rows, ledger, sourceRows, snapshotRows, linkRows, materialRows, series, comparison, funnel, sourceOptions] = await Promise.all([
     aggregates(s), group === 'partner' ? [] : aggregates(s, group), globalBalances(s),
-    scopePartners(db('PartnerLinkSource').where({ tenantId }), s).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }),
-    scopePartners(db('CoachForecastSnapshot').where({ tenantId }), s).whereIn('status', ['confirmed', 'archived']).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }).orderBy('createdAt', 'desc').select('id', 'status', 'data'),
-    scopePartners(db('Link').where({ tenantId }), s).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }).select('id', 'linkKey', 'label', 'channel', 'createdAt'),
-    scopePartners(db<PartnerMaterialRow>('PartnerMaterial').where({tenantId}), s).modify(q=>{if(filters.programId)q.where({programId:filters.programId});}),
+    partnerList?[]:storedSources(),
+    partnerList?[]:scopePartners(db('CoachForecastSnapshot').where({ tenantId }), s).whereIn('status',['confirmed','archived']).modify(q=>{if(filters.programId)q.where({programId:filters.programId});}).select(db.raw('COALESCE("data"->>\'scenarioId\', id) AS "scenarioKey"')).distinctOn('scenarioKey').orderBy('scenarioKey').orderBy('createdAt','desc').orderBy('id','desc').select('id','status',db.raw('jsonb_build_object(\'scenarioId\',data->>\'scenarioId\',\'scenarioName\',data->>\'scenarioName\') AS data')),
+    partnerList?[]:scopePartners(db('Link').where({ tenantId }), s).modify(q => { if (filters.programId) q.where({ programId: filters.programId }); }).select('id', 'linkKey', 'label', 'channel', 'createdAt'),
+    partnerList||!['material','source'].includes(group)?[]:scopePartners(db<PartnerMaterialRow>('PartnerMaterial').where({tenantId}), s).whereIn('id',storedSources().select('materialId')),
     filters.includeSeries === 'true' ? timeSeries(s) : undefined,
-    filters.includeComparison === 'true' && filters.period !== 'all' ? previousPeriod(s) : undefined,
+    filters.includeComparison === 'true' ? comparisonPeriod(s) : undefined,
     filters.includeFunnel === 'true' ? conversionFunnel(s) : undefined,
+    partnerList?{platforms:[],formats:[]}:analyticsSourceOptions(db,tenantId,s.partnerIds,filters.programId),
   ]);
   const [table, diagnostics] = await Promise.all([
     tableOptions || group === 'partner' ? adminPartnerTable(s, tableOptions ?? adminAnalyticsTableQuerySchema.parse({}), ledger) : undefined,
@@ -510,7 +559,7 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
   const publicLedger = { balances: ledger.balances, commissionByStatus: ledger.commissionByStatus,
     balanceBasis: ledger.balanceBasis, commissionByStatusBasis: ledger.commissionByStatusBasis };
   const sources = sourceRows as PartnerLinkSourceRow[];
-  const snapshots = snapshotRows as Array<{id:string;status:string;data:{scenarioId?:string;scenarioName?:string;formats?:Array<{id:string;name:string}>;channels?:Array<{id:string;name:string}>;settings?:{frequency?:Record<string,number>;channels?:Record<string,{enabled:boolean;formats:string[]}>}}}>;
+  const snapshots = snapshotRows as Array<{id:string;status:string;data:{scenarioId?:string;scenarioName?:string}}>;
   const links = linkRows as LinkRow[];
   const materials=materialRows as PartnerMaterialRow[];
   const scenarios = new Map<string, { id: string; name: string; archived: boolean }>();
@@ -530,28 +579,7 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     }
     for(const id of ids)if(!resultRows.some(row=>row.id===id))resultRows.push(emptyRow(id));
   }
-  const scenarioOptions=[...scenarios.values()].filter(scenario=>!scenario.archived||scenarioSelection.includes(scenario.id)||sources.some(source=>source.scenarioId===scenario.id));
-  const options = (id: 'platformId' | 'formatId', name: 'platformName' | 'formatName') => {
-    // Keep the program's choices available while selecting more than one value.
-    const entries=new Map(sources.map(source=>[source[id],{id:source[id] as string,name:source[name] as string}]));
-    for(const material of materials){
-      if(material.archivedAt)continue;
-      if(id==='formatId')entries.set(material.formatId,{id:material.formatId,name:material.formatName});
-      else for(const platform of material.platforms)entries.set(platform.id,{id:platform.id,name:platform.name});
-    }
-    const seen=new Set<string>();
-    for(const snapshot of snapshots){
-      const scenarioId=String(snapshot.data.scenarioId??snapshot.id);
-      if(seen.has(scenarioId))continue;seen.add(scenarioId);
-      if(!scenarioOptions.some(s=>s.id===scenarioId))continue;
-      if(id==='platformId')for(const platform of snapshot.data.channels??[]){
-        const configured=snapshot.data.settings?.channels?.[platform.id];
-        if(configured?.enabled&&configured.formats.some(format=>(snapshot.data.settings?.frequency?.[format]??0)>0))entries.set(platform.id,{id:platform.id,name:platform.name});
-      }
-      if(id==='formatId')for(const format of snapshot.data.formats??[])if((snapshot.data.settings?.frequency?.[format.id]??0)>0)entries.set(format.id,{id:format.id,name:format.name});
-    }
-    return [...entries.values()];
-  };
+  const scenarioOptions=[...scenarios.values()].filter(scenario=>scenarioSelection.includes(scenario.id)||sources.some(source=>source.scenarioId===scenario.id));
   const label = (id: string) => {
     if (group === 'partner') return partnerRows.get(id)?.name ?? 'Партнёр';
     if (id === '__none__') return group === 'link' ? 'Без привязки к ссылке' : group === 'material' ? 'Общие ссылки' : group === 'scenario' ? 'Без сценария' : 'Без указанного источника';
@@ -563,11 +591,12 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     if (!source) return 'Источник не указан';
     return group === 'platform' ? source.platformName : group === 'format' ? source.formatName : group === 'material' ? source.materialTitle || 'Материал' : `${materials.find(m=>m.id===source.materialId)?.title||source.materialTitle||source.formatName} · ${source.channelName||source.platformName}${source.materialId?'':' (общая ссылка)'}`;
   };
-  const reportOptions = { scenarios: scenarioOptions, platforms: options('platformId', 'platformName'), formats: options('formatId', 'formatName') };
+  const seriesPartners=filters.seriesBy==='partner'?await partners(s).whereIn('partner.id',series?.groups?.map(g=>g.id)??[]).select('partner.id','partner.name'):[];
+  const reportOptions = { scenarios: scenarioOptions, ...sourceOptions,partners:seriesPartners };
   const chartSeries = series && filters.seriesBy ? (() => {
-    const dimension = filters.seriesBy!, choices = reportOptions[`${dimension}s`];
+    const dimension = filters.seriesBy!, choices: Array<{id:string;name:string}> = reportOptions[`${dimension}s`];
     const grouped = new Map((series.groups ?? []).map(item => [item.id, item]));
-    for (const id of selectedIds(filters, `${dimension}Id`)) {
+    for (const id of (dimension==='partner'?analyticsPartnerIds(filters)??[]:selectedIds(filters, `${dimension}Id`))) {
       if (!grouped.has(id) && (id === '__none__' || choices.some(choice => choice.id === id))) grouped.set(id, { id, points: series.points.map(point => ({...point,clicks:0,identities:0,registrations:0,payingCustomers:0,payments:0,firstPayments:0,repeatPayments:0,customerPaymentsMinor:0,earningsMinor:0})) });
     }
     return { ...series, by: dimension, groups: [...grouped.values()].map(item => ({ ...item, name: choices.find(choice => choice.id === item.id)?.name ?? (dimension === 'scenario' ? 'Без сценария' : dimension === 'platform' ? 'Площадка не указана' : 'Формат не указан') })) };
@@ -600,11 +629,9 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     }),
     ...(tableOptions && table ? { partnerTable: { rows: table.rows, pagination: table.pagination }, pagination: table.pagination,
       summary: table.summary, activePartners: table.summary.activePartners, diagnostics } : {}),
-    options: reportOptions,
-    ...publicLedger, views: null, ctr: null,
+    options: reportOptions,availableCurrencies:await availableCurrencies(s),
+    ...publicLedger,...trackingMetadata(),
     exclusions: ['local_simulator', 'flagged_clicks'],
     // No persisted production verification evidence exists. Test success cannot verify tracking in production.
-    dataQuality: { signupTracking: 'not_verified_end_to_end', paymentTracking: 'not_verified_end_to_end', views: 'unavailable', ctr: 'unavailable' } satisfies Record<string, AnalyticsTrackingStatus>,
-    warnings: ['signup_tracking_unverified', 'payment_tracking_unverified', 'views_unavailable', 'ctr_unavailable'] satisfies AnalyticsWarning[],
   };
 }

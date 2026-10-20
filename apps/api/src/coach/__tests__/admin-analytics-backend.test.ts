@@ -40,6 +40,50 @@ async function fixture() {
 }
 
 describe('admin analytics backend authorization, pagination, diagnostics and query budget', () => {
+  it('serves canonical overview metrics and source definitions without loading lifetime payouts or scenario records',async()=>{
+    const f=await fixture();await f.pay();
+    const base=`${f.query}&includeSeries=true&timezone=UTC&until=${encodeURIComponent(new Date(Date.now()+1000).toISOString())}`;
+    const full=await get(`/admin/analytics?${base}`);expect(full.status,full.text).toBe(200);
+    const queries:string[]=[],listener=(q:{sql:string})=>queries.push(q.sql);appDb.on('query',listener);
+    let overview;try{overview=await get(`/admin/analytics?${base}&view=summary`);}finally{appDb.removeListener('query',listener);}
+    expect(overview.status,overview.text).toBe(200);
+    for(const key of ['counts','amountsMinor','conversions','period','series','currency','timezone'])expect(overview.body[key]).toEqual(full.body[key]);
+    expect(overview.body.balances).toBeUndefined();expect(overview.body.options.scenarios).toEqual([]);
+    expect(queries.some(sql=>/"Payout"/.test(sql))).toBe(false);
+    expect(overview.body.options.formats.some((format:any)=>format.id==='circle')).toBe(true);
+    expect(overview.body.selectedPartners).toEqual([{id:f.partnerId,name:`${f.prefix} A`}]);
+  });
+
+  it('filters empty partners by actual period activity and includes them only on request',async()=>{
+    const f=await fixture();await f.pay();const emptyId=ulid();await db('Partner').insert({id:emptyId,tenantId,name:'Active but empty',email:`${ulid()}@example.test`,activatedAt:new Date()});
+    const q=new URLSearchParams({period:'all',activity:'results'});q.append('partnerIds',f.partnerId);q.append('partnerIds',emptyId);
+    const active=await get(`/admin/analytics/partners?${q}`);expect(active.status,active.text).toBe(200);
+    expect(active.body.items.map((p:any)=>p.id)).toEqual([f.partnerId]);expect(active.body.items[0].counts.paymentCount).toBe(1);
+    expect(active.body.items[0].balances).toBeUndefined();expect(active.body.summary).toEqual({partners:2,activePartners:1});
+    q.set('activity','all');const all=await get(`/admin/analytics/partners?${q}`);expect(all.body.items).toHaveLength(2);
+    expect(all.body.items.find((p:any)=>p.id===emptyId).counts.clicks).toBe(0);
+  });
+
+  it('compares named partners and preserves the click owner and public link key in history',async()=>{
+    const a=await fixture(),b=await fixture();await a.pay();await b.pay();
+    const q=new URLSearchParams({period:'all',view:'summary',includeSeries:'true',seriesBy:'partner',timezone:'UTC'});q.append('partnerIds',a.partnerId);q.append('partnerIds',b.partnerId);
+    const report=await get(`/admin/analytics?${q}`);expect(report.status,report.text).toBe(200);
+    expect(report.body.series.groups.map((g:any)=>g.name).sort()).toEqual([`${a.prefix} A`,`${b.prefix} A`].sort());
+    const history=await get(`/admin/analytics/details?${a.query}`);expect(history.status,history.text).toBe(200);
+    const click=history.body.history.items.find((item:any)=>item.kind==='click');expect(click.partnerNames).toEqual([`${a.prefix} A`]);expect(click.linkKeys[0]).toMatch(/^backend-/);
+    expect(history.text).not.toContain('userId');expect(history.text).not.toContain('email');
+  });
+
+  it('adapts the legacy timeseries to the same refund and fraud rules',async()=>{
+    const f=await fixture(),paid=await f.pay();await f.click({fraudFlag:'manual'});
+    expect((await post('/payments/refunds',{originalExternalEventId:paid.externalEventId,refundExternalEventId:ulid(),amount:500})).status).toBe(201);
+    const query=`since=${encodeURIComponent(new Date(Date.now()-86400000).toISOString())}&until=${encodeURIComponent(new Date(Date.now()+1000).toISOString())}`;
+    const old=await get(`/partners/${f.partnerId}/timeseries?${query}`);expect(old.status,old.text).toBe(200);
+    expect(old.body.buckets.reduce((n:number,row:any)=>n+row.clicks,0)).toBe(1);
+    expect(old.body.buckets.reduce((n:number,row:any)=>n+row.earnings,0)).toBe(100);
+    expect(old.body.buckets.reduce((n:number,row:any)=>n+row.revenue,0)).toBe(1000);
+  });
+
   it('requires admin credentials on all four routes; partner and scoped read keys cannot promote themselves', async () => {
     const f = await fixture();
     const partner = await createApiKeyRow(db, { tenantId, partnerId: f.partnerId });
@@ -171,7 +215,10 @@ describe('admin analytics backend authorization, pagination, diagnostics and que
     const f = await fixture(); await f.pay();
     const response = await get(`/admin/overview?${f.query}`); expect(response.status, response.text).toBe(200);
     expect(Object.keys(response.body).sort()).toEqual(['partners', 'since', 'totals']);
-    expect(Object.keys(response.body.totals).sort()).toEqual(['attributedEvents', 'attributedRevenue', 'clicks', 'commissionAccrued', 'commissionApproved', 'commissionPaid', 'commissionPending', 'netRevenue', 'partners']);
-    expect(Object.keys(response.body.partners[0]).sort()).toEqual(['clicks', 'commission', 'email', 'events', 'id', 'name', 'netRevenue', 'revenue']);
+    expect(Object.keys(response.body.totals).sort()).toEqual(['attributedEvents', 'attributedRevenue', 'clicks', 'commissionAccrued', 'commissionApproved', 'commissionPaid', 'commissionPending', 'netRevenue', 'partners', 'registrations']);
+    expect(Object.keys(response.body.partners[0]).sort()).toEqual(['clicks', 'commission', 'email', 'events', 'id', 'name', 'netRevenue', 'registrations', 'revenue']);
+    const analytics=await get(`/admin/analytics?${f.query}`);
+    expect(response.body.totals.registrations).toBe(analytics.body.counts.registrations);
+    expect(response.body.partners[0].registrations).toBe(analytics.body.rows[0].counts.registrations);
   });
 });

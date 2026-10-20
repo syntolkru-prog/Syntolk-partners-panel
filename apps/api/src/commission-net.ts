@@ -54,7 +54,7 @@ export async function manualPayoutBalances(db: Knex, groups: CommissionGroup[]):
  * ordered by payout creation/id and then commission accrual/id. A positive
  * payout must claim its fully offset commissions too, so confirming it settles
  * those earnings against debt. Cancelling it releases that allocation. */
-export async function manualPayableAmounts(db: Knex, groups: CommissionGroup[]): Promise<Map<string, number>> {
+export async function manualPayableAmounts(db: Knex, groups: CommissionGroup[], knownBalances?: Map<string, ManualPayoutBalance>): Promise<Map<string, number>> {
   const amounts = new Map<string, number>();
   if (!groups.length) return amounts;
   const rows = await db(`${TABLES.Commission} as c`).leftJoin(`${TABLES.Payout} as p`, 'p.id', 'c.payoutId')
@@ -63,7 +63,7 @@ export async function manualPayableAmounts(db: Knex, groups: CommissionGroup[]):
     .orderByRaw('"p"."createdAt" asc nulls last').orderByRaw('"p"."id" asc nulls last')
     .orderBy('c.accruedAt').orderBy('c.id').select('c.*') as CommissionRow[];
   const adjustments = await adjustmentTotalsByCommission(db, rows.map((c) => c.id));
-  const balances = await manualPayoutBalances(db, groups);
+  const balances = knownBalances ?? await manualPayoutBalances(db, groups);
   const remainingDebt = new Map([...balances].map(([key, balance]) => [key, Math.round(balance.debt * 100)]));
   for (const row of rows) {
     const key = commissionGroupKey(row);

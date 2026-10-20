@@ -1,3 +1,4 @@
+import { invalidateAnalytics } from './results-scope.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck } from 'lucide-react';
 import { api } from '../api.js';
@@ -31,14 +32,14 @@ export function AdminReview() {
     mutationFn: (id: string) => api(`/commissions/${id}/approve`, { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['review'] });
-      qc.invalidateQueries({ queryKey: ['admin-overview'] });
+      void invalidateAnalytics(qc);
     },
   });
   const reverse = useMutation({
     mutationFn: (id: string) => api(`/commissions/${id}/reverse`, { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['review'] });
-      qc.invalidateQueries({ queryKey: ['admin-overview'] });
+      void invalidateAnalytics(qc);
     },
   });
 

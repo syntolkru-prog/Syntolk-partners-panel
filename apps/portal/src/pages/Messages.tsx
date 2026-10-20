@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 import { createPortal } from 'react-dom';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowDown, Download, File as FileIcon, MessageCircle, Paperclip, SendHorizontal, X } from 'lucide-react';
+import { ArrowDown, Download, File as FileIcon, MessageCircle, Paperclip, Search, SendHorizontal, X } from 'lucide-react';
 import { api, apiBlob, currentTenantSlug, type Principal } from '../api.js';
 import { Button, ErrorBanner, Page } from '../ui.js';
 import { theme } from '../theme.js';
@@ -13,6 +13,14 @@ type Message = { id: string; body: string; senderRole: 'admin' | 'partner'; crea
 type Thread = { partner: { id: string; name: string; email: string }; messages: Message[]; nextCursor: string | null };
 type Conversation = { partnerId: string; name: string; email: string; body: string; senderRole: string; createdAt: string; unread: number };
 type Inbox = { conversations: Conversation[]; nextCursor: string | null };
+type AdminPartner = { id: string; name: string; email: string; activatedAt: string | null; revokedAt: string | null; createdAt: string };
+type AdminPartners = { partners: AdminPartner[]; nextCursor: string | null };
+type DirectoryPartner = {
+  partnerId: string; name: string; email: string; activatedAt: string | null; revokedAt: string | null;
+  lastMessageId: string | null; lastMessage: string | null; lastSenderRole: string | null;
+  lastMessageAt: string | null; unread: number; hasConversation: boolean;
+};
+type PartnerDirectory = { partners: DirectoryPartner[]; nextCursor: string | null };
 
 function unique<T>(rows: T[], id: (row: T) => string): T[] {
   const seen = new Set<string>();
@@ -39,6 +47,14 @@ const colors = {
 
 function timestamp(value: string) {
   return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
+function directoryTimestamp(value: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  return new Intl.DateTimeFormat('ru-RU', date.toDateString() === new Date().toDateString()
+    ? { hour: '2-digit', minute: '2-digit' }
+    : { day: 'numeric', month: 'short' }).format(date);
 }
 
 export function PartnerMessages({ principal }: { principal: Principal }) {
@@ -70,36 +86,65 @@ export function PartnerMessages({ principal }: { principal: Principal }) {
 export function MessagesPage({ principal }: { principal: Principal }) {
   const admin = principal.role === 'admin';
   const [params, setParams] = useSearchParams();
+  const [directorySearch, setDirectorySearch] = useState('');
   const partnerId = admin ? params.get('partnerId') ?? '' : principal.partnerId ?? '';
   const key = useMessageKey(principal);
-  const inbox = useInfiniteQuery({
-    queryKey: [...key, 'inbox'],
-    queryFn: ({ pageParam }) => api<Inbox>(`/admin/messages${pageParam ? `?before=${pageParam}` : ''}`),
+  const directory = useInfiniteQuery({
+    queryKey: [...key, 'directory'],
+    queryFn: ({ pageParam }) => api<AdminPartners>(`/partners?limit=200${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`),
     initialPageParam: '', getNextPageParam: last => last.nextCursor ?? undefined,
     enabled: admin, refetchInterval: 10_000,
   });
-  const conversations = unique(inbox.data?.pages.flatMap(page => page.conversations) ?? [], row => row.partnerId);
+  const inbox = useQuery({
+    queryKey: [...key, 'inbox-preview'],
+    queryFn: () => api<Inbox>('/admin/messages'),
+    enabled: admin, refetchInterval: 10_000,
+  });
+  const latestByPartner = useMemo(() => new Map((inbox.data?.conversations ?? []).map(row => [row.partnerId, row])), [inbox.data]);
+  const directoryPartners = unique(directory.data?.pages.flatMap(page => page.partners).map(row => {
+    const latest = latestByPartner.get(row.id);
+    return {
+      partnerId: row.id, name: row.name, email: row.email, activatedAt: row.activatedAt, revokedAt: row.revokedAt,
+      lastMessageId: latest ? row.id : null, lastMessage: latest?.body ?? null,
+      lastSenderRole: latest?.senderRole ?? null, lastMessageAt: latest?.createdAt ?? null,
+      unread: latest?.unread ?? 0, hasConversation: Boolean(latest),
+    } satisfies DirectoryPartner;
+  }) ?? [], row => row.partnerId).filter(row => {
+    const search = directorySearch.trim().toLocaleLowerCase('ru-RU');
+    return !search || `${row.name} ${row.email}`.toLocaleLowerCase('ru-RU').includes(search);
+  });
   return (
-    <Page title="Сообщения" subtitle={admin ? 'Переписка с партнёрами' : 'Переписка с тех. поддержкой'}>
-      <div className={`partner-messages${admin ? ' partner-messages--admin' : ''}`} style={colors}>
-        {admin && <aside className="message-inbox" aria-label="Переписки с партнёрами">
-          <ErrorBanner error={inbox.error} />
-          {inbox.isLoading ? <p className="message-empty">Загрузка…</p> : !conversations.length && !inbox.error ? <p className="message-empty">Сообщений от партнёров пока нет.</p> : null}
-          {conversations.map(row => <button key={row.partnerId} type="button" className={`message-inbox-row${partnerId === row.partnerId ? ' is-selected' : ''}`} aria-pressed={partnerId === row.partnerId} onClick={() => setParams({ partnerId: row.partnerId })}>
-            <span className="message-inbox-row__top"><strong>{row.name}</strong>{row.unread > 0 && <span className="message-unread" aria-label={`${row.unread} непрочитанных`}>{row.unread}</span>}</span>
-            <span className="message-muted">{row.email}</span>
-            <span className="message-inbox-row__preview">{row.senderRole === 'admin' ? 'Вы: ' : ''}{row.body || 'Файл'}</span>
-            <time className="message-muted" dateTime={row.createdAt}>{timestamp(row.createdAt)}</time>
-          </button>)}
-          {inbox.hasNextPage && <Button variant="ghost" size="sm" disabled={inbox.isFetchingNextPage} onClick={() => void inbox.fetchNextPage()}>Показать ещё</Button>}
+    <Page title="Сообщения" subtitle={admin ? 'Выберите партнёра слева, чтобы открыть переписку.' : 'Переписка с тех. поддержкой'}>
+      <div className={`partner-messages${admin ? ' partner-messages--admin' : ''}${admin && partnerId ? ' has-thread' : ''}`} style={colors}>
+        {admin && <aside className="message-inbox" aria-label="Партнёры">
+          <header className="message-inbox__header"><h2>Партнёры</h2></header>
+            <label className="message-search">
+              <Search size={16} aria-hidden="true" />
+              <input aria-label="Найти партнёра" placeholder="Поиск партнёра" value={directorySearch} onChange={event => setDirectorySearch(event.target.value)} />
+              {directorySearch && <button type="button" aria-label="Очистить поиск" onClick={() => setDirectorySearch('')}><X size={14} /></button>}
+            </label>
+            <ErrorBanner error={directory.error} />
+            <div className="message-directory-list">
+              {directory.isLoading && <p className="message-empty">Загрузка партнёров…</p>}
+              {!directory.isLoading && !directoryPartners.length && !directory.error && <p className="message-empty">Партнёры не найдены.</p>}
+              {directoryPartners.map(row => <button key={row.partnerId} type="button" className={`message-directory-row${partnerId === row.partnerId ? ' is-selected' : ''}`} aria-pressed={partnerId === row.partnerId} onClick={() => setParams({ partnerId: row.partnerId })}>
+                <span className="message-directory-row__avatar" aria-hidden="true">{row.name.trim().charAt(0).toLocaleUpperCase('ru-RU') || 'П'}</span>
+                <span className="message-directory-row__content">
+                  <span className="message-directory-row__top"><strong>{row.name}</strong>{row.lastMessageAt && <time dateTime={row.lastMessageAt}>{directoryTimestamp(row.lastMessageAt)}</time>}</span>
+                  <span className="message-directory-row__preview">{row.hasConversation ? `${row.lastSenderRole === 'admin' ? 'Вы: ' : ''}${row.lastMessage || 'Файл'}` : row.email}</span>
+                </span>
+                {row.unread > 0 && <span className="message-unread" aria-label={`${row.unread} непрочитанных`}>{row.unread}</span>}
+              </button>)}
+              {directory.hasNextPage && <div className="message-inbox__more"><Button variant="ghost" size="sm" disabled={directory.isFetchingNextPage} onClick={() => void directory.fetchNextPage()}>{directory.isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}</Button></div>}
+            </div>
         </aside>}
-        {partnerId ? <MessageThread key={`${key.join(':')}:${partnerId}`} principal={principal} partnerId={partnerId} /> : <div className="message-thread message-empty">Выберите партнёра, чтобы прочитать сообщение и ответить.</div>}
+        {partnerId && <MessageThread key={`${key.join(':')}:${partnerId}`} principal={principal} partnerId={partnerId} onClose={admin ? () => setParams(previous => { const next = new URLSearchParams(previous); next.delete('partnerId'); return next; }) : undefined} />}
       </div>
     </Page>
   );
 }
 
-function MessageThread({ principal, partnerId, active = true, embedded = false }: { principal: Principal; partnerId: string; active?: boolean; embedded?: boolean }) {
+function MessageThread({ principal, partnerId, active = true, embedded = false, onClose }: { principal: Principal; partnerId: string; active?: boolean; embedded?: boolean; onClose?: () => void }) {
   const admin = principal.role === 'admin', key = useMessageKey(principal);
   const endpoint = admin ? `/admin/messages/${encodeURIComponent(partnerId)}` : '/messages';
   const threadKey = useMemo(() => [...key, 'thread', partnerId], [key, partnerId]);
@@ -169,6 +214,7 @@ function MessageThread({ principal, partnerId, active = true, embedded = false }
         await Promise.all([
           client.invalidateQueries({ queryKey: [...key, 'unread'] }),
           client.invalidateQueries({ queryKey: [...key, 'inbox'] }),
+          client.invalidateQueries({ queryKey: [...key, 'inbox-preview'] }),
           client.invalidateQueries({ queryKey: threadKey }),
         ]);
       }).catch(() => { reading.current = null; });
@@ -186,7 +232,7 @@ function MessageThread({ principal, partnerId, active = true, embedded = false }
     },
     onSuccess: async () => {
       setDraft(''); setAttachments([]); request.current = null; scrollToLatest();
-      await Promise.all([client.invalidateQueries({ queryKey: threadKey }), client.invalidateQueries({ queryKey: [...key, 'inbox'] })]);
+      await Promise.all([client.invalidateQueries({ queryKey: threadKey }), client.invalidateQueries({ queryKey: [...key, 'inbox'] }), client.invalidateQueries({ queryKey: [...key, 'inbox-preview'] })]);
     },
     onSettled: () => { sending.current = false; },
   });
@@ -213,8 +259,10 @@ function MessageThread({ principal, partnerId, active = true, embedded = false }
   }, [active, embedded, partner?.id, send.status, upload.status, removing]);
   return <section className="message-thread" aria-label={admin ? 'Переписка с партнёром' : 'Переписка с тех. поддержкой'}>
     {!embedded && <header className="message-thread__header">
-      <strong>{admin ? partner?.name ?? 'Партнёр' : 'Тех. поддержка'}</strong>
-      {admin && partner && <span className="message-muted">{partner.email}</span>}
+      <div className="message-thread__identity"><strong>{admin ? partner?.name ?? 'Партнёр' : 'Тех. поддержка'}</strong>
+        {admin && partner && <span className="message-muted">{partner.email}</span>}
+      </div>
+      {onClose && <button type="button" className="message-thread__close" aria-label="Закрыть сообщение" title="Закрыть сообщение" onClick={onClose}><X size={17} /></button>}
     </header>}
     <ErrorBanner error={thread.error} />
     <div className="message-history-wrap">
@@ -247,11 +295,10 @@ function MessageThread({ principal, partnerId, active = true, embedded = false }
         removingFile.current = true; setRemoving(file.id); setFileError(null);
         void api(`${endpoint}/attachments/${file.id}`, { method: 'DELETE' }).then(() => setAttachments(previous => previous.filter(item => item.id !== file.id))).catch(error => setFileError(error)).finally(() => { removingFile.current = false; setRemoving(null); });
       }}><X size={12} /></button></span>)}</div>}
-      {!embedded && <label htmlFor={composerId}>{admin ? 'Ответ партнёру' : 'Сообщение в тех. поддержку'}</label>}
       <div className="message-input-row">
         <input type="file" ref={fileInput} multiple hidden aria-label="Выбрать файлы" onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; if (files.length) upload.mutate(files); }} />
         <button type="button" className="message-attach" aria-label="Прикрепить файл" title="Прикрепить файл" disabled={!partner || upload.isPending || send.isPending} onClick={() => fileInput.current?.click()}><Paperclip size={19} /></button>
-        <textarea id={composerId} ref={composer} rows={1} maxLength={8000} enterKeyHint="send" aria-label={embedded ? 'Сообщение' : undefined} placeholder="Сообщение" value={draft} disabled={!partner || send.isPending} onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+        <textarea id={composerId} ref={composer} rows={1} maxLength={8000} enterKeyHint="send" aria-label={embedded ? 'Сообщение' : admin ? 'Ответ партнёру' : 'Сообщение в тех. поддержку'} placeholder="Сообщение" value={draft} disabled={!partner || send.isPending} onChange={event => setDraft(event.target.value)} onKeyDown={event => {
           if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!event.repeat) submitMessage(); }
         }} />
         <button type="submit" className="message-send" aria-label="Отправить" disabled={!canSend} aria-busy={send.isPending || upload.isPending}><SendHorizontal size={19} /></button>

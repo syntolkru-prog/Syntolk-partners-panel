@@ -169,6 +169,25 @@ describe('calculator is the sole work-plan source',()=>{
   expect((await post(`/coach/me/calculator-plan/tasks/${task.id}/complete`,{version:1,completed:true})).status).toBe(200);
   expect((await post('/coach/me/messages',{programId,clientMessageId:ulid(),message:'Тест'})).body.error).toBe('coach_disabled');
  });
+ it.each(['partner','admin'] as const)('allows the complete calculator scenario lifecycle with AI disabled for %s',async role=>{
+  await db('Config').where({tenantId,key:'coach_settings'}).update({value:JSON.stringify({enabled:false,provider:'template',dailyRuns:20,takeover:[]})});
+  const prefix=role==='partner'?'/coach/me':`/admin/coach/partners/${partnerId}`;
+  const credential=role==='partner'?key:process.env.ADMIN_API_KEY!;
+  const send=(path:string,body:object)=>request(app).post(`${prefix}${path}`).set('Authorization',`Bearer ${credential}`).send(body);
+  const period={programId,startDate:day(),days:7,weekdays:[1,2,3,4,5]};
+  const preview=await send('/calculator-plan/preview',{...period,settings});expect(preview.status,preview.text).toBe(200);
+  const saved=await send('/forecast-snapshots',{programId,confirmed:true,settings,scenarioId:'manual-scenario',scenarioName:'Ручной сценарий'});
+  expect(saved.status,saved.text).toBe(201);
+  const built=await send('/calculator-plan',{...period,snapshotId:saved.body.snapshot.id,scenarioId:'manual-scenario',requestId:ulid()});
+  expect(built.status,built.text).toBe(201);
+  const removed=await request(app).delete(`${prefix}/forecast-snapshots/manual-scenario?programId=${programId}`).set('Authorization',`Bearer ${credential}`);
+  expect(removed.status,removed.text).toBe(200);
+  const listed=await request(app).get(`${prefix}/forecast-snapshots?programId=${programId}`).set('Authorization',`Bearer ${credential}`);
+  expect(listed.body.snapshots).toHaveLength(0);
+  expect((await db('CoachPlan').where({id:built.body.plan.id}).first()).status).toBe('archived');
+  expect(await db('CoachRun').where({tenantId,partnerId})).toHaveLength(0);
+  expect((await send('/messages',{programId,clientMessageId:ulid(),message:'Тест'})).body.error).toBe('coach_disabled');
+ });
  it('does not create links when replacing the calculator calendar',async()=>{
   const first=await build();
   expect((await build({replacePlanId:first.body.plan.id,replaceVersion:first.body.plan.version})).status).toBe(201);

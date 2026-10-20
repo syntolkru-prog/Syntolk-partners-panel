@@ -59,6 +59,7 @@ export function Card({
   return (
     <div
       onClick={onClick}
+      className={onClick ? 'op-interactive-card' : undefined}
       style={{
         background: theme.surface,
         border: `1px solid ${theme.border}`,

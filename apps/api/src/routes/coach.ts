@@ -72,7 +72,7 @@ partnerCoach.use(requireAuth, csrf, async (req, _res, next) => {
   const s = owner(req);
   await assertPartner(s.db, s.tenantId, s.partnerId);
   const settings = await getSettings(s.db, s.tenantId);
-  const calculatorAction=req.path==='/forecast-snapshots'||/^\/calculator-plan(?:\/|$)/.test(req.path);
+  const calculatorAction=/^\/(?:forecast-snapshots|calculator-plan)(?:\/|$)/.test(req.path);
   if (req.method !== 'GET' && !settings.enabled&&!calculatorAction) throw new CoachError('coach_disabled', 409, 'ИИ-куратор отключён администратором.');
   next();
 });

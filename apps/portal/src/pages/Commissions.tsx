@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { invalidateAnalytics } from './results-scope.js';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Receipt } from 'lucide-react';
 import { api, type Principal } from '../api.js';
@@ -26,6 +27,7 @@ interface Commission {
 }
 
 export function CommissionsPage({ principal }: { principal: Principal }) {
+  const qc=useQueryClient();
   const queryPartnerId = new URLSearchParams(window.location.search).get('partnerId');
   const partnerId = principal.partnerId ?? queryPartnerId;
 
@@ -49,6 +51,7 @@ export function CommissionsPage({ principal }: { principal: Principal }) {
       setAdjustmentAmount('');
       setAdjustmentReason('');
       void refetch();
+      void invalidateAnalytics(qc);
     },
   });
   const columns = isAdminView

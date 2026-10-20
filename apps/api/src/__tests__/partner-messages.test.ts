@@ -93,6 +93,35 @@ describe('human partner messages', () => {
     expect(await db('CoachRun').where({ tenantId, partnerId })).toHaveLength(0);
     expect(await db('CoachMessage').where({ tenantId, partnerId })).toHaveLength(0);
   });
+  it('lets an admin find any partner and start a conversation before they have written first', async () => {
+    const directory = await get(`/admin/messages/partners?search=${partnerId.slice(0, 8)}`, admin);
+    expect(directory.status, directory.text).toBe(200);
+    expect(directory.body.partners).toEqual([expect.objectContaining({
+      partnerId, name: `Партнёр ${partnerId}`, email: `${partnerId}@example.test`,
+      hasConversation: false, lastMessageId: null, unread: 0,
+    })]);
+    const allPartners = await get('/admin/messages/partners', admin);
+    expect(allPartners.status, allPartners.text).toBe(200);
+    expect(allPartners.body.partners).toEqual([expect.objectContaining({ partnerId, hasConversation: false })]);
+    const emptyThread = await get(`/admin/messages/${partnerId}`, admin);
+    expect(emptyThread.status, emptyThread.text).toBe(200);
+    expect(emptyThread.body).toMatchObject({ partner: { id: partnerId }, messages: [], nextCursor: null });
+    const sent = await send('Здравствуйте, пишу по вашей партнёрской программе', admin, `/admin/messages/${partnerId}`);
+    expect(sent.status, sent.text).toBe(201);
+    expect((await get('/admin/messages', admin)).body.conversations).toEqual([
+      expect.objectContaining({ partnerId, body: 'Здравствуйте, пишу по вашей партнёрской программе', senderRole: 'admin' }),
+    ]);
+  });
+  it('searches partners only inside the current tenant and validates directory search', async () => {
+    const foreignTenant = ulid(), foreignPartner = ulid();
+    await db('Tenant').insert({ id: foreignTenant, slug: `msg-${foreignTenant.toLowerCase()}`, displayName: 'Другой кабинет', status: 'active', approvalStatus: 'approved' });
+    await db('Partner').insert({ id: foreignPartner, tenantId: foreignTenant, name: 'Искомый партнёр', email: `${foreignPartner}@example.test`, activatedAt: new Date() });
+    const result = await get('/admin/messages/partners?search=Искомый', admin);
+    expect(result.status, result.text).toBe(200);
+    expect(result.body.partners).toHaveLength(0);
+    expect((await get(`/admin/messages/partners?search=${'x'.repeat(121)}`, admin)).status).toBe(400);
+    expect((await get('/admin/messages/partners', key)).status).toBe(403);
+  });
   it('isolates other partners, admin endpoints and forged sender fields', async () => {
     const sent = await send('Чужая переписка', otherKey);
     expect((await get('/messages')).body.messages).toHaveLength(0);
@@ -121,6 +150,36 @@ describe('human partner messages', () => {
     expect((await post('/messages/read', { messageId: first.body.message.id })).status).toBe(200);
     expect((await get('/messages/unread')).body.unread).toBe(1);
     expect((await get('/messages')).body.messages.find((m: { id: string }) => m.id === second.body.message.id).readAt).toBeNull();
+  });
+  it('keeps unread counts isolated for multiple partners in both directions', async () => {
+    const partnerMessage = await send('Сообщение первому партнёру');
+    const otherMessage = await send('Сообщение второму партнёру', otherKey);
+    expect(partnerMessage.status).toBe(201);
+    expect(otherMessage.status).toBe(201);
+    expect((await get('/messages/unread', admin)).body.unread).toBe(2);
+    const adminInbox = await get('/admin/messages', admin);
+    expect(adminInbox.body.conversations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ partnerId, unread: 1 }),
+      expect.objectContaining({ partnerId: otherId, unread: 1 }),
+    ]));
+
+    await post(`/admin/messages/${partnerId}/read`, { messageId: partnerMessage.body.message.id }, admin);
+    expect((await get('/messages/unread', admin)).body.unread).toBe(1);
+    expect((await get('/admin/messages', admin)).body.conversations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ partnerId, unread: 0 }),
+      expect.objectContaining({ partnerId: otherId, unread: 1 }),
+    ]));
+
+    const replyToFirst = await send('Ответ первому партнёру', admin, `/admin/messages/${partnerId}`);
+    const replyToSecond = await send('Ответ второму партнёру', admin, `/admin/messages/${otherId}`);
+    expect(replyToFirst.status).toBe(201);
+    expect(replyToSecond.status).toBe(201);
+    expect((await get('/messages/unread')).body.unread).toBe(1);
+    expect((await get('/messages', otherKey)).body.messages.at(-1).readAt).toBeNull();
+
+    await post('/messages/read', { messageId: replyToFirst.body.message.id });
+    expect((await get('/messages/unread')).body.unread).toBe(0);
+    expect((await get('/messages', otherKey)).body.messages.at(-1).readAt).toBeNull();
   });
   it('paginates history without losing messages and validates text', async () => {
     const next = monotonicFactory();

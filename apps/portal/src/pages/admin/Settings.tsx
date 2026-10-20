@@ -184,6 +184,7 @@ function ProgramSection() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['program-settings'] });
       setSaved(true);
+      qc.invalidateQueries({ queryKey: ['public-branding'] });
       setTimeout(() => setSaved(false), 2000);
     },
   });

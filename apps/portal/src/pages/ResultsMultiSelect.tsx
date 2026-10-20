@@ -45,7 +45,7 @@ export function ResultsMultiSelect({ label, ariaLabel=label, allLabel, options, 
       onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close(true);}}}>
       {options.length>6&&<label className="results-multiselect__search"><Search size={14} aria-hidden="true"/><input aria-label={`Поиск: ${label.toLocaleLowerCase('ru-RU')}`} value={search} onChange={event=>setSearch(event.target.value)} placeholder="Найти…"/></label>}
       <div className="results-multiselect__options">
-        <button type="button" className="results-multiselect__all" onClick={()=>setDraft(allValues)}>{draft.length===allValues.length&&draft.every(item=>allValues.includes(item))?<Check size={14} aria-hidden="true"/>:<span/>}{allLabel}</button>
+        <button type="button" className="results-multiselect__all" aria-pressed={draft.length===allValues.length&&draft.every(item=>allValues.includes(item))} onClick={()=>setDraft(allValues)}>{draft.length===allValues.length&&draft.every(item=>allValues.includes(item))?<Check size={14} aria-hidden="true"/>:<span/>}{allLabel}</button>
         {filtered.filter(option=>!option.archived).map(choice)}
         {filtered.some(option=>option.archived)&&<details className="results-multiselect__archive"><summary>Архив{draft.filter(item=>options.find(option=>option.id===item)?.archived).length>0&&' · есть выбранные'}</summary>{filtered.filter(option=>option.archived).map(choice)}</details>}
         {!filtered.length&&<p className="results-multiselect__empty">Ничего не найдено</p>}

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowUpRight, ChevronRight, X } from 'lucide-react';
@@ -6,7 +6,7 @@ import { api, currentTenantSlug } from '../api.js';
 import { ErrorBanner, money as formatMoney } from '../ui.js';
 import { trackingShareUrl } from '../lib/share-links.js';
 import type { AnalyticsReport, MetricRow } from './PartnerAnalytics.js';
-import { chartMetricKeys, chartMetricLabels, chartSeriesColor, type ChartMetric, type ChartSeriesBy } from './ResultsChart.js';
+import { defaultChartMetrics, useMetricLabels, AnalyticsAudience, chartSeriesColor, type ChartMetric, type ChartSeriesBy } from './ResultsChart.js';
 import { metricValue } from './results-scope.js';
 
 export const dateLabel = (value?: string | null, timezone='Europe/Moscow') => value ? new Date(value).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', timeZone:timezone }) : 'Дата не сохранена';
@@ -28,11 +28,11 @@ function PlacementInfo({ row, timezone }: { row: MetricRow; timezone:string }) {
 
 interface DetailsReport {
   traffic: { referrers: Array<{ name: string; count: number }>; devices: Array<{ name: string; count: number }> };
-  history: { items: Array<{ id: string; kind: string; ts: string; amountMinor: number | null; currency?:string|null }>; nextCursor: string | null };
+  history: { items: Array<{ id: string; kind: string; ts: string; amountMinor: number | null; currency?:string|null;partnerNames?:string[];linkKeys?:string[] }>; nextCursor: string | null };
 }
-const scopeField: Record<string, string> = { link: 'linkId', material: 'materialId', source: 'sourceId', platform: 'platformId', scenario: 'scenarioId', format: 'formatId' };
-const groupNames:Record<string,string>={platform:'Площадки',scenario:'Сценарии',format:'Форматы',material:'Материалы',source:'Размещения'};
-const comparisonNames:Record<string,string>={platform:'Сравнение площадок',scenario:'Сравнение сценариев',format:'Сравнение форматов'};
+const scopeField: Record<string, string> = { partner:'partnerId', link: 'linkId', material: 'materialId', source: 'sourceId', platform: 'platformId', scenario: 'scenarioId', format: 'formatId' };
+const groupNames:Record<string,string>={partner:'Партнёры',platform:'Площадки',scenario:'Сценарии',format:'Форматы',material:'Материалы',source:'Размещения'};
+const comparisonNames:Record<string,string>={partner:'Сравнение партнёров',platform:'Сравнение площадок',scenario:'Сравнение сценариев',format:'Сравнение форматов'};
 const emptyGroup=(group:{id:string;name:string;archived?:boolean}):MetricRow=>({...group,archived:!!group.archived,counts:{clicks:0,registrations:0,payingCustomers:0,paymentCount:0,firstPaymentCount:0,repeatPaymentCount:0},amountsMinor:{observedPayments:0,refunds:0,netPayments:0,netAccrued:0}});
 const metricLabel = (row:Pick<MetricRow,'counts'|'amountsMinor'>, metric:ChartMetric,currency='RUB') => metric.endsWith('Minor')?formatMoney(metricValue(row,metric)/100,currency):metricValue(row,metric).toLocaleString('ru-RU');
 
@@ -42,6 +42,7 @@ export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup
   embedded?:boolean;
   endpoint?:string;
 }) {
+  const chartMetricLabels=useMetricLabels(),admin=useContext(AnalyticsAudience);
   const analyticsEndpoint=endpoint??`/partners/${partnerId}/analytics`;
   const currency=new URLSearchParams(query).get('currency')??'RUB';
   const money=(amount:number)=>formatMoney(amount,currency);
@@ -54,16 +55,16 @@ export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup
   const comparisonMode=groupBy==='total'?inspection?.compareBy:undefined;
   const scoped = useMemo(() => {
     const params = new URLSearchParams(baseQuery);
-    for (const field of ['includeSeries', 'seriesBy']) params.delete(field);
-    if(!inspection)params.delete('includeComparison');
+    for (const field of ['includeSeries', 'seriesBy','view','includeComparison','compareFrom','compareTo']) params.delete(field);
     if(inspection)params.delete('includeEmpty');
     // Apply every level so a placement remains inside the material and source filters it came from.
     for(const entry of path){const field=scopeField[entry.groupBy];if(field){params.delete(field);params.delete(`${field}s`);params.set(field,entry.row.id);}}
-    params.set('groupBy',comparisonMode??((groupBy==='total'||inspection&&['platform','scenario','format'].includes(groupBy))&&!params.has('materialId')?'material':'source'));
+    params.set('groupBy',comparisonMode??(admin&&groupBy==='total'&&!params.has('partnerId')?'partner':((groupBy==='total'||inspection&&['platform','scenario','format'].includes(groupBy))&&!params.has('materialId')?'material':'source')));
+    if(admin)params.set('activity','results');
     if(comparisonMode)params.set('includeEmpty','true');
     if (period) { params.set('since', period.since); params.set('until', period.until); }
     return params.toString();
-  },[baseQuery,path,period,inspection,comparisonMode]);
+  },[baseQuery,path,period,inspection,comparisonMode,admin]);
   const titleId = useId(), root = useRef<HTMLElement>(null), close = useRef<HTMLButtonElement>(null),body=useRef<HTMLDivElement>(null),back=useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if(embedded){close.current?.focus({preventScroll:true});return;}
@@ -97,7 +98,7 @@ export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup
   const maxValue=Math.max(1,...breakdownRows.map(item=>Math.abs(metricValue(item,selectedMetric??'clicks'))));
   const openRow=(item:MetricRow)=>{setPath(previous=>[...previous,{row:item,groupBy:breakdownGroup}]);setTab('overview');};
   const parentGroup=path.at(-2)?.groupBy;
-  const backLabel=parentGroup==='total'&&inspection?.compareBy?({platform:'сравнению площадок',scenario:'сравнению сценариев',format:'сравнению форматов'}[inspection.compareBy]):({material:'материалу',platform:'площадке',scenario:'сценарию',format:'формату',total:'обзору'} as Record<string,string>)[parentGroup??'']??'обзору';
+  const backLabel=parentGroup==='total'&&inspection?.compareBy?({platform:'сравнению площадок',scenario:'сравнению сценариев',format:'сравнению форматов',partner:'сравнению партнёров'}[inspection.compareBy]):({partner:'партнёру',material:'материалу',platform:'площадке',scenario:'сценарию',format:'формату',total:'обзору'} as Record<string,string>)[parentGroup??'']??'обзору';
   const firstDate=period?dateLabel(period.since,timezone):'',lastDate=period?dateLabel(new Date(Date.parse(period.until)-1).toISOString(),timezone):'';
   useEffect(()=>{body.current?.scrollTo?.({top:0});(path.length>1?back:close).current?.focus({preventScroll:true});},[path]);
   const content=<aside ref={root} className={`results-page results-drawer${embedded?' is-embedded':''}`} role={embedded?'region':'dialog'} aria-modal={embedded?undefined:true} aria-labelledby={titleId}>
@@ -112,8 +113,8 @@ export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup
         {tab === 'overview' ? <>
           {summary?<>{selectedMetric&&<div className="results-drill-total"><span>{chartMetricLabels[selectedMetric]}</span><strong>{labelMetric(summary,selectedMetric)}</strong><small>{selectedMetric==='payingCustomers'?'Клиенты без повторов за выбранный период':selectedMetric==='earningsMinor'?'Начисленные комиссии с учётом возвратов':'За выбранный период и выбранные источники'}</small></div>}
           {selectedMetric&&placements.data?.comparison&&<div className="results-drill-previous"><span>Предыдущий период<small>{dateLabel(placements.data.comparison.period.since,timezone)} — {dateLabel(new Date(Date.parse(placements.data.comparison.period.until)-1).toISOString(),timezone)}</small></span><strong>{labelMetric(placements.data.comparison,selectedMetric)}</strong></div>}
-          <div className="results-drawer__stats">{chartMetricKeys.map(key=><button type="button" key={key} aria-label={`Показать: ${chartMetricLabels[key]}`} aria-pressed={selectedMetric===key} onClick={()=>setSelectedMetric(key)}><span>{chartMetricLabels[key]}</span><strong>{labelMetric(summary,key)}</strong></button>)}</div>
-          {summary.amountsMinor.observedPayments>0&&summary.amountsMinor.netAccrued===0&&<p className="results-note">Оплаты клиентов учтены. Сумма ваших комиссий с учётом возвратов — {money(0)}.</p>}</>:null}
+          <div className="results-drawer__stats">{defaultChartMetrics.map(key=><button type="button" key={key} aria-label={`Показать: ${chartMetricLabels[key]}`} aria-pressed={selectedMetric===key} onClick={()=>setSelectedMetric(key)}><span>{chartMetricLabels[key]}</span><strong>{labelMetric(summary,key)}</strong></button>)}</div>
+          {summary.amountsMinor.observedPayments>0&&summary.amountsMinor.netAccrued===0&&<p className="results-note">Оплаты клиентов учтены. Начисленные комиссии с учётом возвратов — {money(0)}.</p>}</>:null}
           {onScope && groupBy === 'link' && row.id !== '__none__' && <button type="button" className="results-text-button" onClick={() => onScope(row.id)}>Динамика этой ссылки<ArrowUpRight size={14}/></button>}
           {row.placement ? <PlacementInfo row={row} timezone={timezone}/> : groupBy === 'link' && row.linkKey ? <p className="results-link-line"><span>Партнёрская ссылка</span><code>{trackingShareUrl(row.linkKey)}</code></p> : null}
           {groupBy === 'link' && row.id === '__none__' && <p className="results-note">У этих переходов не сохранена связь со ссылкой. Они включены в общий итог.</p>}
@@ -130,7 +131,7 @@ export function ResultsDrawer({ partnerId, row: currentRow, groupBy:initialGroup
           <ErrorBanner error={detail.error}/>
           {detail.isLoading ? <p className="results-note" role="status">Загружаем данные…</p> : tab === 'history' ? <>
             <p className="results-note">Все действия {groupBy==='total'?'выбранных источников':groupBy==='material'?'этого материала':'этого источника'} за указанный период.</p>
-            {!history.length && !detail.error ? <p className="results-note">За выбранный период действий нет.</p> : <ol className="results-history">{history.map(item => <li key={item.id}><span><strong>{actions[item.kind] ?? 'Событие'}</strong><time dateTime={item.ts}>{new Date(item.ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', year:'numeric', timeZone:timezone })}</time></span>{item.amountMinor !== null && <b className={item.kind === 'refund' ? 'results-refund' : ''}>{new Intl.NumberFormat('ru-RU',{style:'currency',currency:item.currency??'RUB'}).format(item.amountMinor / 100)}</b>}</li>)}</ol>}
+            {!history.length && !detail.error ? <p className="results-note">За выбранный период действий нет.</p> : <ol className="results-history">{history.map(item => <li key={item.id}><span><strong>{actions[item.kind] ?? 'Событие'}</strong><time dateTime={item.ts}>{new Date(item.ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', year:'numeric', timeZone:timezone })}</time>{admin&&<small>{item.partnerNames?.filter(Boolean).join(' · ')}{item.linkKeys?.filter(Boolean).length?' · Ссылка: '+item.linkKeys.filter(Boolean).join(', '):''}</small>}</span>{item.amountMinor !== null && <b className={item.kind === 'refund' ? 'results-refund' : ''}>{new Intl.NumberFormat('ru-RU',{style:'currency',currency:item.currency??'RUB'}).format(item.amountMinor / 100)}</b>}</li>)}</ol>}
             {detail.hasNextPage && <button type="button" className="results-button" disabled={detail.isFetchingNextPage} onClick={() => void detail.fetchNextPage()}>{detail.isFetchingNextPage ? 'Загружаем…' : 'Ещё действия'}</button>}
           </> : traffic && <><TrafficList title="Источники переходов" rows={traffic.referrers}/><TrafficList title="Устройства" rows={traffic.devices}/><p className="results-note">По данным переходов за выбранный период. Если сайт или приложение не передали источник, он не определяется по названию ссылки.</p></>}
         </>}

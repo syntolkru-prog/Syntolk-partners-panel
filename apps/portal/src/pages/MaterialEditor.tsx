@@ -5,6 +5,7 @@ import { api, currentTenantSlug } from '../api.js';
 import { Button, ErrorBanner } from '../ui.js';
 import { useTenantBase } from '../tenant-base.js';
 import { trackingShareUrl } from '../lib/share-links.js';
+import { invalidateAnalytics } from './results-scope.js';
 import './materials.css';
 
 interface Platform {id:string;name:string;formats?:string[]}
@@ -28,7 +29,7 @@ export function MaterialEditor({partnerId,materialId}:{partnerId:string;material
   useEffect(()=>{if(material)setTitle(material.title);},[material?.title]);
   useEffect(()=>{try{setChosen(localStorage.getItem(preferenceKey)??'');}catch{/* Optional preference. */}},[preferenceKey]);
   const available=(links.data?.links??[]).filter(l=>!l.archived),link=available.find(l=>l.id===chosen)??available[0];
-  const refresh=async()=>{await Promise.all([cache.invalidateQueries({queryKey:materialKey}),cache.invalidateQueries({queryKey:['partner-analytics',tenant,partnerId]}),cache.invalidateQueries({queryKey:['coach',tenant,partnerId]}),cache.invalidateQueries({queryKey:['link-sources',partnerId]})]);};
+  const refresh=async()=>{await Promise.all([cache.invalidateQueries({queryKey:materialKey}),invalidateAnalytics(cache),cache.invalidateQueries({queryKey:['coach',tenant,partnerId]}),cache.invalidateQueries({queryKey:['link-sources',partnerId]})]);};
   const run=async(action:()=>Promise<void>)=>{if(sending.current)return;sending.current=true;setBusy(true);setError(null);try{await action();}catch(e){setError(e);}finally{sending.current=false;setBusy(false);}};
   const ensure=async(platform:Platform,source?:Placement):Promise<Placement>=>{
     if(source)return source;
@@ -51,7 +52,7 @@ export function MaterialEditor({partnerId,materialId}:{partnerId:string;material
     <ErrorBanner error={materialError(error??links.error)}/>
     <form className="material-name" onSubmit={e=>{e.preventDefault();void run(async()=>{await api(`/partners/${partnerId}/materials/${materialId}`,{method:'PATCH',body:{title}});await refresh();});}}><label className="coach-field"><span>Название материала</span><input required maxLength={200} value={title} onChange={e=>setTitle(e.target.value)}/></label>{title!==material.title&&<Button type="submit" disabled={busy||!title.trim()}>Сохранить</Button>}</form>
     {available.length>1&&<label className="coach-field"><span>Основная ссылка для новых размещений</span><select value={link?.id??''} onChange={e=>{setChosen(e.target.value);try{localStorage.setItem(preferenceKey,e.target.value);}catch{/* Optional preference. */}}}>{available.map(l=><option key={l.id} value={l.id}>{l.label||l.linkKey}</option>)}</select></label>}
-    {!links.isLoading&&!link&&<Link className="coach-summary-link" to={`${base}/links?programId=${encodeURIComponent(material.programId)}`}>Создать партнёрскую ссылку →</Link>}
+    {!links.isLoading&&!link&&<Link className="coach-summary-link" to={`${base}/links?view=links&programId=${encodeURIComponent(material.programId)}`}>Создать партнёрскую ссылку →</Link>}
     {rows.map(({key,platform,source})=><PlacementRow key={key} platform={platform} source={source} busy={busy} canCopy={!!source||!!link} copied={source?.id===copied} onCopy={()=>{void copy(platform,source);}} onSave={body=>{void savePublication(platform,source,body);}} resultsHref={`${base}/results?programId=${encodeURIComponent(material.programId)}&scenarioId=${encodeURIComponent(material.scenarioId??'__none__')}&materialId=${encodeURIComponent(materialId)}&groupBy=material`}/>)}
     {!rows.length&&<p className="coach-muted">Добавьте площадку, на которой разместите материал.</p>}
     {fallback&&<label className="coach-field"><span>Скопируйте ссылку</span><input readOnly value={fallback} onFocus={e=>e.target.select()}/></label>}

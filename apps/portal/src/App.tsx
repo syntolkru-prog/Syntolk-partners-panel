@@ -244,7 +244,7 @@ function Shell() {
       ) : (
         <Sidebar principal={auth.principal} />
       )}
-      <main style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+      <main style={{ flex: 1, minWidth: 0, overflow: 'auto', scrollbarGutter: 'stable' }}>
         {isMobile && <MobileTopBar onMenu={() => setDrawerOpen(true)} />}
         {auth.principal.role === 'admin' && approvalStatus === 'pending' && !reviewBannerDismissed && (
           <PendingReviewBanner isMobile={isMobile} onDismiss={() => setReviewBannerDismissed(true)} />
@@ -453,7 +453,7 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
           {principal.role === 'partner' && <NavItem to="/calculator" icon={<Calculator size={16} />}>Калькулятор</NavItem>}
           {principal.role === 'partner' && <NavItem to="/plan" icon={<ListTodo size={16} />}>Календарь работ</NavItem>}
           {principal.role === 'partner' && <NavItem to="/results" icon={<ChartNoAxesCombined size={16} />}>Результаты</NavItem>}
-          <NavItem to="/links" icon={<Link2 size={16} />}>Ссылки</NavItem>
+          <NavItem to="/links" icon={<Link2 size={16} />}>{principal.role==='partner'?'Публикации и ссылки':'Ссылки'}</NavItem>
           {principal.role === 'admin' && <NavItem to="/admin/messages" icon={<MessageSquare size={16} />}>Сообщения <MessageUnread principal={principal} /></NavItem>}
           {principal.role === 'partner' && <NavItem to="/resources" icon={<Megaphone size={16} />}>Материалы</NavItem>}
           <NavItem to="/commissions" icon={<Receipt size={16} />}>Комиссии</NavItem>
@@ -757,6 +757,8 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
   return (
     <div style={{ position: 'relative', marginBottom: 18 }}>
       <button
+        className="op-dropdown-trigger"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         style={{
           width: '100%',
@@ -828,6 +830,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
             }}
           />
           <div
+            className="op-dropdown-menu"
             style={{
               position: 'absolute',
               top: 'calc(100% + 6px)',
@@ -1018,6 +1021,9 @@ function SwitcherRow({
 }) {
   return (
     <div
+      className="op-dropdown-option"
+      data-selected={active}
+      aria-disabled={disabled || undefined}
       onClick={() => {
         if (!disabled) onClick();
       }}

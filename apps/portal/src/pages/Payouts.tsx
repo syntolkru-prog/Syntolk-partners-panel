@@ -1,3 +1,4 @@
+import { invalidateAnalytics } from './results-scope.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Banknote, CheckCircle2, Play } from 'lucide-react';
 import { api, type Principal } from '../api.js';
@@ -37,9 +38,7 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payouts'] });
       qc.invalidateQueries({ queryKey: ['commissions'] });
-      qc.invalidateQueries({ queryKey: ['admin-overview'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['partner-detail-dashboard'] });
+      void invalidateAnalytics(qc);
     },
   });
 
@@ -47,10 +46,8 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
     mutationFn: (payoutId: string) => api(`/payouts/${payoutId}/confirm`, { method: 'POST' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payouts'] });
-      qc.invalidateQueries({ queryKey: ['admin-overview'] });
+      void invalidateAnalytics(qc);
       qc.invalidateQueries({ queryKey: ['commissions'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['partner-detail-dashboard'] });
     },
   });
 
@@ -59,9 +56,7 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payouts'] });
       qc.invalidateQueries({ queryKey: ['commissions'] });
-      qc.invalidateQueries({ queryKey: ['dashboard'] });
-      qc.invalidateQueries({ queryKey: ['partner-detail-dashboard'] });
-      qc.invalidateQueries({ queryKey: ['admin-overview'] });
+      void invalidateAnalytics(qc);
     },
   });
 

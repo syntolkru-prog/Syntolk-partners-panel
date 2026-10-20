@@ -1,0 +1,125 @@
+/* One visual contract for native selects, including the calculator's
+   dynamically created controls, and the portal's custom selection menus.
+   Keep native select behaviour: keyboard search, forms and mobile pickers. */
+:root {
+  --op-dropdown-surface: #1b1f26;
+  --op-dropdown-border: #2a3039;
+  --op-dropdown-text: #8b929c;
+  --op-dropdown-selected: var(--op-accent, #2dd4bf);
+  --op-dropdown-selected-text: var(--op-accent-ink, #08141a);
+  --op-dropdown-focus: var(--op-accent, #10cadb);
+  --op-dropdown-radius: 10px;
+  --op-dropdown-shadow: 0 12px 32px #0006;
+}
+
+/* Important only for shared chrome: some old forms set these properties
+   inline. Widths, heights, spacing and typography remain page-owned. */
+select,
+input[list],
+.results-multiselect__trigger,
+.results-date-picker > .results-button:first-child,
+.op-dropdown-trigger {
+  color-scheme: dark;
+  background-color: var(--op-dropdown-surface) !important;
+  border: 1px solid var(--op-dropdown-border) !important;
+  border-radius: var(--op-dropdown-radius) !important;
+  color: var(--op-dropdown-text) !important;
+  font-family: inherit;
+}
+
+select { cursor: pointer; }
+select:not([multiple]):not([size]) { appearance: auto; }
+select option,
+select optgroup {
+  background-color: var(--op-dropdown-surface);
+  color: var(--op-dropdown-text);
+  font-family: inherit;
+}
+select option:checked {
+  background-color: var(--op-dropdown-selected);
+  color: var(--op-dropdown-selected-text);
+}
+select option:disabled,
+select optgroup:disabled { color: #5a6370; }
+select:disabled { cursor: not-allowed; opacity: .5; }
+
+select:focus,
+input[list]:focus,
+.results-multiselect__trigger:focus-visible,
+.results-multiselect__trigger[aria-expanded=true],
+.results-date-picker > .results-button:first-child:focus-visible,
+.results-date-picker > .results-button:first-child[aria-expanded=true],
+.op-dropdown-trigger:focus-visible,
+.op-dropdown-trigger[aria-expanded=true] {
+  outline: 2px solid var(--op-dropdown-focus) !important;
+  outline-offset: 2px !important;
+}
+
+.results-menu,
+.results-calendar,
+.op-dropdown-menu {
+  color-scheme: dark;
+  background-color: var(--op-dropdown-surface) !important;
+  border-color: var(--op-dropdown-border) !important;
+  border-radius: var(--op-dropdown-radius) !important;
+  color: var(--op-dropdown-text) !important;
+  box-shadow: var(--op-dropdown-shadow) !important;
+}
+.results-menu,
+.op-dropdown-menu { --results-border: var(--op-dropdown-border); }
+.results-calendar__footer { background-color: var(--op-dropdown-surface); }
+
+.results-calendar--periods > button,
+.results-multiselect__option,
+.results-multiselect__all,
+.op-dropdown-option {
+  border-radius: 2px !important;
+  color: var(--op-dropdown-text) !important;
+}
+.results-calendar--periods > button:is(:hover, :focus-visible, [aria-checked=true]),
+.results-multiselect__option:is(:hover, :focus-within),
+.results-multiselect__option:has(input:checked),
+.results-multiselect__all:is(:hover, :focus-visible, [aria-pressed=true]),
+.op-dropdown-option[data-selected=true],
+.op-dropdown-option:not([aria-disabled=true]):is(:hover, :focus-within),
+.op-dropdown-menu :is(a, button):not(:disabled):is(:hover, :focus-visible) {
+  background-color: var(--op-dropdown-selected) !important;
+  color: var(--op-dropdown-selected-text) !important;
+}
+.op-dropdown-option[data-selected=true] svg { color: inherit !important; }
+.results-multiselect__option input { accent-color: var(--op-dropdown-selected); }
+.results-multiselect__all:focus-visible,
+.results-calendar--periods > button:focus-visible,
+.op-dropdown-menu :is(a, button):focus-visible {
+  outline: 2px solid var(--op-dropdown-focus) !important;
+  outline-offset: -2px !important;
+}
+.results-multiselect__option:focus-within { outline: 2px solid var(--op-dropdown-focus); outline-offset: -2px; }
+.results-multiselect__options,
+.results-calendar,
+.op-dropdown-menu {
+  scrollbar-width: thin;
+  scrollbar-color: #3b424d var(--op-dropdown-surface);
+  overscroll-behavior: contain;
+}
+
+/* Let high-contrast users keep their system colours and focus indicator. */
+@media (forced-colors: active) {
+  select,
+  input[list],
+  .results-multiselect__trigger,
+  .results-date-picker > .results-button:first-child,
+  .op-dropdown-trigger,
+  .results-menu,
+  .results-calendar,
+  .op-dropdown-menu {
+    background-color: Canvas !important;
+    border-color: ButtonText !important;
+    color: CanvasText !important;
+    --op-dropdown-surface: Canvas;
+    --op-dropdown-text: CanvasText;
+    --op-dropdown-selected: Highlight;
+    --op-dropdown-selected-text: HighlightText;
+    --op-dropdown-focus: Highlight;
+  }
+}

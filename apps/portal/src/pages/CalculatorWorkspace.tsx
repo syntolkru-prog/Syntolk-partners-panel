@@ -7,6 +7,8 @@ import { useTenantBase } from '../tenant-base.js';
 import { CalculatorPage } from './Calculator.js';
 import './coach/coach.css';
 import { usePartnerSelection } from '../lib/partner-selection.js';
+import { invalidateAnalytics } from './results-scope.js';
+import {CalculatorCurrentValues,type CurrentValuesFilter} from './CalculatorCurrentValues.js';
 
 interface Snapshot {id:string;programId:string;data:{settings:Record<string,unknown>;scenarioId?:string;scenarioName?:string};createdAt:string}
 interface PreviewTask {key:string;day:string;title:string;kind:string;placements:Array<{name:string}>;estimatedViews:number}
@@ -20,6 +22,8 @@ function calculatorError(error:unknown){
 export function CalculatorWorkspace({principal}:{principal:Principal}) {
   const [params,setParams]=useSearchParams(),nav=useNavigate(),base=useTenantBase(),cache=useQueryClient();
   const tenant=currentTenantSlug(),admin=principal.role==='admin';
+  const [currentValuesActive,setCurrentValuesActive]=useState(false);
+  const [currentValuesFilter,setCurrentValuesFilter]=useState<CurrentValuesFilter>({period:'30d',from:'',to:'',allContent:true});
   const partnerId=admin?params.get('partnerId')??'':principal.partnerId??'';
   const partners=useQuery({queryKey:['calculator-partners',tenant],queryFn:()=>api<{partners:Array<{id:string;name:string;email:string}>}>('/partners'),enabled:admin});
   const prefix=admin?`/admin/coach/partners/${partnerId}`:'/coach/me';
@@ -98,6 +102,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
         await api(`${prefix}/calculator-plan/preview`,{method:'POST',body:{programId,settings,startDate,days,weekdays}});
         if(!cleanName){setCreateMode('save');setCreateName(`Сценарий ${scenarios.length+1}`);setCreateDialogError('');setCreateDialogOpen(true);return;}
         const {snapshot}=await api<{snapshot:Snapshot}>(`${prefix}/forecast-snapshots`,{method:'POST',body:{programId,confirmed:true,settings,scenarioId:storageScenarioKey,scenarioName:cleanName}});
+        await invalidateAnalytics(cache);
         const savedScenarioId=snapshot.data?.scenarioId??storageScenarioKey;
         pendingCalendar.current={signature,body:{programId,snapshotId:snapshot.id,scenarioId:savedScenarioId,startDate,days,weekdays,requestId:crypto.randomUUID(),...(plan.data?.plan?{replacePlanId:plan.data.plan.id,replaceVersion:plan.data.plan.version}:{})}};
       }
@@ -175,7 +180,9 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
   </Card></section>;
   if(partnerId&&(me.isLoading||(programId&&snapshots.isLoading)))return <Page title="Калькулятор"><Card>Загружаем сохранённый сценарий…</Card></Page>;
   return <>
-    <CalculatorPage key={storageKey} principal={principal} scope={{key:storageKey,settings:isNewScenario?newScenarioSettings:latest?.data.settings}} onCreateScenario={createScenario} intro={scopePicker} planning={planning} connection={connection}/>
+    <CalculatorPage key={storageKey} principal={principal} scope={{key:storageKey,settings:isNewScenario?newScenarioSettings:latest?.data.settings}} onCreateScenario={createScenario} intro={scopePicker} planning={planning} connection={connection}
+      onCurrentValuesChange={setCurrentValuesActive}
+      currentValues={!admin?(root)=><CalculatorCurrentValues partnerId={partnerId} programId={programId} scenarioId={storageScenarioKey} scenarioName={scenarioName||'Текущий сценарий'} active={currentValuesActive} filter={currentValuesFilter} onFilter={setCurrentValuesFilter} root={root}/>:undefined}/>
     {createDialogOpen&&<div className="calculator-scenario-dialog-backdrop" role="presentation">
       <section className="calculator-scenario-dialog" role="dialog" aria-modal="true" aria-labelledby="calculator-scenario-dialog-title">
         <h2 id="calculator-scenario-dialog-title">Название сценария</h2>

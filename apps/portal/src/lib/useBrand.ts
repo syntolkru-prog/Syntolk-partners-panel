@@ -105,6 +105,7 @@ export function usePublicBrand(): Brand & {
     queryKey: ['public-branding', currentTenantSlug()],
     queryFn: () => api<PublicBranding>('/branding'),
     staleTime: 60_000,
+    refetchOnWindowFocus: 'always',
   });
   return {
     programName: data?.programName || DEFAULT_BRAND,

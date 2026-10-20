@@ -1,0 +1,34 @@
+/* The same quiet highlight for actionable cards. No scaling or layout shifts.
+   Plain KPI cards deliberately stay still: they are not navigation controls. */
+:root {
+  --op-card-hover-border: var(--op-accent, #2dd4bf);
+  --op-card-hover-surface: var(--op-surface2, #1b1f26);
+  --op-card-transition: border-color 160ms ease, background-color 160ms ease;
+}
+:is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,
+  .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button) {
+  transition: var(--op-card-transition);
+}
+@media (hover: hover) {
+  :is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,
+    .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button):hover {
+    border-color: var(--op-card-hover-border) !important;
+    background: var(--op-card-hover-surface) !important;
+    transform: none;
+  }
+}
+:is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,
+  .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button):focus-visible,
+.results-metric-card:has(.results-metric-card__inspect:focus-visible) {
+  border-color: var(--op-card-hover-border) !important;
+  background: var(--op-card-hover-surface) !important;
+  outline: 2px solid var(--op-card-hover-border);
+  outline-offset: 3px;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,
+    .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button) {
+    transition: none;
+  }
+}

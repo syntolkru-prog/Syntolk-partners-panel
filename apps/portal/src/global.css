@@ -60,7 +60,7 @@ html { scrollbar-gutter: stable; }
 
 /* Selection */
 ::selection {
-  background: #2dd4bf33;
+  background: var(--op-accent-a25, #2dd4bf33);
   color: #e6e8eb;
 }
 
@@ -89,6 +89,6 @@ button:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
-  outline: 2px solid #2dd4bf;
+  outline: 2px solid var(--op-accent, #2dd4bf);
   outline-offset: 1px;
 }

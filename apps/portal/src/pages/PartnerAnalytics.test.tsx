@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { api } from '../api.js';
@@ -15,7 +15,7 @@ afterEach(()=>{cleanup();client?.clear();localStorage.clear();vi.restoreAllMocks
 const counts={clicks:10,registrations:2,payingCustomers:1,paymentCount:1,firstPaymentCount:1,repeatPaymentCount:0};
 const amountsMinor={observedPayments:100000,refunds:0,netPayments:100000,netAccrued:20000};
 const result={counts,amountsMinor,conversions:{clickToRegistration:0.2,registrationToPayment:0.5,clickToPayment:0.1},rows:[{id:'youtube',name:'YouTube',archived:false,counts,amountsMinor}],options:{scenarios:[{id:'a',name:'Рилсы'},{id:'b',name:'Посты',archived:true}],platforms:[{id:'youtube',name:'YouTube'}],formats:[{id:'short',name:'Короткие видео'}]},balances:{total:1000,available:1000,pending:0,paid:0}};
-const dashboard={clicks:10,registrations:2,payingClients:1,conversionRate:0.1,attributedRevenue:1000,commissionByStatus:{},balances:result.balances};
+const dashboard={periodEarnings:200,currency:'RUB',clicks:10,registrations:2,payingClients:1,conversionRate:0.1,attributedRevenue:1000,commissionByStatus:{},balances:result.balances};
 const funnel={stages:{clicks:10,identities:3,signups:2,paid:1},rates:{stitchRate:0.3,signupRate:2/3,paidRate:0.5,overall:0.1}};
 const principal={role:'partner' as const,partnerId:'partner',partner:{id:'partner',name:'Локальный партнёр Syntolk',email:'local@example.test'}};
 function Location(){const location=useLocation();return <output aria-label="Адрес">{location.pathname}{location.search}</output>;}
@@ -32,8 +32,42 @@ async function pickFilter(ariaLabel:string,menuLabel:string,names:string[],allLa
   await waitFor(()=>expect(screen.queryByRole('dialog',{name:menuLabel})).toBeNull());
 }
 function mockReport(){vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:result);}
+function pickPeriod(name:string){fireEvent.click(screen.getByRole('button',{name:'Период аналитики'}));fireEvent.click(screen.getByRole('menuitemradio',{name}));}
 
 describe('partner scenario analytics UI',()=>{
+  it('resets dates, comparison, all source filters and table controls while retaining the partner program',async()=>{
+    mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?programId=p&period=custom&from=2025-04-01&to=2025-04-03&compare=true&compareFrom=2026-10-01&compareTo=2026-10-07&scenarioIds=a&platformIds=youtube&formatIds=short&chartBy=format&groupBy=link&bucket=week&activity=all&sort=earnings&currency=USD&timezone=UTC');
+    await screen.findByRole('article',{name:'Переходы'});
+    fireEvent.change(screen.getByLabelText('Поиск результатов'),{target:{value:'something'}});
+    fireEvent.click(screen.getByRole('button',{name:'Обновить'}));
+    await screen.findByRole('cell',{name:'YouTube'});
+    expect(screen.getByLabelText('Адрес').textContent).toBe('/results?programId=p');
+    expect(screen.getByRole('button',{name:'Период аналитики'}).textContent).toContain('Последние 30 дней');
+    expect(screen.queryByRole('button',{name:'Сбросить сравнение'})).toBeNull();
+    expect(screen.getByLabelText('Сценарий аналитики').textContent).toBe('Все сценарии');
+    expect(screen.getByLabelText('Разбивка аналитики')).toHaveProperty('value','platform');
+    expect(screen.getByLabelText('Поиск результатов')).toHaveProperty('value','');
+    expect(screen.getAllByRole('article')).toHaveLength(6);
+    const queries=vi.mocked(api).mock.calls.filter(([path])=>path.includes('/analytics?'));
+    const query=new URL(queries.at(-1)![0],'http://local').searchParams;
+    expect(query.get('period')).toBe('30d');expect(query.get('currency')).toBe('RUB');expect(query.get('programId')).toBe('p');
+    expect(vi.mocked(api).mock.calls.every(([,options])=>!options?.method)).toBe(true);
+    const calls=queries.length;fireEvent.click(screen.getByRole('button',{name:'Обновить'}));
+    await waitFor(()=>expect(vi.mocked(api).mock.calls.filter(([path])=>path.includes('/analytics?')).length).toBeGreaterThan(calls));
+  });
+  it('keeps partner cards mounted but hides stale numbers during period loading',async()=>{
+    mockReport();const immediate=vi.mocked(api).getMockImplementation()!;
+    let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+    vi.mocked(api).mockImplementation(async(path,options)=>{if(new URL(path,'http://local').searchParams.get('period')==='7d')await gate;return immediate(path,options);});
+    show(<PartnerAnalyticsPanel partnerId="partner"/>);await screen.findByRole('article',{name:'Переходы'});
+    const grid=document.querySelector('.results-chart-grid');pickPeriod('Последние 7 дней');
+    await screen.findByText('Обновляем статистику…');
+    expect(document.querySelector('.results-chart-grid')).toBe(grid);
+    expect(document.querySelector('.results-report__content')?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelector('.results-report__content')?.hasAttribute('inert')).toBe(true);
+    await act(async()=>{release();});await screen.findByRole('article',{name:'Переходы'});
+    expect(document.querySelector('.results-chart-grid')).toBe(grid);
+  });
   it('keeps detailed metrics collapsed and shows a clear empty state instead of an empty table',async()=>{
     const empty={...result,counts:{...counts,clicks:0,registrations:0,payingCustomers:0,paymentCount:0,firstPaymentCount:0},conversions:{clickToRegistration:null,registrationToPayment:null,clickToPayment:null},rows:[]};
     vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:empty);
@@ -45,7 +79,7 @@ describe('partner scenario analytics UI',()=>{
     expect(details.open).toBe(false);expect([...details.querySelectorAll('strong')].filter(element=>element.textContent==='—')).toHaveLength(3);
     expect(screen.queryByText('0%')).toBeNull();
     expect(screen.queryByRole('button',{name:/Учесть публикацию|Добавить материал/})).toBeNull();
-    expect((screen.getByRole('checkbox',{name:'Показать без результатов'}) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByLabelText('Активность таблицы') as HTMLSelectElement).value).toBe('results');
   });
   it('shows and hides empty results without changing totals or sending writes',async()=>{
     const emptyCounts={clicks:0,registrations:0,payingCustomers:0,paymentCount:0,firstPaymentCount:0,repeatPaymentCount:0};
@@ -54,11 +88,11 @@ describe('partner scenario analytics UI',()=>{
     show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('cell',{name:'YouTube'});
     expect(screen.queryByRole('cell',{name:'Дзен без переходов'})).toBeNull();
-    fireEvent.click(screen.getByRole('checkbox',{name:'Показать без результатов'}));
+    fireEvent.change(screen.getByLabelText('Активность таблицы'),{target:{value:'all'}});
     await screen.findByRole('cell',{name:'Дзен без переходов'});
-    expect(screen.getByLabelText('Адрес').textContent).toContain('includeEmpty=true');
+    expect(screen.getByLabelText('Адрес').textContent).toContain('activity=all');
     expect(screen.getAllByText('10')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('checkbox',{name:'Показать без результатов'}));
+    fireEvent.change(screen.getByLabelText('Активность таблицы'),{target:{value:'results'}});
     await waitFor(()=>expect(screen.queryByRole('cell',{name:'Дзен без переходов'})).toBeNull());
     expect(screen.getByLabelText('Адрес').textContent).not.toContain('includeEmpty=');
     expect(vi.mocked(api).mock.calls.every(([,options])=>!options?.method)).toBe(true);
@@ -67,7 +101,7 @@ describe('partner scenario analytics UI',()=>{
     localStorage.setItem('syntolk-partner-selection:default:partner',JSON.stringify({programId:'p',scenarioId:'a'}));
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    fireEvent.click(screen.getByRole('button',{name:'Фильтры'}));
+
     expect(vi.mocked(api).mock.calls.filter(([path])=>path.includes('/analytics?')).every(([path])=>!path.includes('scenarioId'))).toBe(true);
     expect(screen.getByLabelText('Сценарий аналитики').textContent).toBe('Все сценарии');
     fireEvent.click(screen.getByLabelText('Сценарий аналитики'));
@@ -82,7 +116,7 @@ describe('partner scenario analytics UI',()=>{
   it('keeps archived scenarios collapsed inside the menu until Archive is opened',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    fireEvent.click(screen.getByRole('button',{name:'Фильтры'}));
+
     fireEvent.click(screen.getByLabelText('Сценарий аналитики'));
     const menu=screen.getByRole('dialog',{name:'Сценарии'}),archive=menu.querySelector('details')!;
     expect(archive.open).toBe(false);
@@ -94,13 +128,13 @@ describe('partner scenario analytics UI',()=>{
     fireEvent.keyDown(menu,{key:'Escape'});
     expect(screen.queryByRole('dialog',{name:'Сценарии'})).toBeNull();
     expect(document.activeElement).toBe(screen.getByLabelText('Сценарий аналитики'));
-    expect(screen.getByRole('button',{name:'Фильтры'}).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByLabelText('Площадка аналитики')).toBeTruthy();
   });
   it('combines period, platform and format without clearing them when scenarios change',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?programId=p&scenarioId=a');
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    fireEvent.click(screen.getByRole('button',{name:/Фильтры/}));
-    fireEvent.change(screen.getByLabelText('Период аналитики'),{target:{value:'7d'}});
+
+    pickPeriod('Последние 7 дней');
     await pickFilter('Площадка аналитики','Площадки',['YouTube'],'Все площадки');
     await pickFilter('Формат аналитики','Форматы',['Короткие видео'],'Все форматы');
     await waitFor(()=>expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('period=7d')&&path.includes('platformIds=youtube')&&path.includes('formatIds=short'))).toBe(true));
@@ -109,12 +143,13 @@ describe('partner scenario analytics UI',()=>{
     expect(screen.getByLabelText('Адрес').textContent).toContain('platformIds=youtube');
     expect(screen.getByLabelText('Адрес').textContent).toContain('formatIds=short');
   });
-  it('restores the original homepage statistics, funnel and header period without analytics controls',async()=>{
+  it('shows all eight homepage statistics without hiding registrations or zero payout balances',async()=>{
     localStorage.setItem('syntolk-partner-selection:default:partner',JSON.stringify({programId:'p',scenarioId:'a'}));
     vi.mocked(api).mockImplementation(async path=>path.includes('/dashboard?')?dashboard:path.includes('/funnel?')?funnel:path==='/coach/me'?{programs:[{id:'p'}]}:path.includes('/calculator-plan?')?{plan:null,tasks:[]}:path==='/partners/partner'?{termsAcceptedAt:'2026-10-14'}:{});
     show(<Dashboard principal={principal}/>,'/?programId=p&scenarioId=a&platformId=youtube&formatId=short&materialId=video&groupBy=material');
-    await screen.findByText('Доход от клиентов');
-    for(const label of ['Платящие клиенты','Конверсия','Начислено всего','Доступно к выплате','Ожидает выплаты','Выплачено','Воронка','Начисления'])expect(screen.getByText(label)).toBeTruthy();
+    await screen.findByText('Выручка');
+    for(const label of ['Переходы','Регистрации','Платящие клиенты','Начислено','Доступно','Ожидает выплаты','Выплачено'])expect(screen.getByText(label)).toBeTruthy();
+    for(const label of ['Начислено','Доступно','Ожидает выплаты','Выплачено'])expect(screen.getByText(label).closest('details')).toBeNull();
     expect(screen.queryByText('Общая статистика')).toBeNull();
     expect(screen.queryByLabelText('Сценарий аналитики')).toBeNull();
     expect(screen.queryByLabelText('Разбивка аналитики')).toBeNull();
@@ -129,7 +164,8 @@ describe('partner scenario analytics UI',()=>{
     }
     fireEvent.change(period,{target:{value:'7d'}});
     await waitFor(()=>expect(api).toHaveBeenCalledWith('/partners/partner/dashboard?period=7d'));
-    await waitFor(()=>expect(api).toHaveBeenCalledWith('/partners/partner/funnel?period=7d'));
+    expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('/funnel?'))).toBe(false);
+    for(const label of ['Воронка','Начисления','Конверсия'])expect(screen.queryByText(label)).toBeNull();
     expect(JSON.parse(localStorage.getItem('syntolk-partner-selection:default:partner')!).scenarioId).toBe('a');
   });
   it('keeps daily tasks on the selected scenario while dashboard totals stay unchanged',async()=>{
@@ -140,7 +176,7 @@ describe('partner scenario analytics UI',()=>{
     }:{});
     show(<Dashboard principal={principal}/>,'/');
     await screen.findByText('Сегодня по сценарию «Рилсы»');
-    await screen.findByText('Начислено всего');
+    await screen.findByText('Начислено');
     expect(screen.getByText('Снять ролик')).toBeTruthy();
     localStorage.setItem('syntolk-partner-selection:default:partner',JSON.stringify({programId:'p',scenarioId:'b'}));
     window.dispatchEvent(new Event('syntolk-partner-selection'));
@@ -148,19 +184,20 @@ describe('partner scenario analytics UI',()=>{
     expect(screen.getByText('Подготовить пост')).toBeTruthy();
     expect(screen.queryByText('Снять ролик')).toBeNull();
     expect(screen.getAllByText('10').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link',{name:'Открыть задачи дня →'}).getAttribute('href')).toContain('scenarioId=b');
+    expect(screen.queryByRole('link',{name:'Открыть задачи дня →'})).toBeNull();
     expect(vi.mocked(api).mock.calls.filter(([path])=>path.includes('/dashboard?')||path.includes('/funnel?')).every(([path])=>!path.includes('scenarioId='))).toBe(true);
   });
-  it('waits for both custom dates before requesting that period',async()=>{
+  it('applies custom dates together and never requests a half-edited range',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    const chart=document.querySelector('.results-chart');
-    fireEvent.change(screen.getByLabelText('Период аналитики'),{target:{value:'custom'}});
-    expect(document.querySelector('.results-chart')).toBe(chart);
-    expect(document.querySelector('.results-report__content')?.hasAttribute('inert')).toBe(true);
-    fireEvent.change(screen.getByLabelText('Начало периода'),{target:{value:'2026-10-01'}});
-    expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('period=custom'))).toBe(false);
-    fireEvent.change(screen.getByLabelText('Конец периода'),{target:{value:'2026-10-14'}});
+    pickPeriod('Свои даты');
+    const calendar=await screen.findByRole('dialog',{name:'Даты аналитики'});
+    await waitFor(()=>expect(screen.queryByText('Обновляем статистику…')).toBeNull());
+    const calls=vi.mocked(api).mock.calls.length;
+    fireEvent.change(within(calendar).getByLabelText('Даты аналитики: начало'),{target:{value:'2026-10-01'}});
+    fireEvent.change(within(calendar).getByLabelText('Даты аналитики: конец'),{target:{value:'2026-10-14'}});
+    expect(vi.mocked(api).mock.calls).toHaveLength(calls);
+    fireEvent.click(within(calendar).getByRole('button',{name:'Применить'}));
     await waitFor(()=>expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('period=custom')&&path.includes('from=2026-10-01')&&path.includes('to=2026-10-14'))).toBe(true));
   });
 });
@@ -210,13 +247,13 @@ describe('redesigned Results',()=>{
   });
   it('retains the previous-period value when a compared metric card opens',async()=>{
     const comparison={period:{since:'2026-09-01T21:00:00.000Z',until:'2026-09-30T21:00:00.000Z'},counts:{...counts,clicks:5},amountsMinor};
-    vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:new URL(path,'http://local').searchParams.get('since')===comparison.period.since?{...result,period:comparison.period,counts:comparison.counts}:{...result,period:{since:'2026-09-30T21:00:00.000Z',until:'2026-10-17T12:00:00.000Z'},comparison});
-    show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?compare=true');
+    vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:new URL(path,'http://local').searchParams.get('from')==='2026-09-02'?{...result,period:comparison.period,counts:comparison.counts}:{...result,period:{since:'2026-09-30T21:00:00.000Z',until:'2026-10-17T12:00:00.000Z'},comparison});
+    show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?compare=true&compareFrom=2026-09-02&compareTo=2026-09-30');
     fireEvent.click(await screen.findByRole('button',{name:'Подробнее: Переходы'}));
     const dialog=await screen.findByRole('dialog',{name:'Переходы'});
     const previous=await within(dialog).findByRole('region',{name:'Период сравнения'});
     await waitFor(()=>expect(previous.querySelector('.results-explorer__plot-heading strong')?.textContent).toBe('5'));
-    expect(vi.mocked(api).mock.calls.some(([path])=>{const query=new URL(path,'http://local').searchParams;return query.get('since')===comparison.period.since&&query.get('until')===comparison.period.until;})).toBe(true);
+    expect(vi.mocked(api).mock.calls.some(([path])=>{const query=new URL(path,'http://local').searchParams;return query.get('from')==='2026-09-02'&&query.get('to')==='2026-09-30';})).toBe(true);
   });
   it('opens a chart date with its exact bounds and retains every report filter through material and placement drilldown',async()=>{
     const point={date:'2026-10-01',since:'2026-09-30T21:00:00.000Z',until:'2026-10-01T21:00:00.000Z',clicks:2,registrations:1,payments:0,earningsMinor:0};
@@ -263,7 +300,7 @@ describe('redesigned Results',()=>{
     show(<PartnerAnalyticsPanel partnerId="partner"/>);
     fireEvent.click(await screen.findByRole('button',{name:'Подробнее: Ваш заработок'}));
     const dialog=await screen.findByRole('dialog',{name:'Ваш заработок'});
-    await within(dialog).findByText(/Оплаты клиентов учтены\. Сумма ваших комиссий с учётом возвратов — 0,00\s₽\./);
+    await within(dialog).findByText(/Оплаты клиентов учтены\. Начисленные комиссии с учётом возвратов — 0,00\s₽\./);
     expect(dialog.querySelector('.results-explorer__plot-heading strong')?.textContent).toContain('0,00');
     fireEvent.change(within(dialog).getByLabelText('Показатель большого графика'),{target:{value:'customerPaymentsMinor'}});
     expect(dialog.querySelector('.results-explorer__plot-heading strong')?.textContent).toMatch(/1.*000,00/);
@@ -275,13 +312,13 @@ describe('redesigned Results',()=>{
     vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:{...result,options});
     show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    fireEvent.click(screen.getByRole('button',{name:'Фильтры'}));
+
     await pickFilter('Площадка аналитики','Площадки',['YouTube','ВКонтакте'],'Все площадки');
     await pickFilter('Формат аналитики','Форматы',['Короткие видео','Статьи'],'Все форматы');
     await pickFilter('Сценарий аналитики','Сценарии',['Рилсы','Посты'],'Все сценарии');
     await waitFor(()=>expect(vi.mocked(api).mock.calls.some(([path])=>{
       const query=new URL(path,'http://local').searchParams;
-      return query.getAll('platformIds').length===2&&query.getAll('formatIds').length===2&&query.getAll('scenarioIds').length===2&&query.get('seriesBy')==='platform'&&query.get('groupBy')==='platform';
+      return query.getAll('platformIds').length===2&&query.getAll('formatIds').length===2&&query.getAll('scenarioIds').length===2&&!query.has('seriesBy')&&query.get('groupBy')==='platform';
     })).toBe(true));
     expect(screen.getByLabelText('Площадка аналитики').textContent).toBe('Выбрано: 2');
     expect(screen.getByLabelText('Формат аналитики').textContent).toBe('Выбрано: 2');
@@ -291,31 +328,29 @@ describe('redesigned Results',()=>{
   it('cancels checkbox drafts without changing the report or closing its filters',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    fireEvent.click(screen.getByRole('button',{name:'Фильтры'}));
+
     fireEvent.click(screen.getByLabelText('Площадка аналитики'));
     const menu=screen.getByRole('dialog',{name:'Площадки'}),calls=vi.mocked(api).mock.calls.length;
     fireEvent.pointerDown(within(menu).getByRole('checkbox',{name:'YouTube'}));
     fireEvent.click(within(menu).getByRole('checkbox',{name:'YouTube'}));
-    expect(screen.getByRole('button',{name:'Фильтры'}).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByLabelText('Площадка аналитики')).toBeTruthy();
     fireEvent.click(within(menu).getByRole('button',{name:'Отмена'}));
     expect(screen.getByLabelText('Площадка аналитики').textContent).toBe('Все площадки');
     expect(vi.mocked(api).mock.calls).toHaveLength(calls);
   });
-  it('shows every metric separately and retains the selection during platform comparison',async()=>{
+  it('shows every metric separately and keeps all cards open during platform comparison',async()=>{
     const point={date:'2026-10-16',clicks:10,registrations:2,payingCustomers:1,payments:1,customerPaymentsMinor:100000,earningsMinor:20000};
     vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:{...result,series:{bucket:'day',points:[point],groups:[{id:'youtube',name:'YouTube',points:[point]}]}});
     show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
     expect(screen.getAllByRole('article')).toHaveLength(6);
-    fireEvent.click(screen.getByRole('button',{name:'Регистрации'}));
-    expect(screen.queryByRole('article',{name:'Регистрации'})).toBeNull();
+    expect(screen.queryByRole('button',{name:'Регистрации'})).toBeNull();
+    expect(screen.queryByLabelText('Показатели графиков')).toBeNull();
     fireEvent.change(screen.getByLabelText('Режим графика'),{target:{value:'platform'}});
     await screen.findByLabelText('Сравниваемые источники');
-    await waitFor(()=>expect(screen.getAllByRole('article')).toHaveLength(5));
-    expect(screen.getByRole('button',{name:'Регистрации'}).getAttribute('aria-pressed')).toBe('false');
+    await waitFor(()=>expect(screen.getAllByRole('article')).toHaveLength(6));
     expect(within(screen.getByRole('article',{name:'Оплачено клиентами'})).getByText(/1.*000,00/)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button',{name:'Все показатели'}));
-    expect(screen.getAllByRole('article')).toHaveLength(7);
+    expect(screen.queryByRole('button',{name:'Все показатели'})).toBeNull();
   });
   it('narrows platform details to that row instead of retaining the multi-selection union',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?groupBy=platform&platformIds=youtube&platformIds=vk');
@@ -326,19 +361,16 @@ describe('redesigned Results',()=>{
       return path.includes('/analytics/details?')&&query.get('platformId')==='youtube'&&!query.has('platformIds');
     })).toBe(true));
   });
-  it('dismisses floating filters without discarding the selected values',async()=>{
+  it('keeps source filters visible and dismisses their menus without discarding selections',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    const trigger=screen.getByRole('button',{name:'Фильтры'});
-    fireEvent.click(trigger);
+    expect(screen.queryByRole('button',{name:'Фильтры'})).toBeNull();
     await pickFilter('Площадка аналитики','Площадки',['YouTube'],'Все площадки');
-    await waitFor(()=>expect(screen.getByLabelText('Адрес').textContent).toContain('platformIds=youtube'));
-    fireEvent.keyDown(document,{key:'Escape'});
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');expect(document.activeElement).toBe(trigger);
-    fireEvent.click(trigger);
     expect(screen.getByLabelText('Площадка аналитики').textContent).toBe('YouTube');
-    fireEvent.pointerDown(screen.getByRole('heading',{name:'Результаты'}));
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(screen.getByLabelText('Площадка аналитики'));
+    fireEvent.keyDown(screen.getByRole('dialog',{name:'Площадки'}),{key:'Escape'});
+    expect(screen.queryByRole('dialog',{name:'Площадки'})).toBeNull();
+    expect(screen.getByLabelText('Площадка аналитики').textContent).toBe('YouTube');
   });
   it('preserves the report frame but hides stale figures while another period loads',async()=>{
     let resolveReport!:(value:typeof result)=>void;
@@ -346,7 +378,7 @@ describe('redesigned Results',()=>{
     show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
     const chart=document.querySelector('.results-chart');
-    fireEvent.change(screen.getByLabelText('Период аналитики'),{target:{value:'7d'}});
+    pickPeriod('Последние 7 дней');
     await screen.findByText('Обновляем статистику…');
     expect(document.querySelector('.results-chart')).toBe(chart);
     expect(document.querySelector('.results-report__content')?.getAttribute('aria-hidden')).toBe('true');
@@ -357,22 +389,62 @@ describe('redesigned Results',()=>{
     expect(document.querySelector('.results-report__content')?.hasAttribute('inert')).toBe(false);
     expect(screen.getByRole('table')).toBeTruthy();
   });
-  it('shows an optional comparison without inventing percentages for a zero baseline',async()=>{
+  it('requires two explicit ranges and handles a zero baseline without inventing percentages',async()=>{
     vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:{...result,...(path.includes('includeComparison=true')?{comparison:{period:{since:'2026-09-01T00:00:00Z',until:'2026-10-01T00:00:00Z'},counts:{...counts,clicks:5,payingCustomers:0},amountsMinor:{...amountsMinor,netAccrued:10000}}}:{})});
     show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
     fireEvent.click(screen.getByRole('button',{name:'Сравнить периоды'}));
-    await screen.findByText('Ранее — 0');
+    const calendar=screen.getByRole('dialog',{name:'Сравнить периоды'});
+    expect(within(calendar).queryByRole('button',{name:'Предыдущий период'})).toBeNull();
+    expect((within(calendar).getByRole('button',{name:'Применить'}) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(calendar).getByLabelText('Сравнить периоды: начало'),{target:{value:'2026-09-01'}});
+    fireEvent.change(within(calendar).getByLabelText('Сравнить периоды: конец'),{target:{value:'2026-09-30'}});
+    fireEvent.click(within(calendar).getByRole('button',{name:'Применить'}));
+    await screen.findByText('В сравнении — 0');
     expect(screen.getAllByText(/↑ 100%/).length).toBeGreaterThanOrEqual(2);
     expect(document.body.textContent).not.toMatch(/Infinity|NaN/);
-    expect(screen.getByLabelText('Адрес').textContent).toContain('compare=true');
-    fireEvent.change(screen.getByLabelText('Период аналитики'),{target:{value:'all'}});
-    expect((screen.getByRole('button',{name:'Сравнить периоды'}) as HTMLButtonElement).disabled).toBe(true);
+    pickPeriod('Всё время');
+    await waitFor(()=>expect((screen.getByRole('button',{name:'Сравнить периоды'}) as HTMLButtonElement).disabled).toBe(false));
+  });
+  it('sends an explicitly selected comparison range to the report',async()=>{
+    vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:{...result,...(path.includes('includeComparison=true')?{comparison:{period:{since:'2025-04-01T00:00:00Z',until:'2025-05-01T00:00:00Z'},counts:{...counts,clicks:0,registrations:0,payingCustomers:0,paymentCount:0},amountsMinor:{...amountsMinor,observedPayments:0,netAccrued:0}}}:{})});
+    show(<PartnerAnalyticsPanel partnerId="partner"/>);
+    await screen.findByRole('heading',{name:'Эффективность площадок'});
+    fireEvent.click(screen.getByRole('button',{name:'Сравнить периоды'}));
+    const dialog=screen.getByRole('dialog',{name:'Сравнить периоды'});
+    fireEvent.change(screen.getByLabelText('Сравнить периоды: начало'),{target:{value:'2025-04-01'}});
+    fireEvent.change(screen.getByLabelText('Сравнить периоды: конец'),{target:{value:'2025-04-30'}});
+    fireEvent.click(within(dialog).getByRole('button',{name:'Применить'}));
+    await waitFor(()=>expect(screen.getByLabelText('Адрес').textContent).toContain('compareFrom=2025-04-01'));
+    expect(screen.getByLabelText('Адрес').textContent).toContain('compareTo=2025-04-30');
+    expect(screen.getByRole('button',{name:'Сравнить периоды'}).textContent).toContain('1 апр. 2025 г. — 30 апр. 2025 г.');
+  });
+  it('edits independent primary and comparison ranges and keeps their lengths different',async()=>{
+    mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
+    await screen.findByRole('heading',{name:'Эффективность площадок'});
+    fireEvent.click(screen.getByRole('button',{name:'Сравнить периоды'}));
+    const dialog=screen.getByRole('dialog',{name:'Сравнить периоды'});
+    fireEvent.change(screen.getByLabelText('Основной период: начало'),{target:{value:'2026-10-12'}});
+    fireEvent.change(screen.getByLabelText('Основной период: конец'),{target:{value:'2026-10-18'}});
+    fireEvent.change(screen.getByLabelText('Сравнить периоды: начало'),{target:{value:'2026-09-10'}});
+    fireEvent.change(screen.getByLabelText('Сравнить периоды: конец'),{target:{value:'2026-09-12'}});
+    fireEvent.click(within(dialog).getByRole('button',{name:'Применить'}));
+    await waitFor(()=>expect(screen.getByLabelText('Адрес').textContent).toContain('period=custom'));
+    const address=screen.getByLabelText('Адрес').textContent??'';
+    expect(address).toContain('from=2026-10-12');expect(address).toContain('to=2026-10-18');
+    expect(address).toContain('compareFrom=2026-09-10');expect(address).toContain('compareTo=2026-09-12');
+  });
+  it('sends the selected chart grouping to analytics',async()=>{
+    mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
+    await screen.findByRole('heading',{name:'Эффективность площадок'});
+    fireEvent.change(screen.getByLabelText('Шаг графика'),{target:{value:'week'}});
+    await waitFor(()=>expect(screen.getByLabelText('Адрес').textContent).toContain('bucket=week'));
+    expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('bucket=week'))).toBe(true);
   });
   it('shows recovery from negative earnings as an improvement',async()=>{
     vi.mocked(api).mockImplementation(async path=>path==='/me/programs'?{programs:[{id:'p',name:'Syntolk'}]}:{...result,amountsMinor:{...amountsMinor,netAccrued:0},comparison:{period:{since:'2026-09-01T00:00:00Z',until:'2026-10-01T00:00:00Z'},counts,amountsMinor:{...amountsMinor,netAccrued:-10000}}});
-    show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?compare=true');
-    expect(await screen.findByText(/↑ 100% · было/)).toBeTruthy();
+    show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?compare=true&compareFrom=2026-09-01&compareTo=2026-09-30');
+    expect(await screen.findByText(/↑ 100%/)).toBeTruthy();
   });
   it('keeps the table visible while details open in a dismissible, focus-restoring side panel',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
@@ -410,7 +482,7 @@ describe('redesigned Results',()=>{
   it('starts with platforms, all charts and visible source selection',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);
     await screen.findByRole('heading',{name:'Эффективность площадок'});
-    expect((screen.getByLabelText('Период аналитики') as HTMLSelectElement).value).toBe('30d');
+    expect(screen.getByRole('button',{name:'Период аналитики'}).textContent).toContain('Последние 30 дней');
     expect((screen.getByLabelText('Разбивка аналитики') as HTMLSelectElement).value).toBe('platform');
     expect(screen.getByLabelText('Разбивка аналитики').closest('[hidden]')).toBeNull();
     expect(screen.getByLabelText('Площадка аналитики').closest('[hidden]')).toBeNull();
@@ -430,11 +502,11 @@ describe('redesigned Results',()=>{
     await screen.findByRole('button',{name:'Старая статья'});
     const totals=()=>document.querySelector('.results-chart-grid')!.textContent;
     const initial=totals();
-    fireEvent.click(screen.getByRole('button',{name:'Фильтры'}));
-    fireEvent.change(screen.getByLabelText('Активность ссылок'),{target:{value:'clicks'}});
+
+    fireEvent.change(screen.getByLabelText('Активность таблицы'),{target:{value:'clicks'}});
     expect(screen.queryByRole('button',{name:'Старая статья'})).toBeNull();
     expect(totals()).toBe(initial);
-    fireEvent.change(screen.getByLabelText('Активность ссылок'),{target:{value:'empty'}});
+    fireEvent.change(screen.getByLabelText('Активность таблицы'),{target:{value:'empty'}});
     await screen.findByRole('button',{name:'Без действий'});
     expect(screen.queryByRole('button',{name:'YouTube'})).toBeNull();
     expect(totals()).toBe(initial);
@@ -465,7 +537,7 @@ describe('redesigned Results',()=>{
     const customers=await screen.findByRole('article',{name:'Платящие клиенты'});
     expect(customers.querySelector('.results-metric-card__value')?.textContent).toBe('1');
     expect(screen.getByRole('article',{name:'Оплаты'}).querySelector('.results-metric-card__value')?.textContent).toBe('4');
-    expect(screen.getByText('Оплаты есть, начислений пока нет')).toBeTruthy();
+    expect(screen.getByText('Чистая сумма комиссий за период — 0')).toBeTruthy();
     expect(within(screen.getByRole('article',{name:'Оплачено клиентами'})).getByText(/1.*000,00/)).toBeTruthy();
     expect(vi.mocked(api).mock.calls.every(([,options])=>!options?.method)).toBe(true);
   });
@@ -481,15 +553,15 @@ describe('redesigned Results',()=>{
     fireEvent.focus(chart);fireEvent.keyDown(chart,{key:'End'});
     expect(screen.getByRole('status',{name:/Значение графика:/}).querySelector('strong')?.textContent).toContain('-50');
   });
-  it('makes chart dates accessible by keyboard and switches the actual metric',()=>{
+  it('makes chart dates accessible by keyboard without a metric selector',()=>{
     const onChange=vi.fn();
     show(<ResultsChart metric="clicks" onChange={onChange} series={{bucket:'day',points:[{date:'2026-10-01',clicks:2,registrations:1,payments:0,earningsMinor:0},{date:'2026-10-02',clicks:8,registrations:1,payments:1,earningsMinor:20000}]}}/>);
     const chart=screen.getByRole('group',{name:/Переходы, по дням/});
     fireEvent.focus(chart);fireEvent.keyDown(chart,{key:'Home'});
     expect(screen.getByRole('status',{name:/Значение графика:/}).textContent).toContain('2');
     fireEvent.keyDown(chart,{key:'End'});expect(screen.getByRole('status',{name:/Значение графика:/}).textContent).toContain('8');
-    fireEvent.click(screen.getByRole('button',{name:'Ваш заработок'}));
-    expect(onChange).toHaveBeenCalledWith('earningsMinor');
+    expect(screen.queryByRole('button',{name:'Ваш заработок'})).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
   });
   it('keeps the inspected date visible when live statistics refresh',()=>{
     const points=[{date:'2026-10-01',clicks:2,registrations:0,payments:0,earningsMinor:0},{date:'2026-10-02',clicks:8,registrations:0,payments:0,earningsMinor:0}];
@@ -509,6 +581,37 @@ describe('redesigned Results',()=>{
     expect(chart.querySelector('svg')!.innerHTML).toBe(before);
     fireEvent.click(chart,{clientX:42});expect(inspect).not.toHaveBeenCalled();
     fireEvent.click(bar,{clientX:42});expect(inspect).toHaveBeenCalledWith(expect.objectContaining({metric:'clicks',point:points[0]}));
+  });
+});
+
+describe('shared period comparison',()=>{
+  it('opens the same two periods in a card and propagates edits back to the whole report',async()=>{
+    const make=(from:string,to:string)=>{
+      const clicks=from.startsWith('2025')?0:from.startsWith('2026-09')?3:7;
+      return {...result,counts:{...counts,clicks},period:{since:`${from}T00:00:00.000Z`,until:new Date(Date.parse(to)+86400000).toISOString()},timezone:'UTC',series:{bucket:'day',points:[{date:from,clicks,registrations:2,payments:1,earningsMinor:20000}]}};
+    };
+    vi.mocked(api).mockImplementation(async path=>{
+      if(path==='/me/programs')return {programs:[{id:'p',name:'Syntolk'}]};
+      const q=new URL(path,'http://local').searchParams,report=make(q.get('from')??'2026-10-12',q.get('to')??'2026-10-18');
+      return {...report,...(q.has('includeComparison')?{comparison:make(q.get('compareFrom')!,q.get('compareTo')!)}:{})};
+    });
+    show(<PartnerAnalyticsPanel partnerId="partner"/>,'/results?period=custom&from=2026-10-12&to=2026-10-18&compare=true&compareFrom=2026-09-10&compareTo=2026-09-12&platformIds=youtube&formatIds=short&scenarioIds=a');
+    fireEvent.click(await screen.findByRole('button',{name:'Подробнее: Переходы'}));
+    const dialog=await screen.findByRole('dialog',{name:'Переходы'});
+    await waitFor(()=>expect(within(dialog).getByRole('region',{name:'Период сравнения'}).querySelector('strong')?.textContent).toBe('3'));
+    fireEvent.click(within(dialog).getByRole('button',{name:'Период сравнения'}));
+    const calendar=within(dialog).getByRole('dialog',{name:'Период сравнения'});
+    for(const [label,value] of [['Основной период: начало','2026-09-10'],['Основной период: конец','2026-09-12'],['Период сравнения: начало','2025-04-01'],['Период сравнения: конец','2025-04-30']])fireEvent.change(within(calendar).getByLabelText(label!),{target:{value}});
+    fireEvent.click(within(calendar).getByRole('button',{name:'Применить'}));
+    await waitFor(()=>expect(within(dialog).getByRole('region',{name:'Период сравнения'}).querySelector('strong')?.textContent).toBe('0'));
+    expect(within(dialog).getByRole('region',{name:'Основной период'}).querySelector('strong')?.textContent).toBe('3');
+    const address=screen.getByLabelText('Адрес').textContent;
+    expect(address).toContain('from=2026-09-10');expect(address).toContain('compareFrom=2025-04-01');
+    expect(address).toContain('platformIds=youtube');expect(address).toContain('formatIds=short');expect(address).toContain('scenarioIds=a');
+    fireEvent.click(within(dialog).getByRole('button',{name:'Закрыть график'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Переходы'})).toBeNull());
+    expect(screen.getByRole('article',{name:'Переходы'}).querySelector('.results-metric-card__value')?.textContent).toBe('3');
+    expect(screen.getByRole('article',{name:'Переходы'}).querySelector('.results-metric-card__comparison b')?.textContent).toBe('0');
   });
 });
 
@@ -539,7 +642,7 @@ describe('copy tracking from a calendar material',()=>{
   it('does not create a base link automatically',async()=>{
     vi.mocked(api).mockImplementation(async path=>path.endsWith('/material-catalog')?{formats:[],platforms:[]}:path.includes('/materials/')?{material,placements:[]}:{links:[]});show(<MaterialEditor partnerId="partner" materialId="material"/>,'/plan');
     const link=await screen.findByRole('link',{name:'Создать партнёрскую ссылку →'});
-    expect(link.getAttribute('href')).toBe('/links?programId=p');
+    expect(link.getAttribute('href')).toBe('/links?view=links&programId=p');
     expect(screen.queryByText('Текст, файлы и автопубликация')).toBeNull();
     expect(vi.mocked(api).mock.calls.every(([,options])=>!options?.method)).toBe(true);
   });
@@ -561,7 +664,7 @@ describe('copy tracking from a calendar material',()=>{
     expect(screen.queryByRole('checkbox',{name:/Опубликовано/})).toBeNull();
     expect(screen.queryByText('0 из 2 опубликовано',{exact:false})).toBeNull();
     fireEvent.click(screen.getByRole('button',{name:'Закрыть подробности'}));
-    fireEvent.click(screen.getByRole('checkbox',{name:'Показать без результатов'}));
+    fireEvent.change(screen.getByLabelText('Активность таблицы'),{target:{value:'all'}});
     fireEvent.click(await screen.findByRole('button',{name:'Мой ролик'}));
     await waitFor(()=>expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('groupBy=source')&&path.includes('includeEmpty=true')&&path.includes('materialId=material'))).toBe(true));
     expect(vi.mocked(api).mock.calls.every(([path,options])=>!options?.method&&!path.includes('/materials/')&&!path.includes('/material-catalog'))).toBe(true);

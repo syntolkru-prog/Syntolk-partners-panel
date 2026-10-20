@@ -36,6 +36,17 @@ function income() {
   return document.querySelector('#pf-income')!.textContent!.replace(/\s/g, '');
 }
 
+const actualCounts={clicks:133,registrations:22,payingCustomers:9,paymentCount:15,firstPaymentCount:9,repeatPaymentCount:6};
+const actualConversions={clickToRegistration:22/133,registrationToPayment:8/22,clickToPayment:9/133,cohortRegistrations:22,cohortPaidRegistrations:8};
+const actualContent={preparedMaterials:8,publishedMaterials:5,publishedPlacements:12};
+const actualAmounts={observedPayments:9703500,netPayments:9703500,refunds:0,netAccrued:1940700};
+const actualPost={id:'post',name:'Посты',counts:actualCounts,conversions:actualConversions,content:actualContent,amountsMinor:actualAmounts};
+const actualDzen={...actualPost,id:'dzen',name:'Дзен',counts:{...actualCounts,clicks:24,registrations:3},content:{preparedMaterials:2,publishedMaterials:2,publishedPlacements:2},conversions:{...actualConversions,clickToRegistration:3/24,registrationToPayment:1/3},formats:[actualPost]};
+const actualReport={currency:'RUB',counts:actualCounts,conversions:actualConversions,content:actualContent,amountsMinor:actualAmounts,series:{bucket:'day',points:[{date:'2026-10-01',clicks:133,registrations:22,payments:15,earningsMinor:1940700}]},breakdown:{formats:[actualPost],platforms:[actualDzen]}};
+function sendFacts(active:boolean,report:unknown=actualReport,storageKey='syntolk-fact-test',extra:Record<string,unknown>={}){
+  document.getElementById('partner-forecast')!.dispatchEvent(new CustomEvent('syntolk-calculator-current-values',{detail:{active,report,filter:{period:'30d',from:'',to:'',allContent:true},storageKey,scenarioName:'Сценарий 1',error:'',...extra}}));
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   localStorage.clear();
@@ -49,6 +60,99 @@ afterEach(() => {
 });
 
 describe('calculator portal integration', () => {
+  it('uses the same calculator panels, inputs and chart for facts, and restores the unchanged original forecast on return',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} currentValues={null}/>);initialize();const original=income(),root=document.getElementById('partner-forecast')!,settings=root.dataset.currentSettings,stored=localStorage.getItem('syntolk-partner-forecast-v1');
+    const frame=()=>[...document.querySelectorAll('.pf-controls > *, .pf-result > *')].map(element=>[element.tagName,element.id,element.className]);const before=frame();
+    expect(screen.queryByRole('button',{name:'Выше ожиданий'})).toBeNull();expect(screen.queryByRole('button',{name:'Ниже ожиданий'})).toBeNull();expect(screen.getByRole('button',{name:'Обновить'})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button',{name:'Текущие значения'}));sendFacts(true);
+    expect(frame()).toEqual(before);expect(document.getElementById('pf-current-values')).toBeNull();expect(document.getElementById('pf-current-controls')).toBeNull();
+    expect(document.getElementById('pf-income')!.closest<HTMLElement>('.pf-income-top')!.hidden).toBe(false);expect(income()).toBe('19407,00₽');
+    expect((screen.getByLabelText('Посты: создано за период') as HTMLInputElement).value).toBe('8');expect((screen.getByLabelText('Посты: создано за период') as HTMLInputElement).readOnly).toBe(true);
+    expect(screen.getByRole('button',{name:'Текущие значения'}).getAttribute('aria-pressed')).toBe('true');expect(root.dataset.currentSettings).toBe(settings);
+    expect(document.getElementById('pf-panel-content')!.hidden).toBe(false);expect(document.getElementById('pf-work')!.hidden).toBe(false);
+    fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));expect(document.getElementById('pf-panel-platforms')!.hidden).toBe(false);
+    expect((screen.getByRole('button',{name:'Выбрать все подходящие площадки'}) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(screen.getByRole('tab',{name:'Площадки'}),{key:'ArrowRight'});expect(document.getElementById('pf-panel-sales')!.hidden).toBe(false);
+    expect(Number((screen.getByRole('spinbutton',{name:'Регистрация из переходов'}) as HTMLInputElement).value)).toBeCloseTo(22/133*100);
+    expect(localStorage.getItem('syntolk-partner-forecast-v1')).toBe(stored);
+    fireEvent.click(screen.getByRole('button',{name:'Мой сценарий'}));sendFacts(false);expect(income()).toBe(original);expect(frame()).toEqual(before);expect(root.dataset.currentSettings).toBe(settings);
+    expect((screen.getByRole('spinbutton',{name:'Регистрация из переходов'}) as HTMLInputElement).readOnly).toBe(false);
+  });
+  it('allows manual factual views, calculates source CTR and keeps those views isolated from the plan and other scopes',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} currentValues={null}/>);initialize();const root=document.getElementById('partner-forecast')!,settings=root.dataset.currentSettings;sendFacts(true);
+    fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));fireEvent.click(document.querySelector('[data-channel-group="dzen"] > summary')!);
+    const views=document.getElementById('pf-channels-dzen-views') as HTMLInputElement,ctr=document.getElementById('pf-channels-dzen-ctr') as HTMLInputElement;
+    expect(views.value).toBe('');expect(views.readOnly).toBe(false);expect(ctr.value).toBe('');expect(ctr.readOnly).toBe(true);
+    fireEvent.input(views,{target:{value:'1000'}});expect(ctr.value).toBe('2.4');expect(document.getElementById('pf-views')!.textContent).toBe('1 000');
+    expect(root.dataset.currentSettings).toBe(settings);expect(JSON.parse(localStorage.getItem('syntolk-fact-test')!).dzen).toBe(1000);
+    const option=document.querySelector('#pf-horizon option'),bar=document.querySelector('#pf-chart > button');
+    sendFacts(true,{...actualReport,counts:{...actualCounts,clicks:134}});expect((document.getElementById('pf-channels-dzen-views') as HTMLInputElement).value).toBe('1000');expect(document.getElementById('pf-clicks')!.textContent).toBe('134');
+    expect(document.querySelector('#pf-horizon option')).toBe(option);expect(document.querySelector('#pf-chart > button')).toBe(bar);
+    sendFacts(true,actualReport,'syntolk-fact-other-period');expect((document.getElementById('pf-channels-dzen-views') as HTMLInputElement).value).toBe('');
+    sendFacts(true);expect((document.getElementById('pf-channels-dzen-views') as HTMLInputElement).value).toBe('1000');
+    sendFacts(false);expect(root.dataset.currentSettings).toBe(settings);
+  });
+  it('shows unknown facts as blank rather than plan values and updates new custom formats and platforms without changing the draft',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} currentValues={null}/>);initialize();const root=document.getElementById('partner-forecast')!,settings=root.dataset.currentSettings;sendFacts(true,null);
+    expect(income()).toBe('—');expect((document.getElementById('pf-frequency-post') as HTMLInputElement).value).toBe('');
+    const custom={...actualPost,id:'custom-format',name:'Мой новый контент'};
+    sendFacts(true,{...actualReport,breakdown:{formats:[actualPost,custom],platforms:[actualDzen,{...actualDzen,id:'custom-place',name:'Моя площадка',formats:[custom]}]}});
+    expect((screen.getByLabelText('Мой новый контент: создано за период') as HTMLInputElement).value).toBe('8');fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));expect(screen.getByText('Моя площадка')).toBeTruthy();
+    expect(root.dataset.currentSettings).toBe(settings);sendFacts(false);expect(document.getElementById('pf-frequency-custom-format')).toBeNull();expect(root.dataset.currentSettings).toBe(settings);
+  });
+  it('keeps the administrator three-scenario calculator unchanged',()=>{
+    render(<CalculatorPage principal={{role:'admin'}} currentValues={<p>Факт партнёра</p>}/>);initialize();
+    expect(screen.getByRole('button',{name:'Выше ожиданий'})).toBeTruthy();expect(screen.getByRole('button',{name:'Ниже ожиданий'})).toBeTruthy();expect(screen.queryByRole('button',{name:'Обновить'})).toBeNull();expect(screen.queryByRole('button',{name:'Текущие значения'})).toBeNull();expect(document.getElementById('pf-current-values')).toBeNull();
+  });
+  it('refreshes facts without switching modes, resetting manual views or saving plan changes',()=>{
+    const onMode=vi.fn();render(<CalculatorPage principal={{role:'partner'}} currentValues={null} onCurrentValuesChange={onMode}/>);initialize();
+    const root=document.getElementById('partner-forecast')!,refresh=vi.fn(),settings=root.dataset.currentSettings,stored=localStorage.getItem('syntolk-partner-forecast-v1'),original=income();
+    root.addEventListener('syntolk-calculator-refresh',refresh);
+    const button=screen.getByRole('button',{name:'Обновить'});
+    expect(button.getAttribute('type')).toBe('button');expect(button.hasAttribute('aria-pressed')).toBe(false);
+    expect(button.textContent).toBe('');expect(button.querySelector('svg')).not.toBeNull();expect(button.parentElement!.lastElementChild).toBe(button);
+    expect(button.querySelector('svg')!.getAttribute('width')).toBe('16');expect(button.querySelector('svg')!.getAttribute('height')).toBe('16');
+    fireEvent.click(button);expect(refresh).toHaveBeenCalledTimes(1);expect(onMode).not.toHaveBeenCalled();expect(income()).toBe(original);
+    sendFacts(true);fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));fireEvent.click(document.querySelector('[data-channel-group="dzen"] > summary')!);
+    const views=document.getElementById('pf-channels-dzen-views') as HTMLInputElement;fireEvent.input(views,{target:{value:'1000'}});
+    fireEvent.click(button);sendFacts(true);
+    expect(refresh).toHaveBeenCalledTimes(2);expect(views.value).toBe('1000');expect(income()).toBe('19407,00₽');expect(onMode).not.toHaveBeenCalled();
+    expect(root.dataset.currentSettings).toBe(settings);expect(localStorage.getItem('syntolk-partner-forecast-v1')).toBe(stored);
+  });
+  it('does not keep a hidden lower-expectation mode after replacing its button',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} currentValues={null}/>);initialize();const saved=JSON.parse(localStorage.getItem('syntolk-partner-forecast-v1')!);const original=income();
+    cleanup();localStorage.setItem('syntolk-partner-forecast-v1',JSON.stringify({...saved,scenario:'low'}));
+    render(<CalculatorPage principal={{role:'partner'}} currentValues={null}/>);initialize();
+    expect(income()).toBe(original);expect(screen.getByRole('button',{name:'Мой сценарий'}).getAttribute('aria-pressed')).toBe('true');
+  });
+  it('inspects factual bars, preserves the full chart and selects zero days with keyboard support',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} currentValues={null}/>);initialize();const root=document.getElementById('partner-forecast')!,settings=root.dataset.currentSettings,inspect=vi.fn();
+    root.addEventListener('syntolk-calculator-fact-point',inspect);
+    const chartReport={...actualReport,series:{bucket:'day',points:[{date:'2026-09-30',clicks:0,registrations:0,payments:0,earningsMinor:0},...actualReport.series.points,{date:'2026-10-02',clicks:0,registrations:0,payments:0,earningsMinor:0}]}};
+    sendFacts(true,chartReport);const bars=[...document.querySelectorAll<HTMLButtonElement>('[data-fact-point]')];expect(bars).toHaveLength(3);
+    fireEvent.click(bars[1]!);expect((inspect.mock.calls.at(-1)![0] as CustomEvent).detail).toBe('2026-10-01');
+    const selectedPoint={date:'2026-10-01',from:'2026-10-01',to:'2026-10-01'};
+    sendFacts(true,actualReport,'selected-day',{chartReport,selectedPoint});
+    const clear=screen.getByRole('button',{name:'Весь период'});sendFacts(true,actualReport,'selected-day',{chartReport,selectedPoint});expect(screen.getByRole('button',{name:'Весь период'})).toBe(clear);
+    expect(document.querySelectorAll('[data-fact-point]')).toHaveLength(3);expect(bars[1]!.getAttribute('aria-pressed')).toBe('true');expect(bars[1]!.classList.contains('pf-active-month')).toBe(true);
+    expect(document.getElementById('pf-income-label')!.textContent).toContain('2026-10-01');
+    fireEvent.keyDown(bars[1]!,{key:'ArrowRight'});expect((inspect.mock.calls.at(-1)![0] as CustomEvent).detail).toBe('2026-10-02');
+    const zero={...actualReport,counts:{...actualCounts,clicks:0,registrations:0,firstPaymentCount:0,repeatPaymentCount:0,paymentCount:0},amountsMinor:{...actualAmounts,netAccrued:0},content:{preparedMaterials:0,publishedMaterials:0,publishedPlacements:0},breakdown:{formats:[],platforms:[]}};
+    sendFacts(true,zero,'zero-day',{chartReport,selectedPoint:{date:'2026-10-02',from:'2026-10-02',to:'2026-10-02'}});
+    expect(income()).toBe('0,00₽');expect(document.getElementById('pf-clicks')!.textContent).toBe('0');expect((document.getElementById('pf-frequency-post') as HTMLInputElement).value).toBe('0');
+    fireEvent.keyDown(bars[2]!,{key:'Home'});expect((inspect.mock.calls.at(-1)![0] as CustomEvent).detail).toBe('2026-09-30');
+    fireEvent.keyDown(bars[0]!,{key:'End'});expect((inspect.mock.calls.at(-1)![0] as CustomEvent).detail).toBe('2026-10-02');
+    fireEvent.keyDown(bars[2]!,{key:'Escape'});expect((inspect.mock.calls.at(-1)![0] as CustomEvent).detail).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'Весь период'}));expect((inspect.mock.calls.at(-1)![0] as CustomEvent).detail).toBeNull();expect(root.dataset.currentSettings).toBe(settings);
+    sendFacts(false);sendFacts(true,actualReport,'selected-day',{chartReport,selectedPoint});expect(screen.getByRole('button',{name:'Весь период'})).toBeTruthy();
+  });
+  it('indicates manual refresh progress and completion without changing the plan',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} currentValues={null}/>);initialize();const original=income(),button=screen.getByRole('button',{name:'Обновить'}) as HTMLButtonElement;
+    expect(document.getElementById('pf-scenario-note')!.textContent).toContain('не фактический заработок');
+    sendFacts(false,actualReport,'syntolk-fact-test',{refreshState:'loading'});expect(button.disabled).toBe(true);expect(button.getAttribute('aria-busy')).toBe('true');
+    sendFacts(false,actualReport,'syntolk-fact-test',{refreshState:'success'});expect(button.disabled).toBe(false);expect(button.title).toBe('Фактические данные обновлены');expect(income()).toBe(original);
+    sendFacts(false,actualReport,'syntolk-fact-test',{refreshState:'error'});expect(button.title).toContain('Не удалось обновить');expect(button.disabled).toBe(false);
+  });
   it('filters platforms by active content and explicitly selects every compatible platform',()=>{
     render(<CalculatorPage principal={{role:'partner'}}/>);initialize(false,false);
     fireEvent.input(screen.getByRole('spinbutton',{name:'Посты: оригиналов в неделю'}),{target:{value:'10'}});

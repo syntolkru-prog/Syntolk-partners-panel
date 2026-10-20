@@ -4,20 +4,31 @@ import { TABLES, type ClickRow } from '@openpartner/db';
 import { grantScope, requireAuth, requirePartnerOrAdmin } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
 import { parseUserAgent } from '../ua-parse.js';
-import { analyticsDetailsQuerySchema, analyticsFiltersFromQuery, partnerAnalytics, partnerAnalyticsDetails } from '../partner-analytics.js';
+import { analyticsDetailsQuerySchema, analyticsFiltersFromQuery, partnerAnalytics, partnerAnalyticsDetails, partnerAnalyticsOverview } from '../partner-analytics.js';
+import {calculatorCurrentValues} from '../calculator-current-values.js';
+import {assertProgram} from '../coach/policy.js';
+import {CoachError} from '../coach/schemas.js';
 
 export const dashboardRouter = Router();
 
-/**
- * The timeseries / breakdown endpoints below map OpenPartner's
- * open-ended event-type taxonomy onto the standard 3-pane funnel
- * creators expect (Clicks / Leads / Sales). Lead events are
- * 'signup' and 'trial_started' (inlined into the SQL CASE below);
- * sales = any event with a positive value. Custom event types
- * still appear on the raw events list but aren't bucketed in the
- * chart aggregates — keeps the chart legend stable across brands
- * using different conversion taxonomies.
- */
+dashboardRouter.get('/partners/:id/analytics/current',requireAuth,grantScope('partners:read'),requirePartnerOrAdmin('id'),async(req,res)=>{
+  const {db,tenantId}=tenantOf(req),partnerId=req.params.id!;
+  try{
+    const input=z.object({programId:z.string().min(1),scenarioId:z.string().min(1).max(100).optional(),
+      period:z.enum(['today','7d','30d','all','custom']).default('30d'),from:z.string().optional(),to:z.string().optional()}).strict().parse(req.query);
+    await assertProgram(db,tenantId,partnerId,input.programId,false);
+    const profile=await db('CoachProfile').where({tenantId,partnerId}).first('data');
+    const filters=analyticsFiltersFromQuery(input,profile?.data?.timezone??'Europe/Moscow');
+    if(filters.since!>=new Date(Math.min(filters.until!.getTime(),Date.now())))throw new z.ZodError([{code:'custom',path:['from'],message:'Выберите прошедший или текущий период.'}]);
+    res.json(await calculatorCurrentValues(db,tenantId,partnerId,filters));
+  }catch(error){
+    if(error instanceof z.ZodError)return res.status(400).json({error:'invalid_query',detail:'Проверьте даты фактических значений.'});
+    if(error instanceof CoachError)return res.status(error.status).json({error:error.code,detail:error.message});
+    throw error;
+  }
+});
+
+// Compatibility endpoints below use the same metric definitions as Results.
 
 // Partner dashboard — top-line counts, attributed revenue, commission by status.
 // Read-optimized via denormalized partnerId on Click/Attribution/Commission.
@@ -59,7 +70,7 @@ dashboardRouter.get('/partners/:id/dashboard', requireAuth, grantScope('partners
     res.json({ partnerId: req.params.id, since: report.period.since.toISOString(), until: report.period.until.toISOString(), currency: report.currency,
       clicks: report.counts.clicks, identities: report.counts.identities, attributedEvents: report.counts.attributedEvents, generatedAt: report.generatedAt,
       registrations: report.counts.registrations, payingClients: report.counts.payingCustomers,
-      conversionRate: report.conversions.clickToPayment ?? 0, attributedRevenue: report.amountsMinor.observedPayments/100,
+      conversionRate: report.conversions.clickToPayment ?? 0, attributedRevenue: report.amountsMinor.observedPayments/100, periodEarnings: report.amountsMinor.netAccrued/100,
       commissionByStatus: report.commissionByStatus, balances: report.balances,
       conversions: report.conversions, metricBasis: report.metricBasis, balanceBasis: report.balanceBasis, commissionByStatusBasis: report.commissionByStatusBasis,
       dataQuality: report.dataQuality, warnings: report.warnings, views: report.views, ctr: report.ctr,
@@ -105,142 +116,16 @@ dashboardRouter.get(
 
     const since = q.data.since ? new Date(q.data.since) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const until = q.data.until ? new Date(q.data.until) : new Date();
-    // Auto-bucket: short ranges default to day, long ranges to week. Saves
-    // the caller from picking when they don't care, while letting them
-    // override (e.g. weekly view of the last 14 days for a smoother chart).
-    const rangeDays = (until.getTime() - since.getTime()) / (24 * 60 * 60 * 1000);
-    const bucket = q.data.bucket ?? (rangeDays > 90 ? 'week' : 'day');
-    const truncUnit = bucket === 'week' ? 'week' : 'day';
-
-    // Three queries in parallel — clicks, events, commissions. Each
-    // bucketed by date_trunc on its primary timestamp column. Written
-    // as raw SQL because mixing knex's groupByRaw + select(raw) + .count
-    // chain proved fragile (silent SQL errors that surfaced as opaque
-    // 500s). Static SQL with named placeholders is also easier to read
-    // than the equivalent builder chain.
-    //
-    // truncUnit comes from a closed enum (day|week) so interpolating
-    // it directly is safe; partnerId / programId / dates all bind.
-    const programFilter = q.data.programId ? `AND "programId" = :programId` : '';
-    const eventProgramFilter = q.data.programId ? `AND "Attribution"."programId" = :programId` : '';
-    const commissionProgramJoin = q.data.programId
-      ? `JOIN "Attribution" ON "Attribution"."id" = "Commission"."attributionId" AND "Attribution"."programId" = :programId`
-      : '';
-
-    const bindings = q.data.programId
-      ? { partnerId, since, until, programId: q.data.programId }
-      : { partnerId, since, until };
-
-    const [clicksResult, eventsResult, commissionsResult] = await Promise.all([
-      db.raw(
-        `SELECT date_trunc('${truncUnit}', "ts") AS bucket, COUNT(*)::text AS count
-         FROM "Click"
-         WHERE "partnerId" = :partnerId
-           AND "ts" >= :since
-           AND "ts" <= :until
-           ${programFilter}
-         GROUP BY 1`,
-        bindings,
-      ),
-      db.raw(
-        `SELECT date_trunc('${truncUnit}', "Event"."ts") AS bucket,
-                SUM(CASE WHEN "Event"."type" IN ('signup','trial_started') THEN 1 ELSE 0 END)::text AS leads,
-                SUM(CASE WHEN "Event"."value" > 0 THEN 1 ELSE 0 END)::text AS sales,
-                COALESCE(SUM("Event"."value" * "Attribution"."weight"), 0)::text AS revenue
-         FROM "Attribution"
-         JOIN "Event" ON "Event"."id" = "Attribution"."eventId"
-         WHERE "Attribution"."partnerId" = :partnerId
-           AND "Event"."ts" >= :since
-           AND "Event"."ts" <= :until
-           ${eventProgramFilter}
-         GROUP BY 1`,
-        bindings,
-      ),
-      db.raw(
-        `SELECT date_trunc('${truncUnit}', "Commission"."accruedAt") AS bucket,
-                COALESCE(SUM("Commission"."amount"), 0)::text AS earnings
-         FROM "Commission"
-         ${commissionProgramJoin}
-         WHERE "Commission"."partnerId" = :partnerId
-           AND "Commission"."accruedAt" >= :since
-           AND "Commission"."accruedAt" <= :until
-         GROUP BY 1`,
-        bindings,
-      ),
-    ]);
-
-    const clicksRows = clicksResult.rows as Array<{ bucket: Date; count: string }>;
-    const eventsRows = eventsResult.rows as Array<{
-      bucket: Date;
-      leads: string;
-      sales: string;
-      revenue: string;
-    }>;
-    const commissionsRows = commissionsResult.rows as Array<{ bucket: Date; earnings: string }>;
-
-    // Outer-join the three streams in JS into a dense array — every
-    // bucket in [since, until] gets a row, missing values fill as 0 so
-    // the chart renders a continuous line instead of gaps.
-    const buckets = denseTimeseries(since, until, bucket);
-    const clicksByBucket = new Map(clicksRows.map((r) => [bucketKey(r.bucket), Number(r.count)]));
-    const eventsByBucket = new Map(
-      eventsRows.map((r) => [bucketKey(r.bucket), {
-        leads: Number(r.leads ?? 0),
-        sales: Number(r.sales ?? 0),
-        revenue: Number(r.revenue ?? 0),
-      }]),
-    );
-    const commissionsByBucket = new Map(
-      commissionsRows.map((r) => [bucketKey(r.bucket), Number(r.earnings ?? 0)]),
-    );
-
-    res.json({
-      partnerId,
-      since: since.toISOString(),
-      until: until.toISOString(),
-      bucket,
-      buckets: buckets.map((b) => {
-        const k = bucketKey(b);
-        const ev = eventsByBucket.get(k);
-        return {
-          bucket: b.toISOString(),
-          clicks: clicksByBucket.get(k) ?? 0,
-          leads: ev?.leads ?? 0,
-          sales: ev?.sales ?? 0,
-          revenue: ev?.revenue ?? 0,
-          earnings: commissionsByBucket.get(k) ?? 0,
-        };
-      }),
-    });
+    try {
+      const profile=await db('CoachProfile').where({partnerId,tenantId:tenantOf(req).tenantId}).first();
+      const bucket=q.data.bucket??((until.getTime()-since.getTime())/86400000>90?'week':'day');
+      const filters=analyticsFiltersFromQuery({...q.data,since:since.toISOString(),until:until.toISOString(),bucket,includeSeries:'true',currency:req.query.currency??'RUB'},profile?.data?.timezone??'Europe/Moscow');
+      const report=await partnerAnalyticsOverview(db,tenantOf(req).tenantId,partnerId,filters,false);
+      res.json({partnerId,since:report.period.since.toISOString(),until:report.period.until.toISOString(),bucket:report.series!.bucket,
+        buckets:report.series!.points.map(p=>({bucket:p.date+'T00:00:00.000Z',clicks:p.clicks,leads:p.registrations,sales:p.payments,revenue:p.customerPaymentsMinor/100,earnings:p.earningsMinor/100}))});
+    } catch(error) { if(error instanceof z.ZodError)return res.status(400).json({error:'invalid_query'});throw error; }
   },
 );
-
-/** Build the dense bucket axis: every day (or week) between since and
- *  until inclusive. Caller fills missing series values with 0. Bucket
- *  start is normalized to UTC date_trunc semantics so the keys line up
- *  with what Postgres produced. */
-function denseTimeseries(since: Date, until: Date, unit: 'day' | 'week'): Date[] {
-  const out: Date[] = [];
-  const stepMs = unit === 'week' ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-  // Postgres date_trunc('day', x) → start of day in the connection TZ;
-  // mirror in JS with UTC truncation since the server is UTC.
-  const start = new Date(Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate()));
-  if (unit === 'week') {
-    // Postgres date_trunc('week', x) is ISO week — Monday. Align to
-    // Monday so map keys match.
-    const day = start.getUTCDay(); // 0=Sun, 1=Mon, ...
-    const offset = (day + 6) % 7;
-    start.setUTCDate(start.getUTCDate() - offset);
-  }
-  for (let t = start.getTime(); t <= until.getTime(); t += stepMs) {
-    out.push(new Date(t));
-  }
-  return out;
-}
-
-function bucketKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 
 // ---------- Raw event stream (paginated) ----------
 //

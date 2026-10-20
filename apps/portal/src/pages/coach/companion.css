@@ -2,12 +2,12 @@
   --coach-bg: #0b1318;
   --coach-surface: #111d23;
   --coach-surface-raised: #17262d;
-  --coach-border: rgba(116, 243, 222, 0.22);
+  --coach-border: var(--op-accent-a22, rgba(116, 243, 222, 0.22));
   --coach-text: #ecfffb;
   --coach-muted: #9eb8b5;
-  --coach-teal: #35d5c1;
-  --coach-teal-strong: #6af1db;
-  --coach-shadow: 0 22px 70px rgba(0, 0, 0, 0.46), 0 0 0 1px rgba(53, 213, 193, 0.08);
+  --coach-teal: var(--op-accent, #35d5c1);
+  --coach-teal-strong: color-mix(in srgb, var(--coach-teal) 80%, white);
+  --coach-shadow: 0 22px 70px rgba(0, 0, 0, 0.46), 0 0 0 1px var(--op-accent-a10, rgba(53, 213, 193, 0.08));
   color: var(--coach-text);
   font-family: inherit;
 }
@@ -25,7 +25,7 @@
 
 .syntolk-coach-creature__fin {
   fill: none;
-  stroke: #35d5c1;
+  stroke: var(--coach-teal);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -39,13 +39,13 @@
 .syntolk-coach-creature__antenna,
 .syntolk-coach-creature__belly {
   fill: none;
-  stroke: #092c32;
+  stroke: var(--op-accent-ink, #092c32);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .syntolk-coach-creature__eye {
-  fill: #092c32;
+  fill: var(--op-accent-ink, #092c32);
   stroke: none;
 }
 
@@ -59,7 +59,7 @@
 }
 
 .syntolk-coach-creature__antenna {
-  stroke: #65f2dc;
+  stroke: var(--coach-teal-strong);
   stroke-width: 2.5;
 }
 
@@ -88,7 +88,7 @@
   align-items: center;
   gap: 9px;
   padding: 8px 14px 8px 9px;
-  color: #072b2d;
+  color: var(--op-accent-ink, #072b2d);
   background: linear-gradient(135deg, var(--coach-teal-strong), var(--coach-teal));
   box-shadow: var(--coach-shadow);
 }
@@ -172,7 +172,7 @@
   justify-content: space-between;
   min-height: 38px;
   padding: 0 14px 0 17px;
-  border-bottom: 1px solid rgba(116, 243, 222, 0.1);
+  border-bottom: 1px solid var(--op-accent-a15, rgba(116, 243, 222, 0.1));
   color: var(--coach-muted);
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -287,9 +287,9 @@
   width: 30px;
   height: 30px;
   overflow: hidden;
-  border: 1px solid rgba(116, 243, 222, 0.22);
+  border: 1px solid var(--op-accent-a22, rgba(116, 243, 222, 0.22));
   border-radius: 50%;
-  color: #072b2d;
+  color: var(--op-accent-ink, #072b2d);
   background: var(--coach-teal);
   font-size: 9px;
   font-weight: 800;
@@ -303,15 +303,15 @@
 .syntolk-coach-message__bubble {
   max-width: 83%;
   padding: 9px 11px;
-  border: 1px solid rgba(116, 243, 222, 0.1);
+  border: 1px solid var(--op-accent-a15, rgba(116, 243, 222, 0.1));
   border-radius: 13px 13px 13px 4px;
   background: var(--coach-surface);
 }
 
 .syntolk-coach-message--user .syntolk-coach-message__bubble {
-  border-color: rgba(106, 241, 219, 0.25);
+  border-color: var(--op-accent-a25, rgba(106, 241, 219, 0.25));
   border-radius: 13px 13px 4px 13px;
-  background: #17403f;
+  background: var(--op-accent-soft, #17403f);
 }
 
 .syntolk-coach-message__topline {
@@ -378,7 +378,7 @@
   height: 78px;
   margin-bottom: 8px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(53, 213, 193, 0.2), transparent 68%);
+  background: radial-gradient(circle, var(--op-accent-a25, rgba(53, 213, 193, 0.2)), transparent 68%);
 }
 
 .syntolk-coach-onboarding h3 {
@@ -404,7 +404,7 @@
 
 .syntolk-coach-composer {
   padding: 11px 15px 14px;
-  border-top: 1px solid rgba(116, 243, 222, 0.1);
+  border-top: 1px solid var(--op-accent-a15, rgba(116, 243, 222, 0.1));
   background: #0e181d;
 }
 
@@ -412,7 +412,7 @@
 .syntolk-coach-composer select {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid rgba(116, 243, 222, 0.18);
+  border: 1px solid var(--op-accent-a22, rgba(116, 243, 222, 0.18));
   border-radius: 10px;
   color: var(--coach-text);
   background: var(--coach-surface);
@@ -498,7 +498,7 @@
   justify-content: center;
   min-height: 31px;
   padding: 6px 11px;
-  color: #062b2d;
+  color: var(--op-accent-ink, #062b2d);
   background: var(--coach-teal);
   font-size: 12px;
   text-decoration: none;
@@ -507,7 +507,7 @@
 
 .syntolk-coach-button--secondary {
   color: var(--coach-teal-strong);
-  border-color: rgba(116, 243, 222, 0.25);
+  border-color: var(--op-accent-a25, rgba(116, 243, 222, 0.25));
   background: transparent;
 }
 
