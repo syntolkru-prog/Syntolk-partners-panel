@@ -1,0 +1,52 @@
+.work-calendar{gap:16px}
+.work-calendar-scenario{display:flex;align-items:end;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #1f2937;border-radius:10px;background:#0b1220}
+.work-calendar-scenario label{display:flex;flex:1 1 280px;flex-direction:column;gap:6px;color:#94a3b8;font-size:12px}
+.work-calendar-scenario select,.work-calendar-compact-select select,.work-calendar-period-day select{min-width:0;border:1px solid #263244;border-radius:8px;background:#07101d;color:#e5e7eb;padding:9px 11px;font:inherit}
+.work-calendar-overview{padding:20px;border:1px solid #1f2937;border-radius:12px;background:linear-gradient(180deg,#0d1523 0%,#0a111d 100%)}
+.work-calendar-overview__top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.work-calendar-eyebrow{margin:0!important;color:#94a3b8;font-size:12px!important;font-weight:600;letter-spacing:.02em}
+.work-calendar-overview h2{margin:4px 0 0!important;font-size:20px!important;font-weight:650;letter-spacing:-.02em}
+.work-calendar-muted{margin:6px 0 0!important;color:#94a3b8;font-size:13px!important}
+.work-calendar-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px;border-top:1px solid #1f2937;border-bottom:1px solid #1f2937}
+.work-calendar-metric{padding:14px 16px;border-right:1px solid #1f2937}
+.work-calendar-metric:last-child{border-right:0}
+.work-calendar-metric span{display:block;color:#7f8da3;font-size:12px}
+.work-calendar-metric strong{display:block;margin-top:4px;color:#f8fafc;font-size:17px;font-weight:650}
+.work-calendar-progress__header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;font-size:13px}
+.work-calendar-progress__header strong{font-weight:600;color:#e5e7eb}.work-calendar-progress__header span{color:#818cf8;font-weight:700}
+.work-calendar-tracker{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:4px;margin-top:10px}
+.work-calendar-tracker span{height:8px;border-radius:2px;background:#1e293b}
+.work-calendar-tracker span.is-filled{background:#6366f1}
+.work-calendar-inline-actions{display:flex;gap:8px;margin-top:16px}
+.work-calendar-toolbar{display:flex;align-items:end;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.work-calendar-segmented{display:inline-flex;gap:4px;padding:3px;border:1px solid #1f2937;border-radius:9px;background:#0b1220}
+.work-calendar-segmented button,.work-calendar-days button{border:0;border-radius:7px;background:transparent;color:#94a3b8;padding:8px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.work-calendar-segmented button:hover,.work-calendar-days button:hover{color:#e5e7eb;background:#111827}
+.work-calendar-segmented button.is-active,.work-calendar-days button.is-active{background:#eef2ff;color:#111827}
+.work-calendar-compact-select,.work-calendar-period-day{display:flex;align-items:center;gap:10px;color:#94a3b8;font-size:12px}
+.work-calendar-days{display:flex;flex-wrap:wrap;gap:8px}
+.work-calendar-days button{border:1px solid #243044;background:#0a111d;color:#cbd5e1}
+.work-calendar-days button.is-active{border-color:#6366f1;background:#312e81;color:#eef2ff}
+.work-calendar-list{display:flex;flex-direction:column;gap:22px}
+.work-calendar-day{margin:0}
+.work-calendar-day__heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.work-calendar-day__heading h3{margin:0!important;font-size:15px!important;color:#f8fafc;text-transform:none}.work-calendar-day__heading span{color:#7f8da3;font-size:12px}
+.work-calendar-day__tasks{display:flex;flex-direction:column;border:1px solid #1f2937;border-radius:12px;overflow:hidden;background:#0b1220}
+.work-calendar-task{padding:14px 16px;border:0!important;border-radius:0!important;margin:0!important;background:transparent!important;border-bottom:1px solid #182233!important}
+.work-calendar-task:last-child{border-bottom:0!important}
+.work-calendar-task:hover{background:#0e1726!important}
+.work-calendar-task.is-completed{background:linear-gradient(90deg,rgba(16,185,129,.07),transparent 28%)!important}
+.work-calendar-task__row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start}
+.work-calendar-task__check{position:relative;display:grid;place-items:center;width:22px;height:22px;margin-top:1px;cursor:pointer}
+.work-calendar-task__check input{position:absolute;inset:0;width:22px!important;height:22px!important;margin:0!important;opacity:0;cursor:pointer}
+.work-calendar-task__box{display:block;width:18px;height:18px;border:1px solid #475569;border-radius:5px;background:#0a111d}
+.work-calendar-task__check input:checked+.work-calendar-task__box{border-color:#6366f1;background:#6366f1;box-shadow:inset 0 0 0 4px #6366f1}
+.work-calendar-task__check input:checked+.work-calendar-task__box:after{content:'✓';display:grid;place-items:center;height:100%;color:white;font-size:12px;font-weight:800}
+.work-calendar-task__body{min-width:0}.work-calendar-task__body strong{display:block;color:#f8fafc;font-size:14px;font-weight:620;line-height:1.4}
+.work-calendar-task__date{color:#7f8da3;font-size:12px;white-space:nowrap;padding-top:2px}
+.work-calendar-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.work-calendar-chips span{display:inline-flex;align-items:center;min-height:24px;padding:2px 8px;border:1px solid #273449;border-radius:999px;background:#0d1624;color:#aab7c8;font-size:11px}
+.work-calendar-task__details{margin:10px 0 0 34px}.work-calendar-task__details>summary{padding:0!important;color:#7f8da3!important;font-size:12px!important}
+.work-calendar-task__details[open]>summary{color:#cbd5e1!important}.work-calendar-task__editor{margin-top:12px;padding-top:12px;border-top:1px solid #1f2937}
+@media(max-width:900px){.work-calendar-metrics{grid-template-columns:1fr}.work-calendar-metric{border-right:0;border-bottom:1px solid #1f2937}.work-calendar-metric:last-child{border-bottom:0}.work-calendar-tracker{grid-template-columns:repeat(12,minmax(0,1fr))}.work-calendar-overview__top{flex-direction:column}.work-calendar-overview__top button{width:100%}}
+@media(max-width:640px){.work-calendar-scenario{align-items:stretch;flex-direction:column}.work-calendar-toolbar{align-items:stretch;flex-direction:column}.work-calendar-segmented{width:100%}.work-calendar-segmented button{flex:1}.work-calendar-days{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.work-calendar-task__row{grid-template-columns:auto minmax(0,1fr)}.work-calendar-task__date{grid-column:2}.work-calendar-task__details{margin-left:34px}}
