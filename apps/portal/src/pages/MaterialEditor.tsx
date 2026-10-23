@@ -1,3 +1,4 @@
+import {VisualSelect} from '../components/tremor/VisualControls.js';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -51,7 +52,7 @@ export function MaterialEditor({partnerId,materialId}:{partnerId:string;material
   return <div className="material-editor">
     <ErrorBanner error={materialError(error??links.error)}/>
     <form className="material-name" onSubmit={e=>{e.preventDefault();void run(async()=>{await api(`/partners/${partnerId}/materials/${materialId}`,{method:'PATCH',body:{title}});await refresh();});}}><label className="coach-field"><span>Название материала</span><input required maxLength={200} value={title} onChange={e=>setTitle(e.target.value)}/></label>{title!==material.title&&<Button type="submit" disabled={busy||!title.trim()}>Сохранить</Button>}</form>
-    {available.length>1&&<label className="coach-field"><span>Основная ссылка для новых размещений</span><select value={link?.id??''} onChange={e=>{setChosen(e.target.value);try{localStorage.setItem(preferenceKey,e.target.value);}catch{/* Optional preference. */}}}>{available.map(l=><option key={l.id} value={l.id}>{l.label||l.linkKey}</option>)}</select></label>}
+    {available.length>1&&<label className="coach-field"><span>Основная ссылка для новых размещений</span><VisualSelect value={link?.id??''} onChange={e=>{setChosen(e.target.value);try{localStorage.setItem(preferenceKey,e.target.value);}catch{/* Optional preference. */}}}>{available.map(l=><option key={l.id} value={l.id}>{l.label||l.linkKey}</option>)}</VisualSelect></label>}
     {!links.isLoading&&!link&&<Link className="coach-summary-link" to={`${base}/links?view=links&programId=${encodeURIComponent(material.programId)}`}>Создать партнёрскую ссылку →</Link>}
     {rows.map(({key,platform,source})=><PlacementRow key={key} platform={platform} source={source} busy={busy} canCopy={!!source||!!link} copied={source?.id===copied} onCopy={()=>{void copy(platform,source);}} onSave={body=>{void savePublication(platform,source,body);}} resultsHref={`${base}/results?programId=${encodeURIComponent(material.programId)}&scenarioId=${encodeURIComponent(material.scenarioId??'__none__')}&materialId=${encodeURIComponent(materialId)}&groupBy=material`}/>)}
     {!rows.length&&<p className="coach-muted">Добавьте площадку, на которой разместите материал.</p>}

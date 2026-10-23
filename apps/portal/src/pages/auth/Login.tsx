@@ -2,7 +2,8 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Mail } from 'lucide-react';
-import { api, setApiKey, ApiError, type Principal } from '../../api.js';
+import { api, setApiKey, ApiError, isLocalDevelopment, type Principal } from '../../api.js';
+import { LocalLogin } from './LocalLogin.js';
 import { useTenantBase } from '../../tenant-base.js';
 import { theme } from '../../theme.js';
 import { Logo, AuthFrame } from './Shared.js';
@@ -22,6 +23,7 @@ export function LoginPage() {
         </TabButton>
       </div>
       {tab === 'email' ? <EmailTab /> : <KeyTab />}
+      {import.meta.env.DEV && isLocalDevelopment() && <LocalLogin />}
     </AuthFrame>
   );
 }

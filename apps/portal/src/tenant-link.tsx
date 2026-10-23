@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
 import { useTenantBase } from './tenant-base.js';
 
@@ -12,8 +13,8 @@ import { useTenantBase } from './tenant-base.js';
  * props (className, style, onMouseEnter, etc.) forward to the
  * underlying Link unchanged.
  */
-export function TenantLink({ to, ...rest }: Omit<LinkProps, 'to'> & { to: string }) {
+export const TenantLink = forwardRef<HTMLAnchorElement, Omit<LinkProps, 'to'> & { to: string }>(function TenantLink({ to, ...rest }, ref) {
   const tenantBase = useTenantBase();
   const href = to.startsWith('/') ? `${tenantBase}${to === '/' ? '' : to}` || '/' : to;
-  return <Link to={href} {...rest} />;
-}
+  return <Link ref={ref} to={href} {...rest} />;
+});

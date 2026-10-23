@@ -1,0 +1,22 @@
+Tremor Raw — https://github.com/tremorlabs/tremor
+Sources retrieved from the official main branch on 2026-10-21.
+The complete upstream licence is in raw/LICENSE (Apache-2.0 and component notices).
+
+raw/components, raw/hooks, raw/utils contain actual upstream component sources.
+raw/theme.css contains the upstream src/globals.css animation theme, without
+its global body rules or preflight so other roles retain their existing styles.
+Local adaptations: explicit .js relative imports for this project's ESM compiler;
+monotone interpolation for AreaChart/LineChart; ChartTooltip is exported so the
+existing translated labels/formatters can be retained by the data adapters.
+Optional index guards support the host's strict compiler settings. File-input
+disabled variants use Tailwind 4's disabled:file ordering.
+BarChart accepts optional controlled selection, X-axis formatting and minimum
+hit-area size to retain the host calculator's existing date/month interactions.
+Whole-column controlled highlighting keeps stacked metric segments equally
+visible when a calculator month is selected (local adaptation, 2026-10-22).
+Optional category-width and bar-width limits keep short calculator time series
+compact without padding the data with artificial dates (2026-10-22).
+No business calculations or API implementation are imported from Tremor.
+The partner visual scope uses upstream Tailwind color tokens directly. Tenant
+brandColor is not aliased to Tremor's blue palette or chart colors.
+Support Dashboard is the visual reference only; premium template code is not copied.

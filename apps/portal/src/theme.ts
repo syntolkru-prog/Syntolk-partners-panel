@@ -10,17 +10,17 @@
 
 export const theme = {
   // Surfaces
-  bg: '#0b0d10',       // page background
-  surface: '#14171c',  // cards + content panels
-  surface2: '#1b1f26', // raised / hover
-  sidebar: '#0e1116',
-  border: '#242932',
-  borderSubtle: '#1d2029',
+  bg: 'var(--op-bg, #0b0d10)',       // page background
+  surface: 'var(--op-surface, #14171c)',  // cards + content panels
+  surface2: 'var(--op-surface-2, #1b1f26)', // raised / hover
+  sidebar: 'var(--op-sidebar, #0e1116)',
+  border: 'var(--op-border, #242932)',
+  borderSubtle: 'var(--op-border-subtle, #1d2029)',
 
   // Ink
-  text: '#e6e8eb',
-  textMuted: '#8b929c',
-  textDim: '#5a6370',
+  text: 'var(--op-text, #e6e8eb)',
+  textMuted: 'var(--op-text-muted, #8b929c)',
+  textDim: 'var(--op-text-dim, #5a6370)',
 
   // Accent — soft teal by default for the Syntolk interface.
   // violet; reads as "attribution/trust" without being finance-default blue.

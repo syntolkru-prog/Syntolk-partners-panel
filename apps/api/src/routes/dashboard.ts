@@ -53,8 +53,8 @@ dashboardRouter.get('/partners/:id/analytics/details', requireAuth, grantScope('
   try {
     const profile = await db('CoachProfile').where({ tenantId, partnerId: req.params.id! }).first();
     const filters = analyticsFiltersFromQuery(req.query, profile?.data?.timezone ?? 'Europe/Moscow');
-    const { cursor } = analyticsDetailsQuerySchema.parse(req.query);
-    res.json(await partnerAnalyticsDetails(db, tenantId, req.params.id!, filters, cursor));
+    const { cursor, includeRegistrations } = analyticsDetailsQuerySchema.parse(req.query);
+    res.json(await partnerAnalyticsDetails(db, tenantId, req.params.id!, filters, cursor, includeRegistrations === 'true'));
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
     throw error;

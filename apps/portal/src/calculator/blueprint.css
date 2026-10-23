@@ -1,0 +1,192 @@
+/* Calculator composition from the supplied mockup, using Tremor's dark tokens.
+   Scoped to the partner calculator: admin screens and other pages stay intact. */
+.pf-blueprint-heading { display:none; }
+.pf-frequency-control > button { display:none; }
+.calculator-blueprint { --calc-card:#090e1a; --calc-line:var(--color-gray-800); }
+.calculator-page.calculator-blueprint > .op-page { max-width:none !important; padding:20px 24px !important; }
+.calculator-page.calculator-blueprint > .op-page > header { margin-bottom:18px !important; }
+.calculator-blueprint .op-page-subtitle { font-size:12px !important; line-height:18px; }
+.calculator-blueprint *, .calculator-blueprint *::before, .calculator-blueprint *::after { box-sizing:border-box; }
+.calculator-blueprint .calculator-setup {
+  display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:24px;
+  padding:14px 20px; margin-bottom:14px; border:1px solid var(--calc-line); border-radius:10px;
+  background:linear-gradient(110deg,color-mix(in oklab,var(--color-gray-900) 60%,transparent),transparent),var(--calc-card);
+}
+.calculator-blueprint .calculator-setup-scenario { min-width:0; padding-right:24px; border-right:1px solid var(--calc-line); }
+.calculator-blueprint .calculator-setup h2 { margin:0 0 12px; font-size:14px; line-height:20px; font-weight:600; }
+.calculator-blueprint .calculator-intro { display:block; margin:0; }
+.calculator-blueprint .calculator-intro > .coach-muted { margin:8px 0 0 !important; font-size:11px; line-height:16px; }
+.calculator-blueprint .calculator-scenario-picker { flex-wrap:nowrap; gap:10px; margin:0; }
+.calculator-blueprint .calculator-scenario-picker .coach-field { flex:1 1 0; }
+.calculator-blueprint .calculator-scenario-picker .coach-actions { flex-shrink:0; }
+.calculator-blueprint .calculator-scenario-picker button { font-size:11px !important; padding:8px 10px !important; }
+.calculator-blueprint .calculator-new-scenario { background:var(--color-gray-900); border-color:var(--calc-line); margin-bottom:0; }
+.calculator-blueprint .calculator-new-scenario span { color:var(--color-gray-400); }
+.calculator-blueprint .calculator-planning { display:block; margin:0 !important; min-width:0; }
+.calculator-blueprint .calculator-planning > div { padding:0 !important; background:transparent !important; border:0 !important; box-shadow:none !important; }
+.calculator-blueprint .calculator-planning .coach-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.calculator-blueprint .calculator-planning .coach-field > span, .calculator-blueprint .calculator-intro .coach-field > span { font-size:12px; color:var(--color-gray-400); }
+.calculator-blueprint .calculator-planning .coach-field:nth-child(3) { grid-column:1/-1; }
+.calculator-blueprint .calculator-planning .coach-row { justify-content:flex-start; gap:10px; margin-top:12px; }
+.calculator-blueprint .calculator-planning .coach-row > span { font-size:11px; }
+.calculator-blueprint .calculator-planning .coach-actions { gap:5px; margin:0; }
+.calculator-blueprint .calculator-planning [aria-label="Рабочие дни"] button { min-width:30px; min-height:32px; padding:5px 7px !important; font-size:11px !important; }
+.calculator-blueprint .calculator-planning .calculator-save-actions { margin-left:auto; }
+.calculator-blueprint .calculator-save-actions button { min-height:34px; font-size:11px !important; padding:7px 12px !important; }
+
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-app { border:0; background:transparent; box-shadow:none; overflow:visible; }
+.calculator-blueprint .pf-section .pf-workspace { grid-template-columns:minmax(0,.82fr) minmax(0,1.3fr); gap:16px; align-items:start; }
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section :is(.pf-controls,.pf-result) {
+  padding:16px 20px !important; border:1px solid var(--calc-line); border-radius:10px;
+  background:linear-gradient(110deg,color-mix(in oklab,var(--color-gray-900) 55%,transparent),transparent),var(--calc-card) !important;
+}
+.calculator-blueprint .pf-section .pf-blueprint-heading { display:flex; align-items:center; gap:10px; font-size:14px; line-height:20px; font-weight:600; margin:0; white-space:nowrap; }
+.calculator-blueprint .pf-heading-icon { display:grid; place-items:center; flex-shrink:0; width:28px; height:28px; border-radius:6px; color:var(--color-blue-400); background:color-mix(in oklab,var(--color-blue-500) 14%,transparent); }
+.calculator-blueprint .pf-section .pf-toolbar { padding:0; margin:0 0 12px; min-height:32px; gap:10px; border:0; flex-wrap:nowrap; }
+.calculator-blueprint .pf-section .pf-toolbar .pf-text-button { padding:4px 8px; min-height:28px; font-size:11px; background:transparent; border-color:var(--calc-line); }
+.calculator-blueprint .pf-section .pf-tabs { margin:0 0 12px; }
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section :is(.pf-tab,.pf-scenarios > button) { font-size:12px !important; min-height:32px; padding:6px 8px; }
+.calculator-blueprint .pf-section .pf-row-head { font-size:11px; margin-bottom:5px; }
+.calculator-blueprint .pf-section .pf-format-edit > summary { min-height:48px; padding:5px 152px 5px 0; font-size:12px; }
+.calculator-blueprint .pf-section .pf-format-icon { width:30px; height:32px; color:var(--color-blue-400); background:color-mix(in oklab,var(--color-blue-500) 12%,transparent); border-radius:6px; }
+.calculator-blueprint .pf-section .pf-format-icon svg { width:18px; height:18px; }
+.calculator-blueprint .pf-section .pf-frequency-control { position:absolute; top:7px; right:0; display:flex; gap:3px; align-items:center; width:124px; }
+.calculator-blueprint .pf-section .pf-frequency-control > button { display:grid; place-items:center; width:34px; min-height:34px; flex-shrink:0; padding:0; border:1px solid var(--calc-line); border-radius:5px; color:var(--color-gray-200); background:var(--color-gray-900); font-size:18px; }
+.calculator-blueprint .pf-section .pf-format-frequency { position:static; width:50px; height:34px; min-height:34px !important; padding:4px !important; font-size:12px !important; appearance:textfield; -moz-appearance:textfield; }
+.calculator-blueprint .pf-format-frequency::-webkit-inner-spin-button { -webkit-appearance:none; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-frequency-control > button { color:var(--color-gray-600); opacity:.45; cursor:default; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-quick-assumptions > p:last-child { display:none; }
+.calculator-blueprint .pf-section .pf-help { margin:9px 0; font-size:11px; line-height:17px; }
+.calculator-blueprint .pf-section .pf-custom-form { margin:10px 0; }
+.calculator-blueprint .pf-section .pf-custom-form > button { min-height:34px; font-size:12px; }
+.calculator-blueprint .pf-section .pf-details { margin-top:10px; }
+.calculator-blueprint .pf-section .pf-details > summary { padding:10px 12px; font-size:12px; min-height:36px; }
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-work { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:0; margin:12px 0 0; background:transparent !important; border:0; }
+.calculator-blueprint .pf-section .pf-work > div { display:flex; flex-direction:row; align-items:center; gap:10px; min-width:0; padding:10px; border:1px solid var(--calc-line); border-radius:7px; background:var(--color-gray-900); }
+.calculator-blueprint .pf-work > div::before { content:'↗'; display:grid; place-items:center; width:30px; height:30px; flex-shrink:0; border-radius:6px; color:var(--color-emerald-400); background:color-mix(in oklab,var(--color-emerald-500) 12%,transparent); font-size:22px; }
+.calculator-blueprint .pf-work > div:last-child::before { content:'↗'; color:var(--color-violet-400); background:color-mix(in oklab,var(--color-violet-500) 12%,transparent); }
+.calculator-blueprint .pf-section .pf-work strong { font-size:11px; line-height:17px; font-weight:500; }
+.calculator-blueprint .pf-result-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.calculator-blueprint .pf-section .pf-result-heading .pf-scenarios { flex:1; max-width:390px; margin:0; grid-template-columns:repeat(2,minmax(0,1fr)) 32px; }
+.calculator-blueprint .pf-section .pf-scenarios .pf-refresh { width:28px; height:28px; min-height:28px; padding:0; border-radius:5px !important; }
+.calculator-blueprint .pf-section .pf-scenarios .pf-refresh svg { width:15px; height:15px; }
+.calculator-blueprint .pf-section .pf-scenario-note { margin:10px 0 16px; font-size:11px; line-height:17px; min-height:17px; }
+.calculator-blueprint .pf-result-metrics { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) minmax(0,1.6fr); gap:12px 18px; align-items:start; }
+.calculator-blueprint .pf-section :is(.pf-income-top,.pf-year-totals) { display:contents; }
+.calculator-blueprint .pf-income-top > div { grid-column:1; grid-row:1; min-width:0; }
+.calculator-blueprint .pf-section .pf-income-top p { margin:0 0 6px; font-size:11px; line-height:17px; }
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-income-top output { font-size:32px !important; line-height:40px; letter-spacing:-.035em; white-space:nowrap; }
+.calculator-blueprint .pf-year-totals > div:first-child { grid-column:2; grid-row:1; }
+.calculator-blueprint .pf-year-totals > div:last-child { grid-column:3; grid-row:1; }
+.calculator-blueprint .pf-year-totals > div { gap:0; }
+.calculator-blueprint .pf-section .pf-year-totals span { display:block; font-size:11px; line-height:17px; margin-bottom:8px; }
+.calculator-blueprint .pf-section .pf-year-totals strong { font-size:17px; line-height:24px; white-space:nowrap; }
+.calculator-blueprint .pf-section .pf-income-range { grid-column:1; grid-row:2; margin:0; font-size:11px; line-height:17px; align-self:center; }
+.calculator-blueprint .pf-section .pf-horizon { grid-column:2; grid-row:2; margin:0; flex-direction:column; align-items:stretch; gap:5px; font-size:11px; }
+.calculator-blueprint .pf-section .pf-month-select { grid-column:3; grid-row:2; margin:0; max-width:none !important; font-size:11px; gap:5px; }
+.calculator-blueprint .pf-section :is(.pf-horizon,.pf-month-select) select { width:100%; height:34px; min-height:34px !important; font-size:12px !important; }
+.calculator-blueprint .pf-section .pf-result-analysis { margin-top:14px; }
+.calculator-blueprint .pf-section .pf-chart-caption { margin:0; padding-top:12px; border-top:1px solid var(--calc-line); font-size:12px; line-height:18px; }
+.calculator-blueprint .pf-chart-caption > span:first-child { font-weight:600; color:var(--color-gray-100); }
+.calculator-blueprint .pf-chart-caption > span:last-child { font-size:10px; color:var(--color-gray-400); }
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .tremor-calculator-chart { height:220px; margin:6px 0 14px; }
+.calculator-blueprint .tremor-calculator-chart .recharts-legend-wrapper :is(ol,p) { margin:0; padding:0; list-style:none; }
+.calculator-blueprint .tremor-calculator-chart .recharts-legend-wrapper li { list-style:none; }
+/* Keep the Tremor tooltip independent of the calculator's paragraph spacing. */
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper { z-index:5; pointer-events:none; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div {
+  min-width:140px; max-width:min(210px,calc(100vw - 32px)); border-radius:6px; font-size:10px; line-height:13px;
+}
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div { padding:4px 7px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper p {
+  margin:0 !important; padding:0; font-size:10px !important; line-height:13px !important;
+}
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div { min-height:14px; column-gap:10px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div + div { margin-top:2px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper [aria-hidden="true"] { width:5px; height:5px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div > :last-child { margin-inline:0 !important; }
+.calculator-blueprint .pf-section .pf-funnel { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; border:0; margin:0; padding:0; }
+.calculator-blueprint .pf-funnel > div { position:relative; padding:8px 10px 8px 36px; border:1px solid var(--calc-line); background:var(--color-gray-900); border-radius:7px; min-width:0; }
+.calculator-blueprint .pf-funnel > div > svg { position:absolute; left:10px; top:15px; width:18px; height:18px; color:var(--color-violet-400); }
+.calculator-blueprint .pf-funnel > div:nth-child(2) > svg { color:var(--color-blue-400); }
+.calculator-blueprint .pf-funnel > div:nth-child(3) > svg { color:var(--color-emerald-400); }
+.calculator-blueprint .pf-funnel > div:nth-child(4) > svg { color:var(--color-gray-400); }
+.calculator-blueprint .pf-section .pf-funnel strong { display:block; font-size:17px; line-height:24px; overflow-wrap:anywhere; }
+.calculator-blueprint .pf-section .pf-funnel span { font-size:10px; line-height:15px; }
+.calculator-blueprint .pf-payment-summary { display:block; margin-top:12px; }
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-repeat-bar[data-tremor-mounted] { width:36px !important; height:36px !important; margin:0 !important; }
+.calculator-blueprint .pf-repeat-bar > div { width:100%; height:100%; }
+.calculator-blueprint .pf-section .pf-repeat-labels { margin:4px 0 0; font-size:11px; }
+.calculator-blueprint .pf-repeat-labels > div { color:var(--color-gray-400); }
+.calculator-blueprint .pf-section .pf-repeat-labels strong { font-size:13px; margin-top:4px; }
+.calculator-blueprint .pf-section .pf-channel-list { max-height:340px; }
+.calculator-blueprint .calculator-connection { margin-top:14px; }
+.calculator-blueprint .calculator-connection > div { padding:16px 20px !important; border-radius:10px !important; }
+.calculator-blueprint .calculator-connection h2 { font-size:14px; margin:0 0 8px; }
+.calculator-blueprint .calculator-connection p { font-size:12px; margin:8px 0; }
+.calculator-blueprint .calculator-connection small { font-size:11px; }
+@media (min-width:1000px) and (max-height:800px) {
+  .calculator-page.calculator-blueprint > .op-page { padding:16px 20px !important; }
+  .calculator-blueprint .calculator-setup { padding:12px 16px; gap:16px; }
+  .calculator-blueprint .calculator-setup h2 { margin-bottom:8px; }
+  .calculator-blueprint .calculator-intro > .coach-muted { font-size:10px; margin-top:5px; }
+  .calculator-blueprint .calculator-planning .coach-row { margin-top:8px; }
+  .calculator-blueprint .pf-section .pf-format-edit > summary { min-height:42px; }
+  .calculator-blueprint .pf-section .pf-frequency-control { top:4px; }
+  .calculator-blueprint .pf-section .pf-scenario-note { margin:8px 0 10px; }
+  .calculator-blueprint .pf-section .pf-result-analysis { margin-top:10px; }
+  html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .tremor-calculator-chart { height:150px; margin-bottom:10px; }
+  .calculator-blueprint .pf-section .pf-funnel > div { padding-top:8px; padding-bottom:8px; }
+  .calculator-blueprint .pf-funnel > div > svg { top:11px; }
+  .calculator-blueprint .pf-payment-summary { margin-top:10px; }
+  html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-repeat-bar[data-tremor-mounted] { width:36px !important; height:36px !important; }
+  .calculator-blueprint .pf-payment-summary { grid-template-columns:36px minmax(0,1fr); }
+}
+@media (hover:hover) {
+  .calculator-blueprint .pf-section .pf-frequency-control > button:hover:not(:disabled) { background:var(--color-gray-800); }
+}
+@media (min-width:1450px) {
+  html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .tremor-calculator-chart { height:180px; }
+}
+@media (max-width:1200px) {
+  .calculator-blueprint .calculator-setup { grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:16px; padding:16px; }
+  .calculator-blueprint .calculator-setup-scenario { padding-right:16px; }
+  .calculator-blueprint .calculator-planning .calculator-save-actions { margin-left:0; width:100%; }
+  .calculator-blueprint .calculator-scenario-picker { flex-wrap:wrap; }
+  .calculator-blueprint .pf-result-heading { flex-wrap:wrap; }
+  .calculator-blueprint .pf-section .pf-result-heading .pf-scenarios { max-width:none; flex-basis:100%; }
+  .calculator-blueprint .pf-section .pf-workspace { grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:12px; }
+  html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section :is(.pf-controls,.pf-result) { padding:14px !important; }
+  .calculator-blueprint .pf-section .pf-funnel { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .calculator-blueprint .pf-result-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .calculator-blueprint .pf-income-top > div { grid-column:1/-1; }
+  .calculator-blueprint .pf-year-totals > div:first-child { grid-column:1; grid-row:2; }
+  .calculator-blueprint .pf-year-totals > div:last-child { grid-column:2; grid-row:2; }
+  .calculator-blueprint .pf-section .pf-income-range { grid-column:1/-1; grid-row:3; }
+  .calculator-blueprint .pf-section .pf-horizon { grid-column:1; grid-row:4; }
+  .calculator-blueprint .pf-section .pf-month-select { grid-column:2; grid-row:4; }
+  .calculator-blueprint .pf-section .pf-format-edit > summary { padding-right:125px; }
+  .calculator-blueprint .pf-section .pf-frequency-control { width:106px; }
+  .calculator-blueprint .pf-section .pf-frequency-control > button { width:28px; }
+  .calculator-blueprint .pf-section .pf-format-frequency { width:44px; }
+  .calculator-blueprint .pf-section .pf-work { grid-template-columns:1fr !important; }
+}
+@media (max-width:900px) {
+  .calculator-blueprint .calculator-setup, .calculator-blueprint .pf-section .pf-workspace { grid-template-columns:1fr; }
+  .calculator-blueprint .calculator-setup-scenario { padding:0 0 14px; border-right:0; border-bottom:1px solid var(--calc-line); }
+  .calculator-blueprint .calculator-planning .calculator-save-actions { width:auto; margin-left:auto; }
+  .calculator-blueprint .pf-section .pf-work { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+}
+@media (max-width:520px) {
+  .calculator-blueprint .pf-section .pf-funnel > div { padding:10px; }
+  .calculator-blueprint .pf-funnel > div > svg { position:static; display:block; margin-bottom:6px; }
+  .calculator-blueprint .calculator-setup { padding:14px; }
+  .calculator-blueprint .calculator-planning .calculator-save-actions { width:100%; margin:0; }
+  .calculator-blueprint .calculator-save-actions button { width:100%; white-space:normal; }
+  .calculator-blueprint .pf-section .pf-toolbar { flex-wrap:wrap; }
+  .calculator-blueprint .pf-section .pf-work { grid-template-columns:1fr !important; }
+  .calculator-blueprint .pf-section .pf-income-top output { font-size:28px !important; }
+  .calculator-blueprint .pf-section .pf-year-totals strong { font-size:15px; }
+  .calculator-blueprint .pf-section .pf-chart-caption { flex-wrap:wrap; gap:4px; }
+  .calculator-blueprint .pf-app[data-mobile-mode="compact"] .pf-result-heading { display:none; }
+}

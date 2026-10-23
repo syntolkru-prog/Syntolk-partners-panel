@@ -145,47 +145,50 @@ describe('partner scenario analytics UI',()=>{
   });
   it('shows all eight homepage statistics without hiding registrations or zero payout balances',async()=>{
     localStorage.setItem('syntolk-partner-selection:default:partner',JSON.stringify({programId:'p',scenarioId:'a'}));
-    vi.mocked(api).mockImplementation(async path=>path.includes('/dashboard?')?dashboard:path.includes('/funnel?')?funnel:path==='/coach/me'?{programs:[{id:'p'}]}:path.includes('/calculator-plan?')?{plan:null,tasks:[]}:path==='/partners/partner'?{termsAcceptedAt:'2026-10-14'}:{});
+    vi.mocked(api).mockImplementation(async path=>path.includes('/analytics/details?')?{traffic:{referrers:[]},registrations:[]}:path.includes('/analytics?')?result:path.includes('/dashboard?')?dashboard:path.includes('/funnel?')?funnel:path==='/coach/me'?{programs:[{id:'p'}]}:path.includes('/calculator-plan?')?{plan:null,tasks:[]}:path==='/partners/partner'?{termsAcceptedAt:'2026-10-14'}:{});
     show(<Dashboard principal={principal}/>,'/?programId=p&scenarioId=a&platformId=youtube&formatId=short&materialId=video&groupBy=material');
     await screen.findByText('Выручка');
-    for(const label of ['Переходы','Регистрации','Платящие клиенты','Начислено','Доступно','Ожидает выплаты','Выплачено'])expect(screen.getByText(label)).toBeTruthy();
+    for(const label of ['Переходы','Регистрации','Платящие клиенты','Начислено','Доступно','Ожидает выплаты','Выплачено'])expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     for(const label of ['Начислено','Доступно','Ожидает выплаты','Выплачено'])expect(screen.getByText(label).closest('details')).toBeNull();
     expect(screen.queryByText('Общая статистика')).toBeNull();
     expect(screen.queryByLabelText('Сценарий аналитики')).toBeNull();
     expect(screen.queryByLabelText('Разбивка аналитики')).toBeNull();
     expect(screen.queryByRole('link',{name:'Подробные результаты →'})).toBeNull();
     expect(screen.queryByText('Как считаются показатели')).toBeNull();
-    const period=screen.getByLabelText('Период статистики');
-    expect(period.closest('header')).toBeTruthy();
-    const queries=()=>vi.mocked(api).mock.calls.filter(([path])=>path.includes('/dashboard?')||path.includes('/funnel?')).map(([path])=>new URL(path,'http://local').searchParams);
+    const period=screen.getByRole('tablist',{name:'Период статистики'});
+    expect(period.closest('.wd-header')).toBeTruthy();
+    const queries=()=>vi.mocked(api).mock.calls.filter(([path])=>path.includes('/analytics?')).map(([path])=>new URL(path,'http://local').searchParams);
     expect(queries().length).toBeGreaterThan(0);
     for(const query of queries()){
       for(const field of ['programId','scenarioId','platformId','formatId','materialId'])expect(query.has(field)).toBe(false);
     }
-    fireEvent.change(period,{target:{value:'7d'}});
-    await waitFor(()=>expect(api).toHaveBeenCalledWith('/partners/partner/dashboard?period=7d'));
+    fireEvent.mouseDown(within(period).getByRole('tab',{name:'7 дней'}),{button:0,ctrlKey:false});
+    await waitFor(()=>expect(queries().some(query=>query.get('period')==='7d')).toBe(true));
     expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('/funnel?'))).toBe(false);
-    for(const label of ['Воронка','Начисления','Конверсия'])expect(screen.queryByText(label)).toBeNull();
+    for(const label of ['Воронка','Начисления'])expect(screen.queryByText(label)).toBeNull();
+    expect(screen.getByText('Конверсия')).toBeTruthy();
     expect(JSON.parse(localStorage.getItem('syntolk-partner-selection:default:partner')!).scenarioId).toBe('a');
   });
   it('keeps daily tasks on the selected scenario while dashboard totals stay unchanged',async()=>{
     localStorage.setItem('syntolk-partner-selection:default:partner',JSON.stringify({programId:'p',scenarioId:'a'}));
-    vi.mocked(api).mockImplementation(async path=>path.includes('/dashboard?')?dashboard:path.includes('/funnel?')?funnel:path==='/partners/partner'?{termsAcceptedAt:'2026-10-14'}:path==='/coach/me'?{programs:[{id:'p',name:'Syntolk'}]}:path.includes('/calculator-plan?')?{
+    vi.mocked(api).mockImplementation(async path=>path.includes('/analytics/details?')?{traffic:{referrers:[]},registrations:[]}:path.includes('/analytics?')?result:path.includes('/dashboard?')?dashboard:path.includes('/funnel?')?funnel:path==='/partners/partner'?{termsAcceptedAt:'2026-10-14'}:path==='/coach/me'?{programs:[{id:'p',name:'Syntolk'}]}:path.includes('/calculator-plan?')?{
       plan:{data:{startDate:'2026-10-14',days:7,scenarioId:path.includes('scenarioId=b')?'b':'a',scenarioName:path.includes('scenarioId=b')?'Посты':'Рилсы'}},today:'2026-10-14',
       tasks:[{status:'planned',data:{scheduledDay:'2026-10-14',estimatedMinutes:20,title:path.includes('scenarioId=b')?'Подготовить пост':'Снять ролик'}}],
     }:{});
     show(<Dashboard principal={principal}/>,'/');
-    await screen.findByText('Сегодня по сценарию «Рилсы»');
+    await screen.findByRole('link',{name:'Снять ролик, задача 1'});
+    expect(screen.getByRole('link',{name:'Снять ролик, задача 1'}).getAttribute('href')).toContain('scenarioId=a');
     await screen.findByText('Начислено');
     expect(screen.getByText('Снять ролик')).toBeTruthy();
     localStorage.setItem('syntolk-partner-selection:default:partner',JSON.stringify({programId:'p',scenarioId:'b'}));
     window.dispatchEvent(new Event('syntolk-partner-selection'));
-    await screen.findByText('Сегодня по сценарию «Посты»');
+    await screen.findByRole('link',{name:'Подготовить пост, задача 1'});
+    expect(screen.getByRole('link',{name:'Подготовить пост, задача 1'}).getAttribute('href')).toContain('scenarioId=b');
     expect(screen.getByText('Подготовить пост')).toBeTruthy();
     expect(screen.queryByText('Снять ролик')).toBeNull();
     expect(screen.getAllByText('10').length).toBeGreaterThan(0);
     expect(screen.queryByRole('link',{name:'Открыть задачи дня →'})).toBeNull();
-    expect(vi.mocked(api).mock.calls.filter(([path])=>path.includes('/dashboard?')||path.includes('/funnel?')).every(([path])=>!path.includes('scenarioId='))).toBe(true);
+    expect(vi.mocked(api).mock.calls.filter(([path])=>path.includes('/analytics?')).every(([path])=>!path.includes('scenarioId='))).toBe(true);
   });
   it('applies custom dates together and never requests a half-edited range',async()=>{
     mockReport();show(<PartnerAnalyticsPanel partnerId="partner"/>);

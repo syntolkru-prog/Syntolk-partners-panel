@@ -113,6 +113,7 @@ function AdminLinksHub() {
           {activePartners.map((p) => (
             <TenantLink
               key={p.id}
+              className="op-interactive-card"
               to={`/links?partnerId=${p.id}`}
               style={{
                 display: 'block',
@@ -120,10 +121,7 @@ function AdminLinksHub() {
                 border: `1px solid ${theme.border}`,
                 borderRadius: theme.radiusMd,
                 padding: 16,
-                transition: 'all 120ms',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.accent)}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.border)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <Avatar name={p.name} size={32} />

@@ -60,7 +60,7 @@ html { scrollbar-gutter: stable; }
 
 /* Selection */
 ::selection {
-  background: var(--op-accent-a25, #2dd4bf33);
+  background: var(--op-control-selected-surface, #34383e);
   color: #e6e8eb;
 }
 
@@ -89,6 +89,6 @@ button:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--op-accent, #2dd4bf);
+  outline: 2px solid var(--op-card-focus-ring, #8b95a3);
   outline-offset: 1px;
 }

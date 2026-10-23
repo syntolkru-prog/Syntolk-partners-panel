@@ -1,0 +1,11 @@
+version = 1
+name = "Syntolk"
+
+[setup]
+script = ""
+
+[[actions]]
+name = "Запустить Syntolk"
+icon = "run"
+command = 'powershell.exe -NoProfile -File "scripts/local-launcher/start-codex.ps1"'
+platform = "win32"

@@ -474,10 +474,10 @@ async function conversionFunnel(s: Scope) {
 }
 
 const historyCursor = z.object({ ts: z.string().datetime(), id: z.string().min(1).max(70) });
-export const analyticsDetailsQuerySchema = z.object({ cursor: z.string().max(300).optional() });
+export const analyticsDetailsQuerySchema = z.object({ cursor: z.string().max(300).optional(), includeRegistrations: z.enum(['true', 'false']).optional() });
 
 /** Read-only detail view. Reuses the exact scope, payment taxonomy and exclusions of the report. */
-export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partnerId?: string, filters: AnalyticsFilters = {}, rawCursor?: string) {
+export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partnerId?: string, filters: AnalyticsFilters = {}, rawCursor?: string, includeRegistrations = false) {
   filters = { ...filters, currency: filters.currency ?? 'RUB' };
   const since = filters.since ?? new Date(Date.now() - 30 * 86400000), until = filters.until ?? new Date();
   const s: Scope = { db, tenantId, partnerIds: partnerId ? [partnerId] : analyticsPartnerIds(filters), filters, since, until, asOf: new Date() };
@@ -527,7 +527,26 @@ export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partne
   };
   const items = actions.slice(0, 20).map(row => ({ ...row, ts: new Date(row.ts).toISOString(), amountMinor: row.amountMinor === null ? null : Number(row.amountMinor) }));
   const last = items.at(-1);
-  return { traffic: { referrers: top(referrers), devices: top(devices) }, history: { items,
+  // Optional homepage rows use the same attribution scope/exclusions as Results.
+  // This is an additive read model: existing history and metric definitions stay unchanged.
+  let registrations: Array<{id:string;userId:string;registeredAt:string;source:string;paidMinor:number|null;currency:string}> | undefined;
+  if (includeRegistrations) {
+    const signups = attributions(s).where('e.type', 'signup').where('e.ts', '>=', since).where('e.ts', '<', until)
+      .distinctOn('e.userId').orderBy('e.userId').orderBy('e.ts').orderBy('e.id')
+      .select('e.id', 'e.userId', 'e.ts', 'cl.referer');
+    const latest = await db.from(signups.as('recent_signups')).select('*').orderBy('ts', 'desc').orderBy('id', 'desc').limit(4);
+    const paid = latest.length ? await attributions(s).whereIn('e.userId', latest.map(row => row.userId))
+      .where('e.ts', '>=', since).where('e.ts', '<', until).whereRaw(paidExpression(), bindings(s))
+      .groupBy('e.userId').select('e.userId').select(db.raw('ROUND(SUM(e.value*a.weight)*100) AS "amountMinor"')) : [];
+    registrations = latest.map(row => {
+      let source = 'Источник не передан';
+      if (row.referer) { try { source = new URL(String(row.referer)).hostname || source; } catch { /* Unknown remains unknown. */ } }
+      const payment = paid.find((item: {userId:string;amountMinor:string|number}) => item.userId === row.userId);
+      return { id: String(row.id), userId: String(row.userId), registeredAt: new Date(row.ts).toISOString(), source,
+        paidMinor: payment ? Number(payment.amountMinor) : null, currency: filters.currency! };
+    });
+  }
+  return { ...(registrations ? { registrations } : {}), traffic: { referrers: top(referrers), devices: top(devices) }, history: { items,
     nextCursor: actions.length > 20 && last ? JSON.stringify({ ts: last.ts, id: last.id }) : null } };
 }
 

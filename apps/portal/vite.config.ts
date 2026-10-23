@@ -1,8 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import { fileURLToPath } from 'node:url';
+import { localBrowserLogin } from '../../scripts/local-launcher/browser-login.mjs';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tailwindcss(), react(), localBrowserLogin(fileURLToPath(new URL('../..', import.meta.url)))],
   server: {
     // 5673: stays out of the brightyard-platform 5173/5175 range.
     port: Number(process.env.PORTAL_PORT ?? 5673),

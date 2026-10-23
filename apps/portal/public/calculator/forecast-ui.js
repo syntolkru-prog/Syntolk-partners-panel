@@ -3,6 +3,7 @@
   const root=document.getElementById('partner-forecast'), M=globalThis.SyntolkForecast;
   if(!root||!M)return;
   const KEY=root.dataset.storageKey||'syntolk-partner-forecast-v1';
+  const metricsChart=root.dataset.chartKind==='funnel';
   let settings=M.newScenario(), scenario='base', month=3, tab='content', results;
   let canSave=true, statusTimer, mobileExpanded=false, formatMenuOpen=false, platformMenuOpen=false, channelFormatMenu=null, suppressPersist=false;
   let facts=null, factViews={}, factStorageKey='', factCatalog='';
@@ -85,9 +86,10 @@
   }
   function platformSourceSettings(c,nested){
     const state=channelState(c.id),row=metric('platforms',c.id);
-    const details=isFact()?`Размещено: ${row?.content.publishedPlacements??0}. Регистрации: ${row?.counts.registrations??0}. Оплаты: ${row?.counts.paymentCount??0}. Регистрация из переходов: ${factRate(row?.conversions.clickToRegistration)}. Оплата из регистраций: ${factRate(row?.conversions.registrationToPayment)}. Просмотры вводятся вручную за весь выбранный период.`:escape(c.note);
+    const details=isFact()?`Размещено: ${row?.content.publishedPlacements??0}. Регистрации: ${row?.counts.registrations??0}. Оплаты: ${row?.counts.paymentCount??0}. Регистрация из переходов: ${factRate(row?.conversions.clickToRegistration)}. Оплата из регистраций: ${factRate(row?.conversions.registrationToPayment)}.${metricsChart?'':' Просмотры вводятся вручную за весь выбранный период.'}`:escape(c.note);
     const identity=isFact()?`<label class="pf-field"><span>Размещено</span><input type="number" readonly data-fact-count="${escape(c.id)}:placements" aria-label="${escape(c.name)}: фактические размещения" value="${facts.report?row?.content.publishedPlacements??0:''}" placeholder="—"></label><label class="pf-field"><span>Переходы</span><input type="number" readonly data-fact-count="${escape(c.id)}:clicks" aria-label="${escape(c.name)}: фактические переходы" value="${facts.report?row?.counts.clicks??0:''}" placeholder="—"></label>`:`<label class="pf-field"><span>Название</span><input type="text" maxlength="80" data-channel-name="${c.id}" aria-label="Название площадки ${escape(c.name)}" value="${escape(c.name)}"></label><label class="pf-field"><span>Ссылка на площадку</span><input type="url" maxlength="300" data-channel-url="${c.id}" aria-label="Ссылка площадки ${escape(c.name)}" value="${escape(c.url||'')}"></label>`;
-    const body=`<div class="pf-fields-grid">${identity}</div><div class="pf-fields-grid">${input('channels.'+c.id+'.views',isFact()?'Просмотры за период':'Просмотры / размещение',{max:1000000})}${input('channels.'+c.id+'.ctr','Переходы из просмотров',{unit:'%'})}</div><p class="pf-help" data-source-help="${escape(c.id)}">${details}${c.url?` <a href="${escape(c.url)}" target="_blank" rel="noopener">О площадке ↗</a>`:''}</p><button class="pf-remove-platform" type="button" data-remove-channel="${c.id}"${isFact()?' disabled':''}>Убрать площадку из сценария</button>`;
+    const viewsFields=isFact()&&metricsChart?'':`<div class="pf-fields-grid">${input('channels.'+c.id+'.views',isFact()?'Просмотры за период':'Просмотры / размещение',{max:1000000})}${input('channels.'+c.id+'.ctr','Переходы из просмотров',{unit:'%'})}</div>`;
+    const body=`<div class="pf-fields-grid">${identity}</div>${viewsFields}<p class="pf-help" data-source-help="${escape(c.id)}">${details}${c.url?` <a href="${escape(c.url)}" target="_blank" rel="noopener">О площадке ↗</a>`:''}</p><button class="pf-remove-platform" type="button" data-remove-channel="${c.id}"${isFact()?' disabled':''}>Убрать площадку из сценария</button>`;
     return nested?`<details class="pf-channel pf-channel-variant" data-channel="${c.id}"><summary><span>${escape(c.name)}</span><span class="pf-channel-summary">${state.formats.length?state.formats.map(id=>formats().find(f=>f.id===id)?.name).filter(Boolean).join(' · '):'Форматы не выбраны'}</span></summary><div class="pf-channel-body">${body}</div></details>`:`<div class="pf-channel-source" data-channel="${c.id}">${body}</div>`;
   }
   function channelFormatBase(c){
@@ -116,7 +118,7 @@
     const platformScroll=$('.pf-channel-list')?.scrollTop||0;
     $('#pf-panel-content').innerHTML=`
       <div class="pf-row-head"><span>Оригинальные материалы</span><span>В неделю</span></div>
-      <div class="pf-format-list">${visibleFormats().map(f=>`<div id="pf-format-${f.id}" class="pf-format-item"><details id="pf-format-settings-${f.id}" class="pf-format-edit"><summary aria-label="Название и удаление формата ${escape(f.name)}" title="Название и удаление формата"><span class="pf-format-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${formatIcons[f.base]||formatIcons.post}</svg></span><span class="pf-format-title">${escape(f.name)}</span></summary><div class="pf-format-edit-body"><label class="pf-field"><span>Название формата</span><input type="text" maxlength="80" aria-label="Название формата ${escape(f.name)}" data-format-name="${f.id}" value="${escape(f.name)}"></label><button class="pf-remove-platform" type="button" data-remove-format="${f.id}">Убрать формат из сценария</button></div></details><input class="pf-format-frequency" id="pf-frequency-${f.id}" aria-label="${escape(f.name)}: оригиналов в неделю" data-pf-path="frequency.${f.id}" type="number" min="0" max="35" step="any" inputmode="decimal" value="${settings.frequency[f.id]}"></div>`).join('')}</div>
+      <div class="pf-format-list">${visibleFormats().map(f=>`<div id="pf-format-${f.id}" class="pf-format-item"><details id="pf-format-settings-${f.id}" class="pf-format-edit"><summary aria-label="Название и удаление формата ${escape(f.name)}" title="Название и удаление формата"><span class="pf-format-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${formatIcons[f.base]||formatIcons.post}</svg></span><span class="pf-format-title">${escape(f.name)}</span></summary><div class="pf-format-edit-body"><label class="pf-field"><span>Название формата</span><input type="text" maxlength="80" aria-label="Название формата ${escape(f.name)}" data-format-name="${f.id}" value="${escape(f.name)}"></label><button class="pf-remove-platform" type="button" data-remove-format="${f.id}">Убрать формат из сценария</button></div></details><div class="pf-frequency-control"><button type="button" data-pf-step="-1" data-step-format="${f.id}" aria-label="Уменьшить количество: ${escape(f.name)}">−</button><input class="pf-format-frequency" id="pf-frequency-${f.id}" aria-label="${escape(f.name)}: оригиналов в неделю" data-pf-path="frequency.${f.id}" type="number" min="0" max="35" step="any" inputmode="decimal" value="${settings.frequency[f.id]}"><button type="button" data-pf-step="1" data-step-format="${f.id}" aria-label="Увеличить количество: ${escape(f.name)}">+</button></div></div>`).join('')}</div>
       <div class="pf-custom-form"><button type="button" id="pf-format-menu-toggle" aria-expanded="${formatMenuOpen?'true':'false'}" aria-controls="pf-format-menu">${formatMenuOpen?'Скрыть форму':'Добавить формат'}</button>${formatMenuOpen?`<div id="pf-format-menu" class="pf-format-menu"><div class="pf-format-menu-head"><strong>Новый формат</strong><button type="button" id="pf-format-menu-close" class="pf-format-menu-close" aria-label="Закрыть форму добавления формата">Закрыть</button></div><div class="pf-fields-grid"><label class="pf-field pf-custom-name"><span>Название нового формата</span><input id="pf-format-name" maxlength="80" placeholder="Например, мой формат"></label><label class="pf-field"><span>Материалов в неделю</span><input id="pf-format-count" type="number" min="0" max="35" step="any" value="1"></label></div><button type="button" id="pf-add-format">Сохранить формат</button></div>`:''}</div>
       ${settings.removedFormats.length?`<label class="pf-field pf-restore"><span>Вернуть стандартный формат</span><select id="pf-restore-format"><option value="">Выберите формат</option>${M.FORMATS.filter(f=>settings.removedFormats.includes(f.id)).map(f=>`<option value="${f.id}">${f.name}</option>`).join('')}</select></label>`:''}
       <p class="pf-help pf-full-only">0,25 в неделю ≈ один материал в месяц. Копии для других площадок здесь не прибавляйте.</p>
@@ -249,11 +251,13 @@
     const viralEnabled=settings.channels[settings.viralChannel]?.formats.includes('short')&&settings.frequency.short>0&&settings.stopAfter>0;
     $('#pf-viral-note').textContent=settings.viralViews>0&&!viralEnabled?'Всплеск не учтён: добавьте выпуск коротких видео и включите выбранную площадку.':'Дополнительные просмотры одного из ваших коротких роликов. По умолчанию всплеска нет.';
     const peak=Math.max(1,...visibleMonths.map(m=>m.reward));
-    $('#pf-chart-hint').textContent=visibleMonths.some(m=>m.reward>0)?'Нажмите на столбец':'Все месяцы — 0 ₽';
-    $('#pf-chart').setAttribute('aria-label','Начисления за каждый из '+settings.forecastMonths+' месяцев');
+    $('#pf-chart-hint').textContent=visibleMonths.some(m=>metricsChart?m.clicks>0||m.registrations>0||m.newPaid>0:m.reward>0)?'Нажмите на столбец':metricsChart?'Нет событий':'Все месяцы — 0 ₽';
+    $('#pf-chart').setAttribute('aria-label',metricsChart?'Переходы, регистрации и первые оплаты по месяцам':'Начисления за каждый из '+settings.forecastMonths+' месяцев');
     $('#pf-chart').style.setProperty('--pf-months',String(settings.forecastMonths));
-    $('#pf-chart').innerHTML=visibleMonths.map(m=>`<button type="button" class="pf-chart-month${month===m.month?' pf-active-month':''}" data-month="${m.month}" tabindex="${month===m.month?0:-1}" aria-pressed="${month===m.month}" aria-label="Месяц ${m.month}: ${money(m.reward)}"><span class="pf-chart-track"><span style="--pf-bar:${m.reward?Math.max(2,m.reward/peak*100):0}%"></span></span><span>${m.month}</span></button>`).join('');
-    $('#pf-views').textContent=integer.format(current.views);
+    const monthDescription=m=>metricsChart?`Месяц ${m.month}: переходы ${integer.format(m.clicks)}, регистрации ${count(m.registrations)}, первые оплаты ${count(m.newPaid)}`:`Месяц ${m.month}: ${money(m.reward)}`;
+    $('#pf-chart').innerHTML=visibleMonths.map(m=>`<button type="button" class="pf-chart-month${month===m.month?' pf-active-month':''}" data-month="${m.month}" tabindex="${month===m.month?0:-1}" aria-pressed="${month===m.month}" aria-label="${escape(monthDescription(m))}"><span class="pf-chart-track"><span style="--pf-bar:${m.reward?Math.max(2,m.reward/peak*100):0}%"></span></span><span>${m.month}</span></button>`).join('');
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-chart',{detail:{facts:false,selectedKey:String(month),currency:'RUB',points:visibleMonths.map(m=>({key:String(m.month),label:String(m.month),value:m.reward,clicks:Math.round(m.clicks),registrations:Number(m.registrations.toFixed(1)),firstPayments:Number(m.newPaid.toFixed(1))})),split:[{name:'Первые оплаты',value:current.newReward},{name:'Повторные оплаты',value:current.repeatReward}]}}));
+    if($('#pf-views'))$('#pf-views').textContent=integer.format(current.views);
     $('#pf-clicks').textContent=integer.format(current.clicks);
     $('#pf-signups').textContent=count(current.registrations);
     $('#pf-paid').textContent=count(current.newPaid);
@@ -406,6 +410,13 @@
       if(M.FORMATS.some(f=>f.id===id))settings.removedFormats.push(id);else settings.customFormats=settings.customFormats.filter(f=>f.id!==id);
       settings=M.normalize(settings);renderControls();setTab('content');renderResults();return;
     }
+    if(button.dataset.pfStep){
+      if(isFact())return;
+      const field=$(`#pf-frequency-${button.dataset.stepFormat}`);
+      if(!field)return;
+      field.value=String(Math.max(0,Math.min(35,Number(field.value)+Number(button.dataset.pfStep))));
+      field.dispatchEvent(new CustomEvent('input',{bubbles:true}));return;
+    }
     if(button.id==='pf-reset'){
       const event=new CustomEvent('syntolk-calculator-create-scenario',{bubbles:true,cancelable:true});
       if(!root.dispatchEvent(event))return;
@@ -437,6 +448,7 @@
   function leadText(node,text){if(node?.firstChild)node.firstChild.nodeValue=text;}
   function decorateFacts(){
     if(!isFact())return;
+    $$('[data-pf-step]').forEach(button=>{button.disabled=true;});
     $('#pf-panel-content .pf-row-head').lastElementChild.textContent='За период';
     visibleFormats().forEach(format=>{
       const field=$(`#pf-frequency-${format.id}`);if(!field)return;
@@ -446,7 +458,8 @@
       field.title='Фактически подготовлено: '+factCount(facts.report?content?.preparedMaterials??0:null)+'. Опубликовано: '+factCount(facts.report?content?.publishedMaterials??0:null)+'.';
     });
     $('#pf-panel-content > p.pf-help').textContent='Оригиналы за выбранный период. Копии на других площадках не увеличивают число материалов.';
-    $('#pf-panel-platforms > p.pf-help:not([id])').textContent='Фактические размещения и переходы. Просмотры можно ввести вручную за тот же период — процент рассчитается автоматически.';
+    $('#pf-panel-platforms > p.pf-help:not([id])').textContent=metricsChart?'Фактические размещения, переходы, регистрации и оплаты за выбранный период.':'Фактические размещения и переходы. Просмотры можно ввести вручную за тот же период — процент рассчитается автоматически.';
+    if(metricsChart)$('#pf-more-settings').hidden=true;
     $('#pf-panel-sales > p.pf-help').textContent='Конверсии рассчитаны по переходам выбранного периода и связанным с ними регистрациям и оплатам. Неизвестные показатели — «—».';
     $$('[data-format-name],[data-channel-name],[data-channel-url]').forEach(field=>{field.readOnly=true;});
     $$('[data-channel-enable],[data-channel-format],[data-pf-path="paymentDelayEnabled"]').forEach(field=>{field.disabled=true;});
@@ -458,11 +471,12 @@
     });
     channels().forEach(c=>{
       const row=metric('platforms',c.id),help=$(`[data-source-help="${c.id}"]`);
-      if(help?.firstChild)help.firstChild.nodeValue=`Размещено: ${factCount(facts.report?row?.content.publishedPlacements??0:null)}. Регистрации: ${factCount(facts.report?row?.counts.registrations??0:null)}. Оплаты: ${factCount(facts.report?row?.counts.paymentCount??0:null)}. Регистрация из переходов: ${factRate(row?.conversions.clickToRegistration)}. Оплата из регистраций: ${factRate(row?.conversions.registrationToPayment)}. Просмотры вводятся вручную за весь выбранный период. `;
+      if(help?.firstChild)help.firstChild.nodeValue=`Размещено: ${factCount(facts.report?row?.content.publishedPlacements??0:null)}. Регистрации: ${factCount(facts.report?row?.counts.registrations??0:null)}. Оплаты: ${factCount(facts.report?row?.counts.paymentCount??0:null)}. Регистрация из переходов: ${factRate(row?.conversions.clickToRegistration)}. Оплата из регистраций: ${factRate(row?.conversions.registrationToPayment)}.${metricsChart?'':' Просмотры вводятся вручную за весь выбранный период.'} `;
       $$(`[data-channel-format="${c.id}"]`).forEach(field=>{const format=row?.formats?.find(item=>item.id===field.value);field.closest('label').title=`Переходы: ${format?.counts.clicks??0}; регистрации: ${format?.counts.registrations??0}; оплаты: ${format?.counts.paymentCount??0}; регистрация из переходов: ${factRate(format?.conversions.clickToRegistration)}; оплата из регистраций: ${factRate(format?.conversions.registrationToPayment)}.`;});
     });
   }
   function restoreForecastLabels(){
+    if($('#pf-result-title'))$('#pf-result-title').textContent='Прогноз дохода';
     root.dataset.valuesMode='forecast';
     leadText($('#pf-horizon').parentElement,'Период прогноза');
     $('#pf-horizon').removeAttribute('aria-label');$('#pf-month').removeAttribute('aria-label');$('#pf-month').removeAttribute('title');
@@ -471,7 +485,7 @@
     if($('#pf-horizon').options[0]?.value!=='1')$('#pf-horizon').innerHTML=Array.from({length:12},(_,i)=>`<option value="${i+1}">${i+1} мес.</option>`).join('');
     leadText($('#pf-month').parentElement,'Месяц');
     $('.pf-year-totals > div:last-child > span').textContent='Накоплено к выбранному месяцу';
-    $('.pf-chart-caption > span:first-child').textContent='Начисления по месяцам';
+    $('.pf-chart-caption > span:first-child').textContent=metricsChart?'Динамика показателей':'Начисления по месяцам';
     $('.pf-funnel > div:last-child > span').textContent='Первые оплаты';
     leadText($('#pf-new-income').parentElement,'Первые оплаты');leadText($('#pf-repeat-income').parentElement,'Повторные оплаты');
     $('#pf-income').removeAttribute('aria-label');
@@ -479,6 +493,7 @@
     $('[data-current-values]')?.setAttribute('aria-pressed','false');
   }
   function renderFacts(){
+    if($('#pf-result-title'))$('#pf-result-title').textContent='Текущие значения';
     const report=facts.report;
     root.dataset.valuesMode='current';clearTimeout(statusTimer);
     leadText($('#pf-horizon').parentElement,'Период факта');
@@ -491,7 +506,7 @@
     const scope=facts.filter.allContent?'Весь мой контент и площадки':facts.scenarioName;
     $('#pf-month').title=scope;
     const empty=report&&!report.counts.clicks&&!report.counts.registrations&&!report.counts.paymentCount&&!report.content.preparedMaterials;
-    $('#pf-scenario-note').textContent=facts.error||(empty?(facts.filter.allContent?'За выбранный период действий нет.':`За этот период в «${scope}» действий нет. Данные других сценариев сюда не подмешиваются.`):`${facts.filter.allContent?'Весь контент.':`Сценарий «${facts.scenarioName}».`} Факт обновляется автоматически. Просмотры — вручную в «Площадках».`);
+    $('#pf-scenario-note').textContent=facts.error||(empty?(facts.filter.allContent?'За выбранный период действий нет.':`За этот период в «${scope}» действий нет. Данные других сценариев сюда не подмешиваются.`):`${facts.filter.allContent?'Весь контент.':`Сценарий «${facts.scenarioName}».`} Факт обновляется автоматически.${metricsChart?'':' Просмотры — вручную в «Площадках». '}`);
     $('#pf-scenario-note').classList.toggle('pf-warning',!!facts.error);
     if(facts.error)$('#pf-scenario-note').setAttribute('role','alert');else $('#pf-scenario-note').removeAttribute('role');
     const selected=facts.selectedPoint;
@@ -503,19 +518,22 @@
     $('.pf-year-totals > div:last-child > span').textContent='С учётом возвратов';$('#pf-cumulative').textContent=factMoney(report?.amountsMinor.netPayments);
     $('#pf-work').innerHTML=`<div><strong>${factCount(report?.content.preparedMaterials)} оригиналов за период</strong></div><div><strong>${factCount(report?.content.publishedPlacements)} размещений за период</strong></div>`;
     const chart=facts.chartReport??report,points=chart?.series?.points??[],peak=Math.max(1,...points.map(point=>Math.abs(point.earningsMinor)));
-    $('.pf-chart-caption > span:first-child').textContent='Фактические начисления';$('#pf-chart-hint').textContent=chart?.series?.bucket==='month'?'По месяцам · выберите столбец':chart?.series?.bucket==='week'?'По неделям · выберите столбец':'По дням · выберите столбец';
-    $('#pf-chart').setAttribute('aria-label','Фактические начисления за выбранный период');$('#pf-chart').style.setProperty('--pf-months',String(Math.max(1,points.length)));
-    const seriesKey=JSON.stringify([chart?.currency,chart?.series?.bucket,points.map(point=>[point.date,point.earningsMinor])]);
+    $('.pf-chart-caption > span:first-child').textContent=metricsChart?'Динамика показателей':'Фактические начисления';$('#pf-chart-hint').textContent=chart?.series?.bucket==='month'?'По месяцам · выберите столбец':chart?.series?.bucket==='week'?'По неделям · выберите столбец':'По дням · выберите столбец';
+    $('#pf-chart').setAttribute('aria-label',metricsChart?'Фактические переходы, регистрации и первые оплаты за выбранный период':'Фактические начисления за выбранный период');$('#pf-chart').style.setProperty('--pf-months',String(Math.max(1,points.length)));
+    const seriesKey=JSON.stringify([chart?.currency,chart?.series?.bucket,points.map(point=>[point.date,point.earningsMinor,...(metricsChart?[point.clicks,point.registrations,point.firstPayments]:[])])]);
     if($('#pf-chart').dataset.factsSeries!==seriesKey){
       const focusedPoint=$('#pf-chart').contains(document.activeElement)?document.activeElement.closest('[data-fact-point]')?.dataset.factPoint:null;
       $('#pf-chart').dataset.factsSeries=seriesKey;
-      $('#pf-chart').innerHTML=points.map((point,index)=>{const label=chart.series.bucket==='month'?point.date.slice(0,7):String(new Date(point.date+'T12:00:00Z').getUTCDate());const visible=points.length<=12||index===0||index===points.length-1||index<points.length-2&&index%Math.ceil(points.length/8)===0;return `<button type="button" class="pf-chart-month" data-fact-point="${point.date}" aria-label="${point.date}: ${factMoney(point.earningsMinor)}" title="${point.date}: ${factMoney(point.earningsMinor)}"><span class="pf-chart-track"><span style="--pf-bar:${point.earningsMinor?Math.max(2,Math.abs(point.earningsMinor)/peak*100):0}%"></span></span><span>${visible?label:'&nbsp;'}</span></button>`;}).join('');
+      $('#pf-chart').innerHTML=points.map((point,index)=>{const label=chart.series.bucket==='month'?point.date.slice(0,7):String(new Date(point.date+'T12:00:00Z').getUTCDate());const description=metricsChart?`${point.date}: переходы ${factCount(point.clicks)}, регистрации ${factCount(point.registrations)}, первые оплаты ${factCount(point.firstPayments)}`:`${point.date}: ${factMoney(point.earningsMinor)}`;const visible=points.length<=12||index===0||index===points.length-1||index<points.length-2&&index%Math.ceil(points.length/8)===0;return `<button type="button" class="pf-chart-month" data-fact-point="${point.date}" aria-label="${escape(description)}" title="${escape(description)}"><span class="pf-chart-track"><span style="--pf-bar:${point.earningsMinor?Math.max(2,Math.abs(point.earningsMinor)/peak*100):0}%"></span></span><span>${visible?label:'&nbsp;'}</span></button>`;}).join('');
       if(focusedPoint)$(`[data-fact-point="${focusedPoint}"]`)?.focus({preventScroll:true});
     }
     $$('[data-fact-point]').forEach((button,index)=>{const active=button.dataset.factPoint===selected?.date;button.classList.toggle('pf-active-month',active);button.setAttribute('aria-pressed',String(active));button.tabIndex=active||!selected&&index===0?0:-1;});
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-chart',{detail:{facts:true,selectedKey:selected?.date??null,currency:chart?.currency??'RUB',points:points.map(point=>({key:point.date,label:chart?.series?.bucket==='month'?point.date.slice(0,7):String(new Date(point.date+'T12:00:00Z').getUTCDate()),value:point.earningsMinor/100,clicks:point.clicks??null,registrations:point.registrations??null,firstPayments:point.firstPayments??null})),split:[{name:'Первые оплаты, шт.',value:report?.counts.firstPaymentCount??0},{name:'Повторные оплаты, шт.',value:report?.counts.repeatPaymentCount??0}]}}));
     const measuredViews=(report?.breakdown?.platforms??[]).filter(row=>Object.hasOwn(factViews,row.id));
-    $('#pf-views').textContent=measuredViews.length?factCount(measuredViews.reduce((sum,row)=>sum+factViews[row.id],0)):'—';
-    $('#pf-views').title=`Просмотры введены вручную для ${measuredViews.length} из ${report?.breakdown?.platforms.length??0} площадок выбранного периода. Не заполняются плановыми просмотрами.`;
+    if($('#pf-views')){
+      $('#pf-views').textContent=measuredViews.length?factCount(measuredViews.reduce((sum,row)=>sum+factViews[row.id],0)):'—';
+      $('#pf-views').title=`Просмотры введены вручную для ${measuredViews.length} из ${report?.breakdown?.platforms.length??0} площадок выбранного периода. Не заполняются плановыми просмотрами.`;
+    }
     $('#pf-clicks').textContent=factCount(report?.counts.clicks);$('#pf-signups').textContent=factCount(report?.counts.registrations);$('#pf-paid').textContent=factCount(report?.counts.firstPaymentCount);
     $('#pf-new-income').textContent=factCount(report?.counts.firstPaymentCount);$('#pf-repeat-income').textContent=factCount(report?.counts.repeatPaymentCount);
     leadText($('#pf-new-income').parentElement,'Первые оплаты, шт.');leadText($('#pf-repeat-income').parentElement,'Повторные оплаты, шт.');
@@ -547,6 +565,7 @@
   });
   if(scenario!=='base'&&$('[data-current-values]'))scenario='base';
   renderControls();setTab(tab);setMobileMode(false);renderResults();
+  root.addEventListener('syntolk-calculator-render-chart',()=>{if(isFact())renderFacts();else renderResults();});
   root.dispatchEvent(new CustomEvent('syntolk-calculator-ready'));
   mobileQuery?.addEventListener?.('change',()=>{
     if(mobileQuery.matches&&!mobileExpanded)setTab('content');

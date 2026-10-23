@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import { money } from '../ui.js';
+import { usePartnerVisual } from '../components/tremor/PartnerVisual.js';
+import { MetricChart, type MetricChartProps } from '../components/tremor/MetricChart.js';
+import {metricPalette,sourcePalette} from '../components/tremor/chartPalette.js';
 
 export interface SeriesPoint {
   date:string; since?:string; until?:string; clicks:number; identities?:number; registrations:number; payingCustomers?:number; payments:number;
@@ -57,6 +60,9 @@ export function ResultsChartSkeleton({metrics=defaultChartMetrics,label='Заг�
 }
 
 export function ResultsChart({comparePartners=false,currency='RUB',series,metric,onChange,metrics,onMetricsChange,seriesBy='total',onSeriesByChange,totals,changes,paymentCounts,comparison,comparisonTotals,periodCaption,toolbarControls,onInspect,onExpand}:ChartProps) {
+  const tremor=usePartnerVisual();
+  const chartColorsForView=tremor?Object.fromEntries(Object.entries(metricPalette).map(([key,color])=>[key,color[1]])) as Record<ChartMetric,string>:chartColors;
+  const sourceColor=(id:string)=>tremor?sourcePalette(id)[1]:chartSeriesColor(id);
   const chartMetricLabels=useMetricLabels(),modes=useChartModes(comparePartners),admin=useContext(AnalyticsAudience);
   const selected = metrics?.length?metrics:[metric];
   const groups = seriesBy==='total'?[]:[...(series?.groups??[])].sort((a,b)=>a.name.localeCompare(b.name,'ru'));
@@ -85,19 +91,19 @@ export function ResultsChart({comparePartners=false,currency='RUB',series,metric
     </div>
     {onMetricsChange&&<div className="results-metric-options" aria-label="Показатели графиков">
       <button type="button" className="results-metric-all" aria-pressed={defaultChartMetrics.every(key=>selected.includes(key))} onClick={()=>onMetricsChange(defaultChartMetrics)}>Все показатели</button>
-      {defaultChartMetrics.map(key=><button type="button" key={key} aria-pressed={selected.includes(key)} onClick={()=>choose(key)} style={{'--metric-color':chartColors[key]} as CSSProperties}><span className="results-metric-check">{selected.includes(key)&&<Check size={11}/>}</span>{chartMetricLabels[key]}</button>)}
+      {defaultChartMetrics.map(key=><button type="button" key={key} aria-pressed={selected.includes(key)} onClick={()=>choose(key)} style={{'--metric-color':chartColorsForView[key]} as CSSProperties}><span className="results-metric-check">{selected.includes(key)&&<Check size={11}/>}</span>{chartMetricLabels[key]}</button>)}
     </div>}
-    <div className="results-series-legend" aria-label={seriesBy==='total'?'Интервал графиков':'Сравниваемые источники'}>{seriesBy==='total'?<span>{series?.bucket==='week'?'По неделям':series?.bucket==='month'?'По месяцам':'По дням'} · Все выбранные источники</span>:groups.length?groups.map(group=><button type="button" key={group.id} title={`Открыть статистику: ${group.name}`} onClick={()=>inspect({metric:selected[0]!,group:{by:seriesBy as Exclude<ChartSeriesBy,'total'>,id:group.id,name:group.name}})}><i style={{background:chartSeriesColor(group.id)}}/>{group.name}<ChevronRight size={12}/></button>):<span>За выбранный период действий по источникам нет</span>}</div>
+    <div className="results-series-legend" aria-label={seriesBy==='total'?'Интервал графиков':'Сравниваемые источники'}>{seriesBy==='total'?<span>{series?.bucket==='week'?'По неделям':series?.bucket==='month'?'По месяцам':'По дням'} · Все выбранные источники</span>:groups.length?groups.map(group=><button type="button" key={group.id} title={`Открыть статистику: ${group.name}`} onClick={()=>inspect({metric:selected[0]!,group:{by:seriesBy as Exclude<ChartSeriesBy,'total'>,id:group.id,name:group.name}})}><i style={{background:sourceColor(group.id)}}/>{group.name}<ChevronRight size={12}/></button>):<span>За выбранный период действий по источникам нет</span>}</div>
     {comparison&&<div className="results-overview-comparison">{comparison}</div>}
     <div className="results-chart-grid" aria-label="Итоги за выбранный период">{selected.map(key=>{
-      const lines=seriesBy==='total'?[{id:key,name:chartMetricLabels[key],color:chartColors[key],points:series?.points??[]}]:groups.map(group=>({...group,color:chartSeriesColor(group.id)}));
+      const lines=seriesBy==='total'?[{id:key,name:chartMetricLabels[key],color:chartColorsForView[key],points:series?.points??[]}]:groups.map(group=>({...group,color:sourceColor(group.id)}));
       const total=totals?.[key]??(series?.points??[]).reduce((sum,point)=>sum+(point[key]??0),0);
       const heading=<><div className="results-metric-card__heading"><span><i/>{chartMetricLabels[key]}</span>{changes?.[key]&&<small className="results-change">{changes[key]}</small>}{onInspect&&<ChevronRight size={14} aria-hidden="true"/>}</div>
         {comparisonTotals&&<small className="results-metric-card__period-label">Основной период</small>}
         <strong className="results-metric-card__value" title={formatValue(total,currencyMetric(key),currency)}>{formatValue(total,currencyMetric(key),currency)}</strong>
         {comparisonTotals&&<span className="results-metric-card__comparison">Период сравнения: <b>{formatValue(comparisonTotals[key]??0,currencyMetric(key),currency)}</b></span>}</>;
       const expand=()=>onExpand?onExpand(key):inspect({metric:key});
-      return <article className="results-metric-card results-surface" key={key} style={{'--metric-color':chartColors[key]} as CSSProperties} aria-label={chartMetricLabels[key]} data-expandable={!!onExpand} onClick={onExpand?expand:undefined}>
+      return <article className="results-metric-card results-surface" key={key} style={{'--metric-color':chartColorsForView[key]} as CSSProperties} aria-label={chartMetricLabels[key]} data-expandable={!!onExpand} onClick={onExpand?expand:undefined}>
         {onInspect||onExpand?<button type="button" className="results-metric-card__inspect" aria-label={`Подробнее: ${chartMetricLabels[key]}`} aria-haspopup="dialog" onClick={event=>{event.stopPropagation();expand();}}>{heading}</button>:heading}
         <p className="results-metric-card__hint">{hints[key]}</p>
         <MetricPlot currencyCode={currency} series={series} lines={lines} metric={key} onInspect={onInspect?(point,group)=>inspect({metric:key,point,...(group&&seriesBy!=='total'?{group:{by:seriesBy,id:group.id,name:group.name}}:{})}):undefined}/>
@@ -106,7 +112,11 @@ export function ResultsChart({comparePartners=false,currency='RUB',series,metric
   </section>;
 }
 
-export function MetricPlot({series,lines,metric,onInspect,large=false,range,currencyCode='RUB'}:{series?:Series;lines:Array<{id:string;name:string;color:string;points:SeriesPoint[]}>;metric:ChartMetric;onInspect?:(point:SeriesPoint,group?:{id:string;name:string})=>void;large?:boolean;range?:{min:number;max:number};currencyCode?:string}) {
+export function MetricPlot(props:MetricChartProps) {
+  const tremor=usePartnerVisual();
+  return tremor?<MetricChart {...props}/>:<LegacyMetricPlot {...props}/>;
+}
+function LegacyMetricPlot({series,lines,metric,onInspect,large=false,range,currencyCode='RUB'}:MetricChartProps) {
   const chartMetricLabels=useMetricLabels();
   const id=useId().replace(/:/g,''),root=useRef<HTMLDivElement>(null),[width,setWidth]=useState(360),[active,setActive]=useState<number|null>(null);
   const [hoveredSeries,setHoveredSeries]=useState<string|null>(null);

@@ -1,23 +1,36 @@
 const KEY_STORAGE = 'op:apiKey';
+const LOCAL_KEY_STORAGE = 'op:localApiKey';
+
+export function isLocalDevelopment(): boolean {
+  return import.meta.env.DEV && location.port === '5673'
+    && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+}
 
 export function getApiKey(): string | null {
   // Each tab can inspect a different account without replacing the bearer
   // credential of an already-open admin/partner cabinet. sessionStorage
   // survives reloads. An empty value records an explicitly signed-out tab.
+  // Only the two local development origins remember a login across tab closes.
   const key = sessionStorage.getItem(KEY_STORAGE);
   if (key !== null) return key || null;
-  const legacyKey = localStorage.getItem(KEY_STORAGE);
+  const local = isLocalDevelopment();
+  const remembered = local ? localStorage.getItem(LOCAL_KEY_STORAGE) : null;
+  const legacyKey = remembered ?? localStorage.getItem(KEY_STORAGE);
   sessionStorage.setItem(KEY_STORAGE, legacyKey ?? '');
+  if (local && legacyKey) localStorage.setItem(LOCAL_KEY_STORAGE, legacyKey);
   localStorage.removeItem(KEY_STORAGE);
   return legacyKey || null;
 }
 
 export function setApiKey(key: string): void {
   sessionStorage.setItem(KEY_STORAGE, key);
+  if (isLocalDevelopment()) localStorage.setItem(LOCAL_KEY_STORAGE, key);
   localStorage.removeItem(KEY_STORAGE);
 }
 
 export function clearApiKey(): void {
+  const current = sessionStorage.getItem(KEY_STORAGE);
+  if (isLocalDevelopment() && localStorage.getItem(LOCAL_KEY_STORAGE) === current) localStorage.removeItem(LOCAL_KEY_STORAGE);
   sessionStorage.setItem(KEY_STORAGE, '');
   localStorage.removeItem(KEY_STORAGE);
 }

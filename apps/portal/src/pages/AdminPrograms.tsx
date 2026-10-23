@@ -921,6 +921,7 @@ function MarketplaceFields({
                   key={cat.slug}
                   type="button"
                   onClick={() => toggleCategory(cat.slug)}
+                  aria-pressed={selected}
                   disabled={disabled}
                   style={{
                     fontSize: 12,

@@ -7,7 +7,7 @@
   --op-dropdown-text: #8b929c;
   --op-dropdown-selected: var(--op-accent, #2dd4bf);
   --op-dropdown-selected-text: var(--op-accent-ink, #08141a);
-  --op-dropdown-focus: var(--op-accent, #10cadb);
+  --op-dropdown-focus: var(--op-card-focus-ring, #8b95a3);
   --op-dropdown-radius: 10px;
   --op-dropdown-shadow: 0 12px 32px #0006;
 }
@@ -76,15 +76,20 @@ input[list]:focus,
   border-radius: 2px !important;
   color: var(--op-dropdown-text) !important;
 }
-.results-calendar--periods > button:is(:hover, :focus-visible, [aria-checked=true]),
-.results-multiselect__option:is(:hover, :focus-within),
+.results-calendar--periods > button[aria-checked=true],
 .results-multiselect__option:has(input:checked),
-.results-multiselect__all:is(:hover, :focus-visible, [aria-pressed=true]),
-.op-dropdown-option[data-selected=true],
-.op-dropdown-option:not([aria-disabled=true]):is(:hover, :focus-within),
-.op-dropdown-menu :is(a, button):not(:disabled):is(:hover, :focus-visible) {
+.results-multiselect__all[aria-pressed=true],
+.op-dropdown-option[data-selected=true] {
   background-color: var(--op-dropdown-selected) !important;
   color: var(--op-dropdown-selected-text) !important;
+}
+.results-calendar--periods > button:not([aria-checked=true]):is(:hover, :focus-visible),
+.results-multiselect__option:not(:has(input:checked)):is(:hover, :focus-within),
+.results-multiselect__all:not([aria-pressed=true]):is(:hover, :focus-visible),
+.op-dropdown-option:not([aria-disabled=true]):not([data-selected=true]):is(:hover, :focus-within),
+.op-dropdown-menu :is(a, button):not(:disabled):not([aria-disabled=true], [data-selected=true], [aria-selected=true], [aria-pressed=true], [aria-checked=true]):is(:hover, :focus-visible) {
+  background-color: var(--op-card-hover-surface, #202328) !important;
+  color: var(--op-text, #e5e7eb) !important;
 }
 .op-dropdown-option[data-selected=true] svg { color: inherit !important; }
 .results-multiselect__option input { accent-color: var(--op-dropdown-selected); }

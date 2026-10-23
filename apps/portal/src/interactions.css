@@ -1,30 +1,84 @@
-/* The same quiet highlight for actionable cards. No scaling or layout shifts.
-   Plain KPI cards deliberately stay still: they are not navigation controls. */
+/* Shared, neutral feedback for actionable cards. No scaling, lift or glow.
+   Plain KPI cards stay still; selected states retain their existing meaning. */
 :root {
-  --op-card-hover-border: var(--op-accent, #2dd4bf);
-  --op-card-hover-surface: var(--op-surface2, #1b1f26);
-  --op-card-transition: border-color 160ms ease, background-color 160ms ease;
+  --op-card-hover-surface: color-mix(in srgb, var(--op-surface, #14181e) 92%, #a0a0a0 8%);
+  --op-card-focus-ring: var(--op-text-muted, #8b95a3);
+  --op-card-transition: background-color 160ms ease;
+  --op-control-selected-surface: color-mix(in srgb, var(--op-surface, #14181e) 78%, #a0a0a0 22%);
+  --op-control-selected-border: #626872;
 }
 :is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,
   .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button) {
   transition: var(--op-card-transition);
+  transform: none !important;
+  box-shadow: none !important;
 }
 @media (hover: hover) {
   :is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,
-    .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button):hover {
-    border-color: var(--op-card-hover-border) !important;
-    background: var(--op-card-hover-surface) !important;
+    .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button):not([aria-pressed=true]):hover {
+    background-color: var(--op-card-hover-surface) !important;
+    background-image: none;
+  }
+}
+
+/* Portal-wide controls, including dynamically inserted calculator controls.
+   Charts, disabled controls and persistent selections are not hover surfaces. */
+body :where(button, a[href], summary, select, .op-dropdown-option,
+  .results-multiselect__option, .message-directory-row) {
+  transition: background-color 160ms ease !important;
+}
+body [data-op-variant=danger] {
+  --op-control-hover-text: var(--op-danger, #f87171);
+}
+@media (hover: hover) {
+  body :is(button, a[href], summary, select, .op-dropdown-option,
+    .results-multiselect__option, .message-directory-row):not(:disabled):not(
+      [aria-disabled=true], [aria-current=page], [aria-selected=true],
+      [aria-pressed=true], [aria-checked=true], [data-selected=true],
+      .is-active, .is-selected, .active, .pf-is-selected,
+      .pf-chart-month, .results-metric-card__inspect,
+      .is-edge, .is-in-range,
+      :has(input:checked), :is(fieldset:disabled, [inert]) *
+    ):hover {
+    background-color: var(--op-card-hover-surface) !important;
+    color: var(--op-control-hover-text, var(--op-text, #e5e7eb)) !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  body :is(.results-table, .publications-table) tbody > tr:not(.is-expanded):has(
+    button:not(:disabled), a[href]
+  ):hover { background-color: var(--op-card-hover-surface); }
+  body .calculator-page .pf-section .pf-chart-month:is(:hover, :focus-visible) .pf-chart-track > span {
     transform: none;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  body :where(button, a[href], summary, select, .op-dropdown-option,
+    .results-multiselect__option, .message-directory-row) { transition: none !important; }
 }
 :is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,
   .results-metric-card:has(.results-metric-card__inspect), .publications-creation-types > button):focus-visible,
 .results-metric-card:has(.results-metric-card__inspect:focus-visible) {
-  border-color: var(--op-card-hover-border) !important;
-  background: var(--op-card-hover-surface) !important;
-  outline: 2px solid var(--op-card-hover-border);
+  outline: 2px solid var(--op-card-focus-ring);
   outline-offset: 3px;
-  transform: none;
+}
+
+/* Neutral keyboard focus does not override the theme's selected states. */
+body :is(input, textarea, select, button, a[href], summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--op-card-focus-ring) !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+body :is(input, textarea, select):not([aria-invalid=true]):focus-visible {
+  border-color: var(--op-control-selected-border) !important;
+}
+@media (forced-colors: active) {
+  :root {
+    --op-card-hover-surface: Highlight;
+    --op-card-focus-ring: Highlight;
+    --op-control-selected-surface: Highlight;
+    --op-control-selected-border: Highlight;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.op-interactive-card, .partner-quick-action, .coach-home-task-card,

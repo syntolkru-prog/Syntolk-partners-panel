@@ -82,6 +82,7 @@ import { WorkspacesPage } from './pages/Workspaces.js';
 import { AddBrandPage } from './pages/AddBrand.js';
 import { PartnerJoinPage } from './pages/PartnerJoin.js';
 import { BrandDocument } from './lib/BrandDocument.js';
+import { PartnerVisualProvider } from './components/tremor/PartnerVisual.js';
 import { PlatformMagicLandingPage } from './pages/auth/PlatformMagicLanding.js';
 import { PlatformLoginPage } from './pages/platform/PlatformLogin.js';
 import { PlatformAuthPage } from './pages/platform/PlatformAuth.js';
@@ -236,7 +237,7 @@ function Shell() {
   if (!auth.principal) return <Navigate to={`${tenantBase}/login`} state={{ from: location }} replace />;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: theme.bg }}>
+    <PartnerVisualProvider active={auth.principal.role === 'partner'}><div className={auth.principal.role === 'partner' ? 'tremor-partner' : undefined} style={{ display: 'flex', minHeight: '100vh', background: theme.bg }}>
       {isMobile ? (
         <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
           <Sidebar principal={auth.principal} variant="drawer" />
@@ -324,7 +325,7 @@ function Shell() {
         </Routes>
       </main>
       {auth.principal.role === 'partner' && !location.pathname.endsWith('/messages') && <PartnerMessages key={auth.principal.partnerId} principal={auth.principal} />}
-    </div>
+    </div></PartnerVisualProvider>
   );
 }
 
@@ -413,11 +414,13 @@ function MobileDrawer({ open, onClose, children }: { open: boolean; onClose: () 
 export function Sidebar({ principal, variant = 'sidebar' }: { principal: Principal; variant?: 'sidebar' | 'drawer' }) {
   const nav = useNavigate();
   const tenantBase = useTenantBase();
+  const { pathname } = useLocation();
+  const workdayVisual = principal.role === 'partner' && [tenantBase,`${tenantBase}/calculator`].includes(pathname.replace(/\/$/, ''));
   const { programName, supportEmail, logoUrl, whiteLabel } = useBrand();
   const isDrawer = variant === 'drawer';
 
   return (
-    <aside
+    <aside className={workdayVisual ? 'workday-sidebar' : undefined}
       style={{
         // Sidebar: sticky + 100vh pins the aside to the viewport so the
         // middle nav's overflow:auto actually scrolls. Without this, the
@@ -436,8 +439,7 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px', marginBottom: 20 }}>
-        <BrandMark logoUrl={logoUrl} programName={programName} whiteLabel={whiteLabel} size={26} />
-        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' }}>{programName}</div>
+        {workdayVisual&&programName==='Default tenant'&&!logoUrl&&!whiteLabel?<Link to={`${tenantBase}/`} className="wd-brand" aria-label="Syntolk Partners"><svg viewBox="0 0 36 36" width="32" height="32" aria-hidden="true"><path d="M5 19a13 13 0 0 1 23-10l-6 5a6 6 0 0 0-11 5Z" fill="var(--color-blue-500)"/><path d="M31 17A13 13 0 0 1 8 27l6-5a6 6 0 0 0 11-5Z" fill="var(--color-blue-600)"/></svg><strong>Syntolk</strong><span>Partners</span></Link>:<><BrandMark logoUrl={logoUrl} programName={programName} whiteLabel={whiteLabel} size={26}/><div style={{fontSize:15,fontWeight:600,letterSpacing:'-0.01em'}}>{programName}</div></>}
       </div>
 
       {principal.role === 'admin' ? (

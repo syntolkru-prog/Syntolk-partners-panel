@@ -125,6 +125,7 @@ export function LandingPage() {
 function AudienceCard({ eyebrow, title, bullets, ctaLabel, to }: { eyebrow: string; title: string; bullets: string[]; ctaLabel: string; to: string }) {
   return (
     <Link
+      className="op-interactive-card"
       to={to}
       style={{
         display: 'block',
@@ -133,16 +134,7 @@ function AudienceCard({ eyebrow, title, bullets, ctaLabel, to }: { eyebrow: stri
         borderRadius: 18,
         padding: 28,
         color: theme.text,
-        transition: 'border-color 0.18s, transform 0.18s',
         textDecoration: 'none',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = theme.accent;
-        e.currentTarget.style.transform = 'translateY(-2px)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = theme.borderSubtle;
-        e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
       <div style={{ fontSize: 11, color: theme.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>{eyebrow}</div>

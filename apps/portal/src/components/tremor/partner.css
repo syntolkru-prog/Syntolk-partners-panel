@@ -1,0 +1,209 @@
+/* Official Tremor Raw Tailwind utilities, without a global reset of the host app. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "./raw/theme.css";
+@source "./raw";
+@source "../../pages";
+@source "../../ui.tsx";
+@custom-variant dark (&:where([data-portal-visual="tremor-partner"], [data-portal-visual="tremor-partner"] *));
+
+/* Palette and spacing from Tremor Raw + Support Dashboard dark mode.
+   Legacy HTML controls reuse the same @apply classes while retaining their
+   native form, keyboard and calculator event behaviour. */
+html[data-portal-visual="tremor-partner"] {
+  color-scheme: dark;
+  --op-bg: var(--color-gray-950); --op-surface: #090e1a; --op-surface-2: var(--color-gray-900);
+  --op-text: var(--color-gray-50); --op-text-muted: var(--color-gray-400); --op-text-dim: var(--color-gray-500);
+  --op-border: var(--color-gray-800); --op-border-subtle: var(--color-gray-900);
+  /* Tremor Button / focusInput / Badge tokens take precedence over the
+     stored tenant accent in this visual scope. Branding data is untouched. */
+  --op-accent: var(--color-blue-500) !important;
+  --op-accent-hover: var(--color-blue-600) !important;
+  --op-accent-ink: var(--color-white) !important;
+  --op-accent-soft: color-mix(in oklab, var(--color-blue-400) 10%, transparent) !important;
+  --op-accent-soft-a40: color-mix(in oklab, var(--color-blue-400) 10%, transparent) !important;
+  --op-accent-a10: color-mix(in oklab, var(--color-blue-400) 10%, transparent) !important;
+  --op-accent-a15: color-mix(in oklab, var(--color-blue-400) 10%, transparent) !important;
+  --op-accent-a22: color-mix(in oklab, var(--color-blue-400) 30%, transparent) !important;
+  --op-accent-a25: color-mix(in oklab, var(--color-blue-400) 30%, transparent) !important;
+  --op-accent-a55: color-mix(in oklab, var(--color-blue-500) 50%, transparent) !important;
+  --op-accent-a88: color-mix(in oklab, var(--color-blue-500) 80%, transparent) !important;
+  --op-card-hover-surface: var(--color-gray-900); --op-card-focus-ring: var(--color-blue-500);
+  --op-control-selected-surface: var(--color-gray-800); --op-control-selected-border: var(--color-gray-700);
+  --op-dropdown-surface: var(--color-gray-950); --op-dropdown-border: var(--color-gray-800);
+  --op-dropdown-text: var(--color-gray-50); --op-dropdown-radius: 6px;
+  --op-dropdown-focus: var(--color-blue-500); --op-dropdown-shadow: 0 4px 6px -1px #0003;
+  background: var(--op-bg); color: var(--op-text);
+}
+html[data-portal-visual="tremor-partner"] { background: var(--op-bg) !important; color: var(--op-text); font-size: 14px; line-height: 1.5; }
+html[data-portal-visual="tremor-partner"] body { -webkit-font-smoothing:antialiased; }
+html[data-portal-visual="tremor-partner"] .tremor-partner > aside { background: var(--op-bg) !important; border-color: var(--op-border) !important; width: 256px !important; padding: 24px 16px !important; }
+html[data-portal-visual="tremor-partner"] .tremor-partner > main { background: var(--op-bg); }
+html[data-portal-visual="tremor-partner"] aside a { border-radius: 6px !important; font-size: 14px !important; }
+html[data-portal-visual="tremor-partner"] aside a[aria-current="page"] { background: var(--color-gray-900) !important; color: var(--color-gray-50) !important; }
+html[data-portal-visual="tremor-partner"] aside a[aria-current="page"] svg { color: var(--color-blue-400) !important; }
+html[data-portal-visual="tremor-partner"] :is(h1,h2,h3) { color: var(--color-gray-50); letter-spacing: -.025em; }
+html[data-portal-visual="tremor-partner"] h1 { font-size: 24px !important; font-weight: 600 !important; line-height: 32px !important; }
+html[data-portal-visual="tremor-partner"] :is(.op-page,.results-layout) { padding: 32px !important; max-width: 1480px !important; width: 100%; }
+html[data-portal-visual="tremor-partner"] :is(.op-page > header,.results-header) { margin-bottom: 24px; }
+html[data-portal-visual="tremor-partner"] :is(.op-page-subtitle,.results-subtitle) { color: var(--color-gray-400) !important; font-size: 14px !important; }
+html[data-portal-visual="tremor-partner"] :is(.op-section-heading) { color: var(--color-gray-200) !important; text-transform: none !important; letter-spacing: normal !important; font-size: 16px !important; }
+
+/* Tremor Card, Input, SelectNative, Table and Button class contracts applied
+   to the existing non-React calculator and purpose-built analytics controls. */
+html[data-portal-visual="tremor-partner"] :is(.results-surface,.pf-app,.coach-task,.coach-channel,.coach-link,.calculator-work-task,.calculator-work-scenario-picker,.publications-create-form,.publications-creation-choice,.material-card,.message-thread,.ph-card) {
+  @apply rounded-lg border border-gray-900 bg-[#090E1A] shadow-xs;
+  background-image: none !important; background-color: #090e1a !important; border-color: var(--color-gray-800) !important; border-radius: 8px !important;
+}
+html[data-portal-visual="tremor-partner"] :is(.results-page,.results-menu,.results-explorer,.results-drawer,.publications-page) { --results-muted:var(--color-gray-400); --results-border:var(--color-gray-800); --results-surface:#090e1a; }
+html[data-portal-visual="tremor-partner"] :is(.results-metric-card,.publications-summary,.calculator-planning,.coach-connection-info,.calculator-new-scenario) { background-image: none !important; background-color: #090e1a !important; border-color: var(--color-gray-800) !important; }
+html[data-portal-visual="tremor-partner"] :is(input:not([type=checkbox],[type=radio],[type=range],[type=color]),textarea,select) {
+  @apply rounded-md border border-gray-800 bg-gray-950 px-3 py-2 text-sm text-gray-50 shadow-xs outline-hidden;
+  background-color: var(--color-gray-950) !important; color: var(--color-gray-50) !important; border-color: var(--color-gray-800) !important; border-radius: 6px !important;
+}
+html[data-portal-visual="tremor-partner"] :is(input,textarea,select)::placeholder { color: var(--color-gray-500) !important; }
+html[data-portal-visual="tremor-partner"] :is(input[type=checkbox],input[type=radio]) { accent-color: var(--color-blue-500); }
+html[data-portal-visual="tremor-partner"] select { min-height: 36px; }
+html[data-portal-visual="tremor-partner"] select option { background: var(--color-gray-950) !important; color: var(--color-gray-50) !important; }
+html[data-portal-visual="tremor-partner"] :is(button,summary) { font-family: inherit; }
+html[data-portal-visual="tremor-partner"] :is(.results-button,.results-icon-button,.pf-text-button,.coach-actions button,.ph-action,.ph-view-all,.publications-actions button) {
+  @apply inline-flex items-center justify-center gap-2 rounded-md border border-gray-800 bg-gray-950 px-3 py-2 text-sm font-medium text-gray-50 shadow-xs transition-colors;
+  background-color: var(--color-gray-950) !important; border-color: var(--color-gray-800) !important; border-radius: 6px !important;
+}
+html[data-portal-visual="tremor-partner"] :is(.results-icon-button,.pf-refresh) { padding: 8px !important; width: 36px; height: 36px; min-width: 36px; }
+html[data-portal-visual="tremor-partner"] .coach-actions button[data-op-variant=primary]:not(:disabled) { background:var(--op-accent,var(--color-blue-500)) !important; color:var(--op-accent-ink,var(--color-white)) !important; border-color:transparent !important; }
+html[data-portal-visual="tremor-partner"] button[data-op-variant=primary]:not(:disabled) { color:var(--op-accent-ink,var(--color-white)) !important; }
+html[data-portal-visual="tremor-partner"] :is([role=tablist],.pf-tabs,.pf-scenarios,.coach-home-task-view,.ph-plan__view) { background: var(--color-gray-900) !important; border-radius: 6px !important; padding: 4px !important; gap: 4px; }
+html[data-portal-visual="tremor-partner"] :is([role=tab],.pf-tab,.pf-scenarios > button,.coach-tabs button) { border-radius: 4px !important; font-size: 14px !important; font-weight: 500 !important; color: var(--color-gray-400) !important; background: transparent !important; border-color: transparent !important; }
+html[data-portal-visual="tremor-partner"] :is([role=tab][aria-selected=true],.pf-scenarios > button[aria-pressed=true],.coach-tabs button.is-active,.ph-plan__view button[aria-pressed=true]) { background: var(--color-gray-950) !important; color: var(--color-gray-50) !important; box-shadow: 0 1px 3px #0004; }
+html[data-portal-visual="tremor-partner"] :is(table,.results-table,.publications-table) { border-collapse: collapse; width: 100%; font-size: 14px !important; }
+html[data-portal-visual="tremor-partner"] :is(th,.results-table th,.publications-table th) { @apply border-b border-gray-800 px-4 py-3.5 text-left text-sm font-semibold text-gray-50; background: #090e1a !important; color:var(--color-gray-50) !important; text-transform:none !important; letter-spacing:normal !important; }
+html[data-portal-visual="tremor-partner"] :is(td,.results-table td,.publications-table td) { @apply border-b border-gray-800 p-4 text-sm text-gray-400; border-color: var(--color-gray-800) !important; }
+html[data-portal-visual="tremor-partner"] :is(.results-table-wrap,.publications-table-wrap) { border-radius: 8px !important; border-color: var(--color-gray-800) !important; }
+html[data-portal-visual="tremor-partner"] :is(.results-chart-grid) { gap: 24px; }
+html[data-portal-visual="tremor-partner"] .results-metric-card { padding: 24px 20px 12px; }
+html[data-portal-visual="tremor-partner"] .results-metric-card__value { font-size: 30px; font-weight: 600; margin-top: 12px; }
+html[data-portal-visual="tremor-partner"] :is(.results-metric-card__heading > span,.results-metric-card__hint) { color: var(--color-gray-400); font-size: 12px; }
+html[data-portal-visual="tremor-partner"] :is(.results-chart__tooltip,.results-menu,.op-dropdown-menu) { @apply rounded-md border border-gray-800 bg-gray-950 text-sm shadow-md; background-color:var(--color-gray-950) !important; border-color:var(--color-gray-800) !important; }
+html[data-portal-visual="tremor-partner"] :is(.coach-badge,.results-count) { @apply rounded-md bg-blue-400/10 px-2 py-1 text-xs font-medium text-blue-400 ring-1 ring-blue-400/30 ring-inset; }
+
+html[data-portal-visual="tremor-partner"] .calculator-page { --pf-bg:var(--color-gray-950) !important; --pf-surface:#090e1a !important; --pf-surface-raised:var(--color-gray-900) !important; --pf-border:var(--color-gray-800) !important; --pf-text:var(--color-gray-50) !important; --pf-muted:var(--color-gray-400) !important; --pf-accent:var(--op-accent,var(--color-blue-500)) !important; --pf-radius:8px !important; --pf-radius-sm:6px !important; }
+html[data-portal-visual="tremor-partner"] .pf-app { box-shadow: 0 1px 2px #0002; }
+html[data-portal-visual="tremor-partner"] :is(.pf-controls,.pf-result) { padding: 24px !important; background: #090e1a !important; }
+html[data-portal-visual="tremor-partner"] :is(.pf-result,.pf-toolbar,.pf-item,.pf-year-totals,.pf-funnel,.pf-details) { border-color: var(--color-gray-800) !important; }
+html[data-portal-visual="tremor-partner"] :is(.pf-work,.pf-channel,.pf-details) { background: var(--color-gray-900) !important; border-color: var(--color-gray-800) !important; border-radius: 6px !important; }
+html[data-portal-visual="tremor-partner"] .pf-section { font-size: 14px; }
+html[data-portal-visual="tremor-partner"] .pf-income-top output { font-size: 36px !important; font-weight: 600 !important; }
+html[data-portal-visual="tremor-partner"] .pf-icon { background: var(--color-blue-950) !important; color: var(--color-blue-400) !important; border-radius: 6px !important; }
+html[data-portal-visual="tremor-partner"] .pf-chart[data-tremor-mounted] { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden; clip-path: inset(50%); }
+html[data-portal-visual="tremor-partner"] .tremor-calculator-chart { width: 100%; height: 240px; margin: 12px 0 18px; }
+html[data-portal-visual="tremor-partner"] .pf-repeat-bar[data-tremor-mounted] { width:112px !important; height:112px !important; overflow:visible !important; margin:16px auto !important; background:transparent !important; }
+html[data-portal-visual="tremor-partner"] .pf-repeat-bar[data-tremor-mounted] > span { display:none; }
+
+html[data-portal-visual="tremor-partner"] .partner-home { --ph-bg:var(--color-gray-950); --ph-surface:#090e1a; --ph-raised:var(--color-gray-900); --ph-border:var(--color-gray-800); --ph-text:var(--color-gray-50); --ph-muted:var(--color-gray-400); }
+html[data-portal-visual="tremor-partner"] .partner-home { --ph-chart-height:clamp(120px, calc(100dvh - 596px), 240px); padding-bottom:0; }
+html[data-portal-visual="tremor-partner"] .ph-header { border:0; min-height:48px; padding:12px 24px 0; }
+html[data-portal-visual="tremor-partner"] .ph-content { padding:12px 24px 8px; }
+html[data-portal-visual="tremor-partner"] .ph-toolbar { margin-bottom:12px; gap:12px; }
+html[data-portal-visual="tremor-partner"] .ph-workspace { padding:0; border:0; border-radius:0; background:transparent; gap:12px; }
+html[data-portal-visual="tremor-partner"] .ph-card { border-color:var(--color-gray-800) !important; }
+html[data-portal-visual="tremor-partner"] .ph-panel-heading h2,html[data-portal-visual="tremor-partner"] .ph-plan__heading h2 { font-size:16px; }
+html[data-portal-visual="tremor-partner"] .ph-reports { gap:12px; margin-top:12px; }
+html[data-portal-visual="tremor-partner"] .ph-performance__heading { padding:12px 16px 0; }
+html[data-portal-visual="tremor-partner"] .ph-performance .ph-earnings { margin-top:4px; font-size:26px; font-weight:600; }
+html[data-portal-visual="tremor-partner"] .ph-period-caption { padding:4px 16px 0; min-height:20px; }
+html[data-portal-visual="tremor-partner"] .ph-metric { padding:10px 12px; }
+html[data-portal-visual="tremor-partner"] .ph-metric dt { min-height:32px; align-items:flex-start; font-size:12px; line-height:16px; }
+html[data-portal-visual="tremor-partner"] .ph-metric dd { margin-top:4px; font-size:20px; }
+html[data-portal-visual="tremor-partner"] .ph-metric:last-child dd { font-size:18px; }
+html[data-portal-visual="tremor-partner"] .ph-plan__scenario,html[data-portal-visual="tremor-partner"] .ph-task__title,html[data-portal-visual="tremor-partner"] .ph-finance__details > div { font-size:12px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown .ph-panel-heading { padding:8px 12px 4px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown .ph-view-all { padding:3px 6px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__tabs { margin:0 12px 4px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__tabs button { padding:2px 0 4px; min-height:24px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__rows { min-height:128px; padding:0 8px 6px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__row { min-height:24px; padding:3px 6px; margin-top:0; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__skeleton { height:24px; padding:4px 6px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__empty { min-height:120px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__name,html[data-portal-visual="tremor-partner"] .ph-breakdown__row strong { font-size:12px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__tabs button { font-size:12px; }
+html[data-portal-visual="tremor-partner"] .ph-breakdown__bar { background:var(--color-blue-950); }
+html[data-portal-visual="tremor-partner"] .ph-plan__footer a { font-size:11px; }
+html[data-portal-visual="tremor-partner"] .ph-actions strong { font-size:12px; }
+/* A bounded chart, not a flex spacer stretched by the adjacent task list. */
+html[data-portal-visual="tremor-partner"] .ph-performance .ph-chart { flex:none; height:var(--ph-chart-height); min-height:0; margin-top:8px; }
+html[data-portal-visual="tremor-partner"] .ph-chart > [tremor-id],
+html[data-portal-visual="tremor-partner"] .ph-chart__placeholder { height:100%; min-height:0; }
+html[data-portal-visual="tremor-partner"] .ph-chart svg { min-height:0; }
+html[data-portal-visual="tremor-partner"] .ph-metrics { margin-top:auto; }
+html[data-portal-visual="tremor-partner"] .ph-plan__top { padding:12px 16px 10px; }
+html[data-portal-visual="tremor-partner"] .ph-plan__progress { margin-top:8px; }
+html[data-portal-visual="tremor-partner"] .ph-task { padding:6px 8px; }
+html[data-portal-visual="tremor-partner"] .ph-plan__footer { gap:6px 12px; padding:10px 16px; }
+@media (min-width:1001px) {
+  html[data-portal-visual="tremor-partner"] .ph-workspace { grid-template-columns:minmax(0,1fr) clamp(260px,25vw,320px); align-items:start; }
+  html[data-portal-visual="tremor-partner"] .ph-workspace__plan { height:100%; }
+  html[data-portal-visual="tremor-partner"] .ph-workspace__plan .ph-plan { height:100%; }
+  html[data-portal-visual="tremor-partner"] .ph-task-list { flex:1; min-height:0; max-height:160px; }
+  html[data-portal-visual="tremor-partner"] .ph-plan__footer { margin-top:auto; }
+  html[data-portal-visual="tremor-partner"] .ph-finance { display:grid; grid-template-columns:minmax(96px,.6fr) minmax(150px,1fr) minmax(330px,2fr) auto; align-items:center; gap:16px; padding:12px 16px; }
+  html[data-portal-visual="tremor-partner"] .ph-finance .ph-panel-heading { display:block; }
+  html[data-portal-visual="tremor-partner"] .ph-finance .ph-scope { display:block; margin-top:2px; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__total { margin:0; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__total dd { margin-top:4px; font-size:22px; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__details { display:flex; justify-content:space-between; gap:16px; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__details > div { display:block; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__details dd { margin-top:4px; white-space:nowrap; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__history { margin-top:0; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__debt { grid-column:1 / -1; margin-top:0; }
+}
+@media (min-width:1001px) and (max-width:1199px) {
+  html[data-portal-visual="tremor-partner"] .ph-finance { grid-template-columns:minmax(100px,.65fr) minmax(150px,1fr) auto; }
+  html[data-portal-visual="tremor-partner"] .ph-finance .ph-panel-heading { grid-area:1 / 1; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__total { grid-area:1 / 2; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__history { grid-area:1 / 3; }
+  html[data-portal-visual="tremor-partner"] .ph-finance__details { grid-area:2 / 1 / auto / -1; }
+}
+@media (max-width:1000px) {
+  html[data-portal-visual="tremor-partner"] .partner-home { --ph-chart-height:200px; }
+}
+html[data-portal-visual="tremor-partner"] .partner-home .ph-period select { padding-left:35px !important; }
+
+html[data-portal-visual="tremor-partner"] .syntolk-coach-companion {
+  --coach-bg:var(--color-gray-950); --coach-surface:#090e1a; --coach-surface-raised:var(--color-gray-900);
+  --coach-border:var(--color-gray-800); --coach-text:var(--color-gray-50); --coach-muted:var(--color-gray-400);
+  --coach-shadow:0 4px 6px -1px #0003;
+}
+html[data-portal-visual="tremor-partner"] .syntolk-coach-toggle {
+  background:var(--color-gray-900); color:var(--color-gray-50); border:1px solid var(--color-gray-700); box-shadow:0 2px 4px #0003;
+}
+html[data-portal-visual="tremor-partner"] :is(.syntolk-coach-toggle,.syntolk-coach-button):hover { transform:none; }
+html[data-portal-visual="tremor-partner"] :is(.syntolk-coach-panel,.syntolk-coach-invitation) { border-radius:8px; background:#090e1a; }
+html[data-portal-visual="tremor-partner"] .partner-message-launcher { width:44px; height:44px; background:var(--color-gray-900) !important; color:var(--color-gray-50) !important; border:1px solid var(--color-gray-700); box-shadow:0 2px 6px #0004; }
+html[data-portal-visual="tremor-partner"] .partner-message-panel { background:#090e1a; border-color:var(--color-gray-800); border-radius:8px; box-shadow:0 8px 24px #0005; }
+
+html[data-portal-visual="tremor-partner"] :is([role=dialog],.results-menu,.results-explorer,.results-drawer) { color:var(--color-gray-50); --results-muted:var(--color-gray-400); --results-border:var(--color-gray-800); --results-surface:#090e1a; }
+html[data-portal-visual="tremor-partner"] :is(.results-explorer,.results-drawer,.results-calendar,.results-menu,.calculator-scenario-dialog) {
+  @apply rounded-lg border border-gray-800 bg-[#090E1A] shadow-md;
+  background:#090e1a !important; border-color:var(--color-gray-800) !important; border-radius:8px !important;
+}
+html[data-portal-visual="tremor-partner"] .results-drawer.is-embedded { border-radius:0 !important; }
+html[data-portal-visual="tremor-partner"] :is(.results-explorer__legend button,.results-calendar__navigation button,.results-calendar__actions button) {
+  background:var(--color-gray-950); border-color:var(--color-gray-800); color:var(--color-gray-50); border-radius:6px;
+}
+html[data-portal-visual="tremor-partner"] [data-radix-popper-content-wrapper] { z-index:1100 !important; }
+html[data-portal-visual="tremor-partner"] .recharts-wrapper { font-family:inherit; font-size:12px; }
+html[data-portal-visual="tremor-partner"] .recharts-wrapper :is(path,rect) { outline: none; }
+html[data-portal-visual="tremor-partner"] :is(.recharts-wrapper,.tremor-metric-chart,button,a,input,select,textarea):focus-visible { outline: 2px solid var(--color-blue-500); outline-offset: 2px; }
+@media (hover:hover) {
+  html[data-portal-visual="tremor-partner"] :is(button,a[href],summary):not(:disabled,[aria-disabled=true],[aria-selected=true],[aria-pressed=true],[aria-current=page]):hover { background-color:var(--color-gray-900) !important; transform:none !important; }
+}
+@media (max-width: 768px) {
+  html[data-portal-visual="tremor-partner"] :is(.op-page,.results-layout) { padding:24px 16px !important; }
+  html[data-portal-visual="tremor-partner"] :is(.pf-controls,.pf-result) { padding:16px !important; }
+  html[data-portal-visual="tremor-partner"] .ph-header { padding:24px 16px 0; }
+}
+@media (prefers-reduced-motion:reduce) {
+  html[data-portal-visual="tremor-partner"] [data-state] { animation:none !important; }
+}

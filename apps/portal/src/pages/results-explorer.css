@@ -65,7 +65,7 @@
 .results-calendar__days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); grid-template-rows:28px repeat(6,32px); gap:2px; }
 .results-calendar__days>span { display:grid; place-items:center; min-height:28px; color:#8199b5; font-size:10px; }
 .results-calendar__days button { min-width:0; height:32px; padding:0; border:1px solid transparent; border-radius:5px; background:transparent; color:#d5e3f4; font-size:11px; }
-.results-calendar__days button:hover { border-color:var(--op-accent,#5b86a5); background:var(--op-accent-soft,#27405b); }
+.results-calendar__days button:not(:disabled):not(.is-edge):not(.is-in-range):hover { background:var(--op-card-hover-surface,#202328); }
 .results-calendar__days button.is-in-range { background:var(--op-accent-soft,#1c4954); border-radius:2px; }
 .results-calendar__days button.is-edge { background:var(--op-accent,#29c5d7); color:var(--op-accent-ink,#092027); font-weight:650; border-radius:5px; }
 .results-calendar__days button[aria-current=date]:not(.is-edge) { border-color:var(--op-accent-a88,#557c9d); }

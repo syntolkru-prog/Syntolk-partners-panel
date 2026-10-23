@@ -68,7 +68,7 @@ describe('scenario tracking and shared partner analytics',()=>{
   it('combines selections with OR inside each dimension and AND between dimensions',async()=>{
     const first=await source('a','ytshorts'),second=await source('b','vkclips'),excluded=await source('a','telegram-short');
     await customer(first,1000);await customer(second,500);await customer(excluded,700);
-    const selected=await report('&groupBy=platform&platformIds=ytshorts&platformIds=vkclips&platformIds=ytshorts&scenarioIds=a&scenarioIds=b&formatIds=short&formatIds=article&includeSeries=true&includeFunnel=true&includeComparison=true');
+    const selected=await report('&groupBy=platform&platformIds=ytshorts&platformIds=vkclips&platformIds=ytshorts&scenarioIds=a&scenarioIds=b&formatIds=short&formatIds=article&includeSeries=true&includeFunnel=true');
     expect(selected.counts).toMatchObject({clicks:2,registrations:2,paymentCount:2,payingCustomers:2});
     expect(selected.amountsMinor.netAccrued).toBe(30000);
     expect(selected.rows.map((row:any)=>row.id).sort()).toEqual(['vkclips','ytshorts']);
@@ -501,5 +501,31 @@ describe('scenario tracking and shared partner analytics',()=>{
     const view=await get(`/partners/${partnerId}/materials/${tasks[0].id}`);
     expect(view.status,view.text).toBe(200);expect(view.body.material.title).toContain('Короткое видео ·');
     expect(view.body.material.platforms.length).toBeGreaterThan(0);
+  });
+});
+
+describe('homepage registration rows',()=>{
+  it('deduplicates users, excludes simulator data, and preserves the existing details contract',async()=>{
+    const tracked=await source(),valid=await customer(tracked,100),simulator=await customer(tracked,500);
+    await event(valid.userId,'signup');
+    await db('Event').where({tenantId,userId:simulator.userId}).update({metadata:JSON.stringify({source:'local_simulator'})});
+    const query=`programId=${programId}&period=all&currency=RUB`;
+    const before=await report();
+    const old=await get(`/partners/${partnerId}/analytics/details?${query}`);
+    expect(old.status,old.text).toBe(200);expect(old.body.registrations).toBeUndefined();
+    const result=await get(`/partners/${partnerId}/analytics/details?${query}&includeRegistrations=true`);
+    expect(result.status,result.text).toBe(200);expect(result.body.registrations).toHaveLength(1);
+    expect(result.body.registrations[0]).toMatchObject({userId:valid.userId,paidMinor:10000,currency:'RUB',source:'Источник не передан'});
+    expect(Number.isFinite(Date.parse(result.body.registrations[0].registeredAt))).toBe(true);
+    expect(result.body.traffic).toEqual(old.body.traffic);
+    const after=await report();expect(after.counts).toEqual(before.counts);expect(after.amountsMinor).toEqual(before.amountsMinor);
+  });
+  it('uses the selected currency and date scope without declaring unrelated payments',async()=>{
+    const registered=await customer(await source(),100);
+    await db('Event').where({tenantId,userId:registered.userId,type:'invoice_paid'}).update({currency:'USD'});
+    const result=await get(`/partners/${partnerId}/analytics/details?programId=${programId}&period=all&currency=RUB&includeRegistrations=true`);
+    expect(result.status,result.text).toBe(200);expect(result.body.registrations[0]).toMatchObject({userId:registered.userId,paidMinor:null});
+    const empty=await get(`/partners/${partnerId}/analytics/details?programId=${programId}&period=custom&from=2020-01-01&to=2020-01-02&includeRegistrations=true`);
+    expect(empty.status,empty.text).toBe(200);expect(empty.body.registrations).toEqual([]);
   });
 });

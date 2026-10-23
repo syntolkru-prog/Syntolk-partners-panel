@@ -84,7 +84,10 @@ describe('expanded results graph',()=>{
   it('does not leave an endless comparison spinner or stale charts when loading fails',async()=>{
     vi.mocked(api).mockRejectedValue(new Error('Не удалось загрузить статистику'));
     showExplorer();fireEvent.click(screen.getByRole('button',{name:'Период сравнения'}));
-    fireEvent.click(screen.getByRole('button',{name:'Предыдущий период'}));
+    const calendar=screen.getByRole('dialog',{name:'Период сравнения'});
+    fireEvent.change(within(calendar).getByLabelText('Период сравнения: начало'),{target:{value:'2026-09-01'}});
+    fireEvent.change(within(calendar).getByLabelText('Период сравнения: конец'),{target:{value:'2026-09-05'}});
+    fireEvent.click(within(calendar).getByRole('button',{name:'Применить'}));
     await screen.findByText('Не удалось загрузить статистику');
     expect(screen.queryByText('Обновляем график…')).toBeNull();
     expect(document.querySelector('.results-explorer__plots')?.hasAttribute('inert')).toBe(true);

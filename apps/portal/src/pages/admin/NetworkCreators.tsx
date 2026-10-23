@@ -464,6 +464,7 @@ function ChipMultiSelect({
             key={o}
             type="button"
             onClick={() => toggle(o)}
+            aria-pressed={on}
             style={{
               padding: '4px 10px',
               borderRadius: 14,

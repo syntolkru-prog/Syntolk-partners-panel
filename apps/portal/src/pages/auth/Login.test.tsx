@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './Login.js';
 import { api, setApiKey } from '../../api.js';
 
-vi.mock('../../api.js', () => ({ api: vi.fn(), setApiKey: vi.fn(), ApiError: class extends Error {} }));
+vi.mock('../../api.js', () => ({ api: vi.fn(), setApiKey: vi.fn(), isLocalDevelopment: () => false, ApiError: class extends Error {} }));
 vi.mock('./Shared.js', () => ({ AuthFrame: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, Logo: () => null }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 

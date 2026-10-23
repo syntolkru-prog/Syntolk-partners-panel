@@ -440,6 +440,7 @@ function CreateEndpoint({
                 key={ev}
                 type="button"
                 onClick={() => toggle(ev)}
+                aria-pressed={on}
                 style={{
                   padding: '5px 12px',
                   background: on ? theme.accentSoft : theme.bg,

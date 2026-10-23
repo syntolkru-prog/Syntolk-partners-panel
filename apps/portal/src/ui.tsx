@@ -1,6 +1,15 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { theme } from './theme.js';
 import { useIsMobile } from './lib/useMediaQuery.js';
+import { usePartnerVisual } from './components/tremor/PartnerVisual.js';
+import { Card as TremorCard } from './components/tremor/raw/components/Card/Card.js';
+import { Button as TremorButton } from './components/tremor/raw/components/Button/Button.js';
+import { Input as TremorInput } from './components/tremor/raw/components/Input/Input.js';
+import { Textarea as TremorTextarea } from './components/tremor/raw/components/Textarea/Textarea.js';
+import { SelectNative as TremorSelect } from './components/tremor/raw/components/SelectNative/SelectNative.js';
+import { Label as TremorLabel } from './components/tremor/raw/components/Label/Label.js';
+import { Badge as TremorBadge } from './components/tremor/raw/components/Badge/Badge.js';
+import { Table as TremorTable, TableRoot, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from './components/tremor/raw/components/Table/Table.js';
 
 // ---------------- Layout ----------------
 
@@ -17,7 +26,7 @@ export function Page({
 }) {
   const isMobile = useIsMobile();
   return (
-    <div style={{ padding: isMobile ? '20px 16px' : '32px 40px', maxWidth: 1280, margin: '0 auto' }}>
+    <div className="op-page" style={{ padding: isMobile ? '20px 16px' : '32px 40px', maxWidth: 1280, margin: '0 auto' }}>
       <header
         style={{
           display: 'flex',
@@ -33,7 +42,7 @@ export function Page({
         <div>
           <h1 style={{ margin: 0, fontSize: isMobile ? 21 : 24, fontWeight: 600, letterSpacing: '-0.01em' }}>{title}</h1>
           {subtitle && (
-            <div style={{ color: theme.textMuted, fontSize: 14, marginTop: 4 }}>{subtitle}</div>
+            <div className="op-page-subtitle" style={{ color: theme.textMuted, fontSize: 14, marginTop: 4 }}>{subtitle}</div>
           )}
         </div>
         {actions && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions}</div>}
@@ -56,6 +65,8 @@ export function Card({
   padded?: boolean;
   onClick?: () => void;
 }) {
+  const tremor = usePartnerVisual();
+  if (tremor) return <TremorCard className={onClick ? 'op-interactive-card op-card' : 'op-card'} onClick={onClick} style={{ padding: padded ? 24 : 0, cursor: onClick ? 'pointer' : undefined, ...style }}>{children}</TremorCard>;
   return (
     <div
       onClick={onClick}
@@ -77,7 +88,7 @@ export function Card({
 export function SectionHeading({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '28px 0 12px' }}>
-      <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      <h2 className="op-section-heading" style={{ margin: 0, fontSize: 13, fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         {children}
       </h2>
       <div>{actions}</div>
@@ -98,6 +109,8 @@ export function Stat({
   hint?: string;
   icon?: ReactNode;
 }) {
+  const tremor=usePartnerVisual();
+  if(tremor)return <Card><div className="flex items-center justify-between gap-3 text-sm text-gray-400"><span>{label}</span>{icon}</div><div className="mt-3 text-3xl font-semibold tracking-tight text-gray-50 tabular-nums">{value}</div>{hint&&<div className="mt-2 text-xs text-gray-400">{hint}</div>}</Card>;
   return (
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
@@ -125,6 +138,8 @@ export function Table({
 }) {
   const cols = columns.map((c) => (typeof c === 'string' ? { label: c, align: 'left' as const } : c));
   const isMobile = useIsMobile();
+  const tremor = usePartnerVisual();
+  if (tremor && !isMobile) return <Card padded={false}><TableRoot><TremorTable><TableHead><TableRow>{cols.map(column => <TableHeaderCell key={column.label} style={{ textAlign: column.align }}>{column.label}</TableHeaderCell>)}</TableRow></TableHead><TableBody>{rows.length ? rows.map((row, index) => <TableRow key={index}>{row.map((cell, column) => <TableCell key={column} style={{ textAlign: cols[column]?.align }}>{cell}</TableCell>)}</TableRow>) : <TableRow><TableCell colSpan={cols.length} style={{ textAlign: 'center', padding: 32 }}>{empty}</TableCell></TableRow>}</TableBody></TremorTable></TableRoot></Card>;
 
   // On phones, a multi-column table forces horizontal scrolling and hides
   // data off-screen. Reflow each row into a stacked "label: value" card so
@@ -267,6 +282,7 @@ export function Button({
   type,
   style,
   icon,
+  'aria-pressed': ariaPressed,
 }: {
   children?: ReactNode;
   onClick?: () => void;
@@ -276,21 +292,27 @@ export function Button({
   type?: 'button' | 'submit';
   style?: CSSProperties;
   icon?: ReactNode;
+  'aria-pressed'?: React.AriaAttributes['aria-pressed'];
 }) {
+  const tremor = usePartnerVisual();
   const palettes = {
-    primary: { bg: theme.accent, color: theme.accentInk, border: theme.accent, hoverBg: theme.accentHover },
-    secondary: { bg: theme.surface2, color: theme.text, border: theme.border, hoverBg: '#252a33' },
-    ghost: { bg: 'transparent', color: theme.text, border: 'transparent', hoverBg: theme.surface2 },
-    danger: { bg: theme.dangerSoft, color: theme.danger, border: theme.dangerSoft, hoverBg: '#3d1818' },
+    primary: { bg: theme.accent, color: theme.accentInk, border: theme.accent },
+    secondary: { bg: theme.surface2, color: theme.text, border: theme.border },
+    ghost: { bg: 'transparent', color: theme.text, border: 'transparent' },
+    danger: { bg: theme.dangerSoft, color: theme.danger, border: theme.dangerSoft },
   } as const;
   const p = palettes[variant];
   const padY = size === 'sm' ? 6 : 8;
   const padX = size === 'sm' ? 10 : 14;
   const fontSize = size === 'sm' ? 13 : 14;
 
+  if (tremor) return <TremorButton type={type ?? 'button'} data-op-variant={variant} aria-pressed={ariaPressed} onClick={onClick} disabled={disabled} variant={variant === 'danger' ? 'destructive' : variant} className={size === 'sm' ? 'gap-2 px-2.5 py-1.5 text-xs' : 'gap-2'} style={style}>{icon}{children}</TremorButton>;
+
   return (
     <button
       type={type ?? 'button'}
+      data-op-variant={variant}
+      aria-pressed={ariaPressed}
       onClick={onClick}
       disabled={disabled}
       style={{
@@ -306,14 +328,8 @@ export function Button({
         fontWeight: 500,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
-        transition: 'background 120ms ease, transform 60ms ease',
+        transition: 'background-color 160ms ease',
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = p.hoverBg;
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled) (e.currentTarget as HTMLButtonElement).style.background = p.bg;
       }}
     >
       {icon}
@@ -325,6 +341,8 @@ export function Button({
 // ---------------- Input / Label ----------------
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  const tremor = usePartnerVisual();
+  if (tremor) return <TremorInput {...props} />;
   return (
     <input
       {...props}
@@ -344,6 +362,8 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 }
 
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode }) {
+  const tremor = usePartnerVisual();
+  if (tremor) return <TremorSelect {...props} />;
   return (
     <select
       {...props}
@@ -365,6 +385,8 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement> & { 
 }
 
 export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const tremor = usePartnerVisual();
+  if (tremor) return <TremorTextarea {...props} />;
   return (
     <textarea
       {...props}
@@ -385,6 +407,8 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 export function Label({ children }: { children: ReactNode }) {
+  const tremor = usePartnerVisual();
+  if (tremor) return <TremorLabel className="mb-1.5 block">{children}</TremorLabel>;
   return (
     <label
       style={{
@@ -403,6 +427,7 @@ export function Label({ children }: { children: ReactNode }) {
 // ---------------- Badge / StatusPill ----------------
 
 export function StatusPill({ status }: { status: string }) {
+  const tremor = usePartnerVisual();
   const palette: Record<string, { bg: string; fg: string }> = {
     accrued: { bg: theme.warnSoft, fg: theme.warn },
     approved: { bg: theme.infoSoft, fg: theme.info },
@@ -434,6 +459,7 @@ export function StatusPill({ status }: { status: string }) {
     paused: 'на паузе',
     revoked: 'заблокирован',
   };
+  if (tremor) return <TremorBadge variant={['paid','connected','active'].includes(status) ? 'success' : ['failed','error','revoked','reversed'].includes(status) ? 'error' : ['accrued','invited','paused'].includes(status) ? 'warning' : status === 'approved' ? 'default' : 'neutral'}>{labels[status] ?? status}</TremorBadge>;
   return (
     <span
       style={{

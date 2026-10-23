@@ -135,6 +135,7 @@ export function AddBrandPage() {
                   key={p.key}
                   type="button"
                   onClick={() => setPlan(p.key)}
+                  aria-pressed={active}
                   style={{
                     textAlign: 'left',
                     background: active ? `${theme.accentA15}` : theme.surface,

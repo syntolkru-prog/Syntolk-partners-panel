@@ -73,7 +73,7 @@
 .results-metric-card { min-width:0; padding:18px 18px 12px; background:linear-gradient(150deg,#18202a,var(--results-surface) 65%); }
 .results-metric-card__inspect { display:block; width:100%; padding:0; border:0; border-radius:4px; background:transparent; color:inherit; text-align:left; }
 .results-metric-card__heading>svg { color:#77879b; flex-shrink:0; }
-.results-metric-card__inspect:hover .results-metric-card__heading>svg { color:var(--metric-color); }
+.results-metric-card__inspect:hover .results-metric-card__heading>svg { color:var(--op-text-muted,#8b95a3); }
 .results-metric-card__heading { display:flex; justify-content:space-between; align-items:center; gap:8px; height:20px; }
 .results-metric-card__heading>span { display:flex; align-items:center; gap:7px; min-width:0; color:#b4bfce; font-size:12px; }
 .results-metric-card__heading i,.results-series-legend i { width:7px; height:7px; flex-shrink:0; border-radius:50%; background:var(--metric-color); }

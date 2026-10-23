@@ -1,3 +1,4 @@
+import {VisualButton,VisualSelect} from '../components/tremor/VisualControls.js';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -6,6 +7,8 @@ import { api, currentTenantSlug } from '../api.js';
 import { ErrorBanner, money } from '../ui.js';
 import type { AnalyticsReport, MetricRow } from './PartnerAnalytics.js';
 import { MetricPlot, chartColors, defaultChartMetrics, chartMetricLabels, useMetricLabels, useChartModes, chartSeriesColor, type ChartInspection, type ChartMetric, type ChartSeriesBy } from './ResultsChart.js';
+import {usePartnerVisual} from '../components/tremor/PartnerVisual.js';
+import {sourcePalette} from '../components/tremor/chartPalette.js';
 import { ResultsDrawer } from './ResultsDetails.js';
 import { ResultsDatePicker, calendarDay, rangeCaption, validDateRange, type DateChoice } from './ResultsDatePicker.js';
 import { inspectionScope, metricValue } from './results-scope.js';
@@ -18,6 +21,7 @@ const linesOf=(report:AnalyticsReport|undefined,metric:ChartMetric,by:ChartSerie
 
 export function ResultsExplorer({partnerId,metric:initialMetric,query,report:initialReport,context,onClose,endpoint,onPeriodsChange,onComparisonClear}:{partnerId:string;metric:ChartMetric;query:string;report:AnalyticsReport;context:string;onClose:()=>void;endpoint?:string;onPeriodsChange?:(primary:DateChoice,comparison:DateChoice|null)=>void;onComparisonClear?:()=>void}) {
   const chartMetricLabels=useMetricLabels(), modes=useChartModes(endpoint==='/admin/analytics');
+  const tremor=usePartnerVisual();
   const analyticsEndpoint=endpoint??`/partners/${partnerId}/analytics`;
   const currency=initialReport.currency??new URLSearchParams(query).get('currency')??'RUB';
   const formatValue=(value:number,metric:ChartMetric)=>valueLabel(value,metric,currency);
@@ -89,15 +93,15 @@ export function ResultsExplorer({partnerId,metric:initialMetric,query,report:ini
   const detailCompare=detail?.selection.by&&detail.selection.by!=='total'&&!detail.selection.group?detail.selection.by:undefined;
   return createPortal(<div className={`results-explorer-backdrop${closing?' is-closing':''}`} onClick={event=>{if(event.target===event.currentTarget)closeExplorer();}}>
     <section ref={root} className="results-page results-explorer" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <header className="results-explorer__header"><div><span>Подробная аналитика</span><h2 id={titleId}>{chartMetricLabels[metric]}</h2>{context&&<p>{context}</p>}</div><button ref={close} type="button" className="results-icon-button" aria-label="Закрыть график" onClick={closeExplorer}><X size={19}/></button></header>
+      <header className="results-explorer__header"><div><span>Подробная аналитика</span><h2 id={titleId}>{chartMetricLabels[metric]}</h2>{context&&<p>{context}</p>}</div><VisualButton ref={close} type="button" className="results-icon-button" aria-label="Закрыть график" onClick={closeExplorer}><X size={19}/></VisualButton></header>
       <div className="results-explorer__controls">
         <ResultsDatePicker label="Период большого графика" value={primaryRange} timezone={data?.timezone??initialReport.timezone} onChange={changePeriod}/>
         <ResultsDatePicker label="Период сравнения" value={secondaryRange} primaryValue={primaryRange} timezone={data?.timezone??initialReport.timezone} comparison active={comparison}
           onApply={(main,secondary)=>{const first=main??primaryRange;setDetail(null);setChoice(first);setComparisonChoice(secondary);setComparison(true);onPeriodsChange?.(first,secondary);}}
           onChange={range=>{setDetail(null);setComparisonChoice(range);setComparison(true);onPeriodsChange?.(primaryRange,range);}}
           onClear={()=>{setDetail(null);setComparison(false);setComparisonChoice(null);if(onComparisonClear)onComparisonClear();else onPeriodsChange?.(primaryRange,null);}}/>
-        <select aria-label="Разбивка большого графика" value={by} onChange={event=>modeChange(event.target.value as ChartSeriesBy)}>{Object.entries(modes).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>
-        <select aria-label="Показатель большого графика" value={metric} onChange={event=>{setDetail(null);setMetric(event.target.value as ChartMetric);}}>{defaultChartMetrics.map(key=><option key={key} value={key}>{chartMetricLabels[key]}</option>)}</select>
+        <VisualSelect aria-label="Разбивка большого графика" value={by} onChange={event=>modeChange(event.target.value as ChartSeriesBy)}>{Object.entries(modes).map(([key,label])=><option key={key} value={key}>{label}</option>)}</VisualSelect>
+        <VisualSelect aria-label="Показатель большого графика" value={metric} onChange={event=>{setDetail(null);setMetric(event.target.value as ChartMetric);}}>{defaultChartMetrics.map(key=><option key={key} value={key}>{chartMetricLabels[key]}</option>)}</VisualSelect>
       </div>
       <ErrorBanner error={reportError}/>
       {comparison&&!busy&&!reportError&&secondary.data&&data&&<div className="results-explorer__change">{change===null?(value===0?'В обоих периодах — 0':'В периоде сравнения — 0'):`${change>0?'+':''}${change.toLocaleString('ru-RU',{maximumFractionDigits:1})}% к периоду сравнения`}<span>{formatValue(value,metric)} · сравнение {formatValue(previousValue,metric)}</span></div>}
@@ -105,9 +109,9 @@ export function ResultsExplorer({partnerId,metric:initialMetric,query,report:ini
         {busy&&<div className="results-explorer__loading" role="status">Обновляем график…</div>}
         <div className="results-explorer__plots" data-comparing={comparison} aria-hidden={busy||!!reportError||undefined} {...{inert:busy||reportError?'':undefined}}>
           {panels.map(panel=><section className="results-explorer__plot-panel" key={panel.id} aria-label={panel.name}>
-            <div className="results-explorer__plot-heading"><div><span>{comparison?panel.name:chartMetricLabels[metric]}</span><p>{panel.report?rangeCaption(rangeOf(panel.report)):''}</p></div><button type="button" aria-label={`Подробнее за период: ${chartMetricLabels[metric]}${panel.id==='previous'?' — сравнение':''}`} onClick={()=>{if(panel.report)inspect({metric,by},panel.report,panel.query);}}><strong>{panel.report?formatValue(metricValue(panel.report,metric),metric):'—'}</strong><ChevronRight size={16}/></button></div>
+            <div className="results-explorer__plot-heading"><div><span>{comparison?panel.name:chartMetricLabels[metric]}</span><p>{panel.report?rangeCaption(rangeOf(panel.report)):''}</p></div><VisualButton type="button" aria-label={`Подробнее за период: ${chartMetricLabels[metric]}${panel.id==='previous'?' — сравнение':''}`} onClick={()=>{if(panel.report)inspect({metric,by},panel.report,panel.query);}}><strong>{panel.report?formatValue(metricValue(panel.report,metric),metric):'—'}</strong><ChevronRight size={16}/></VisualButton></div>
             <MetricPlot large currencyCode={currency} series={panel.report?.series} lines={linesOf(panel.report,metric,by,chartMetricLabels)} metric={metric} range={scale} onInspect={(point,group)=>{if(panel.report)inspect({metric,by,point,...(group&&by!=='total'?{group:{by,id:group.id,name:group.name}}:{})},panel.report,panel.query);}}/>
-            {by!=='total'&&<section className="results-explorer__legend"><h3>{groupLabels[by]}</h3><div>{linesOf(panel.report,metric,by,chartMetricLabels).map(line=><button type="button" key={line.id} aria-label={line.name} onClick={()=>{if(panel.report)inspect({metric,by,group:{by,id:line.id,name:line.name}},panel.report,panel.query);}}><i style={{background:line.color}}/>{line.name}<ChevronRight size={12}/></button>)}</div></section>}
+            {by!=='total'&&<section className="results-explorer__legend"><h3>{groupLabels[by]}</h3><div>{linesOf(panel.report,metric,by,chartMetricLabels).map(line=><VisualButton type="button" key={line.id} aria-label={line.name} onClick={()=>{if(panel.report)inspect({metric,by,group:{by,id:line.id,name:line.name}},panel.report,panel.query);}}><i style={{background:tremor?sourcePalette(line.id)[1]:line.color}}/>{line.name}<ChevronRight size={12}/></VisualButton>)}</div></section>}
             {metric==='earningsMinor'&&panel.report?.amountsMinor.netAccrued===0&&panel.report.amountsMinor.observedPayments>0&&<p className="results-note">Оплаты клиентов учтены. Начисленные комиссии с учётом возвратов — {money(0,currency)}.</p>}
           </section>)}
         </div>

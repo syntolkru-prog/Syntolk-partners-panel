@@ -15,7 +15,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.stubGlobal('sessionStorage', tabStorage());
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('independent cabinet credentials', () => {
   it('keeps the admin credential when another tab signs in and signs out as partner', async () => {
@@ -70,6 +70,56 @@ describe('independent cabinet credentials', () => {
     setApiKey('revoked-key');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })));
     await expect(api('/auth/whoami')).rejects.toMatchObject({ status: 401 });
+    expect(getApiKey()).toBeNull();
+  });
+});
+
+describe('remembered local development login', () => {
+  beforeEach(() => vi.stubGlobal('location', new URL('http://localhost:5673/')));
+
+  it('restores the local account after closing and reopening its tab', () => {
+    setApiKey('local-admin');
+    expect(localStorage.getItem('op:localApiKey')).toBe('local-admin');
+    vi.stubGlobal('sessionStorage', tabStorage());
+    expect(getApiKey()).toBe('local-admin');
+  });
+
+  it('keeps an explicit signout signed out after reopening', () => {
+    setApiKey('local-admin');
+    clearApiKey();
+    vi.stubGlobal('sessionStorage', tabStorage());
+    expect(getApiKey()).toBeNull();
+    expect(localStorage.getItem('op:localApiKey')).toBeNull();
+  });
+
+  it('does not make production or another port remember a login', () => {
+    vi.stubGlobal('location', new URL('https://partners.example.test/'));
+    setApiKey('production-account');
+    expect(localStorage.getItem('op:localApiKey')).toBeNull();
+    vi.stubGlobal('location', new URL('http://localhost:5674/'));
+    setApiKey('other-local-app');
+    expect(localStorage.getItem('op:localApiKey')).toBeNull();
+    vi.stubGlobal('location', new URL('http://localhost:5673/'));
+    vi.stubEnv('DEV', false);
+    setApiKey('production-on-loopback');
+    expect(localStorage.getItem('op:localApiKey')).toBeNull();
+  });
+
+  it('preserves an independent tab and its new remembered login on signout', () => {
+    const admin = tabStorage(), other = tabStorage();
+    vi.stubGlobal('sessionStorage', admin); setApiKey('admin');
+    vi.stubGlobal('sessionStorage', other); setApiKey('partner');
+    vi.stubGlobal('sessionStorage', admin); clearApiKey();
+    vi.stubGlobal('sessionStorage', other);
+    expect(getApiKey()).toBe('partner');
+    expect(localStorage.getItem('op:localApiKey')).toBe('partner');
+  });
+
+  it('forgets a revoked local account rather than repeatedly restoring it', async () => {
+    setApiKey('revoked-local');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 401 })));
+    await expect(api('/auth/whoami')).rejects.toMatchObject({ status: 401 });
+    vi.stubGlobal('sessionStorage', tabStorage());
     expect(getApiKey()).toBeNull();
   });
 });

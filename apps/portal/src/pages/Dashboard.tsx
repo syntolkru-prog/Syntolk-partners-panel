@@ -1,12 +1,10 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   MousePointerClick,
   Receipt,
   Wallet,
   Users,
-  CreditCard,
   CheckCircle2,
   Circle,
   ArrowRight,
@@ -14,117 +12,16 @@ import {
 import { api, type Principal } from '../api.js';
 import { useTenantBase } from '../tenant-base.js';
 import { theme } from '../theme.js';
-import { CoachDay } from './coach/CoachDay.js';
-import {PartnerQuickActions} from './PartnerQuickActions.js';
+import { PartnerHome } from './PartnerHome.js';
 import { useBrand } from '../lib/useBrand.js';
 import { Avatar, Button, Card, EmptyState, ErrorBanner, Page, SectionHeading, Stat, money } from '../ui.js';
-
-// ---------- Partner ----------
-
-interface PartnerDashboard {
-  partnerId: string;
-  since: string;
-  clicks: number;
-  attributedEvents: number;
-  registrations: number;
-  payingClients: number;
-  conversionRate: number;
-  attributedRevenue: number;
-  periodEarnings?:number;
-  currency?:string;
-  commissionByStatus: Record<string, number>;
-  balances: { debt?:number; accrued: number; available: number; pending: number; paid: number; total: number };
-  links?: Array<{ linkKey: string; clicks: number; attributedEvents: number; attributedRevenue: number }>;
-}
-
-interface PartnerProfile {
-  termsAcceptedAt: string | null;
-  termsVersion: string | null;
-  cloudPaymentsStatus: 'not_connected' | 'connected' | 'error';
-}
 
 export function Dashboard({ principal }: { principal: Principal }) {
   if (principal.role === 'admin') return <AdminDashboard />;
   if (principal.role === 'partner') {
-    return <PartnerDashboard partnerId={principal.partnerId!} name={principal.partner?.name ?? ''} />;
+    return <PartnerHome partnerId={principal.partnerId!} name={principal.partner?.name ?? ''} />;
   }
   return null;
-}
-
-function PartnerDashboard({ partnerId, name }: { partnerId: string; name: string }) {
-  const { programTermsUrl } = useBrand();
-  const base=useTenantBase();
-  const [period, setPeriod] = useState<'today' | '7d' | '30d' | 'all'>('30d');
-  const { data, error, isLoading } = useQuery({
-    queryKey: ['dashboard', partnerId, period],refetchOnWindowFocus:true,
-    queryFn: () => api<PartnerDashboard>(`/partners/${partnerId}/dashboard?period=${period}`),
-  });
-  const profile = useQuery({
-    queryKey: ['partner-profile', partnerId],
-    queryFn: () => api<PartnerProfile>(`/partners/${partnerId}`),
-  });
-  const acceptTerms = useMutation({
-    mutationFn: () => api(`/partners/${partnerId}/terms`, {
-      method: 'POST',
-      body: { accepted: true, version: 'syntolk-v1' },
-    }),
-    onSuccess: () => profile.refetch(),
-  });
-
-  return (
-    <Page
-      title={`Здравствуйте, ${name.split(' ')[0] || 'партнёр'}`}
-      subtitle="Партнёрская статистика Syntolk"
-      actions={
-        <select aria-label="Период статистики" value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} style={{ padding: '8px 10px', borderRadius: theme.radiusSm, border: `1px solid ${theme.border}`, background: theme.surface, color: theme.text }}>
-          <option value="today">Сегодня</option>
-          <option value="7d">7 дней</option>
-          <option value="30d">30 дней</option>
-          <option value="all">За всё время</option>
-        </select>
-      }
-    >
-      <ErrorBanner error={error} />
-      <PartnerQuickActions/>
-      <CoachDay partnerId={partnerId} />
-      {!profile.isLoading && profile.data && !profile.data.termsAcceptedAt && (
-        <Card style={{ marginBottom: 14, borderColor: `${theme.warn}66`, background: theme.warnSoft }}>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 5 }}>Подтвердите условия партнёрской программы</div>
-          <div style={{ fontSize: 13, color: theme.textMuted, lineHeight: 1.5, marginBottom: 12 }}>
-            Перед началом работы подтвердите условия Syntolk. Это сохранится в истории кабинета вместе с версией документа.
-            {programTermsUrl && (
-              <> {' '}<a href={programTermsUrl} target="_blank" rel="noreferrer" style={{ color: theme.accent }}>Открыть условия</a></>
-            )}
-          </div>
-          <ErrorBanner error={acceptTerms.error} />
-          <Button onClick={() => acceptTerms.mutate()} disabled={acceptTerms.isPending}>
-            {acceptTerms.isPending ? 'Сохраняем…' : 'Принять условия'}
-          </Button>
-        </Card>
-      )}
-      {isLoading ? (
-        <Card>Загрузка…</Card>
-      ) : data ? (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 14 }}>
-            <Stat label="Переходы" value={data.clicks} icon={<MousePointerClick size={16} />} />
-            <Stat label="Регистрации" value={data.registrations} icon={<Receipt size={16} />} />
-            <Stat label="Платящие клиенты" value={data.payingClients} icon={<CreditCard size={16} />} />
-            <Stat label="Выручка" value={money(data.attributedRevenue,data.currency??'RUB')} icon={<Wallet size={16} />} />
-            <Stat label="Начислено" value={money(data.balances.total,data.currency??'RUB')} icon={<Wallet size={16} />} />
-            <Stat label="Доступно" value={money(data.balances.available,data.currency??'RUB')} icon={<Wallet size={16} />} />
-            <Stat label="Ожидает выплаты" value={money(data.balances.pending??0,data.currency??'RUB')} icon={<Wallet size={16} />} />
-            <Stat label="Выплачено" value={money(data.balances.paid,data.currency??'RUB')} icon={<Wallet size={16} />} />
-          </div>
-          <div style={{display:'flex',flexWrap:'wrap',justifyContent:'space-between',gap:12,marginTop:14,fontSize:12,color:theme.textMuted}}>
-            <span>Переходы, регистрации, клиенты и выручка — за выбранный период. Начисления и выплаты — за всё время.</span>
-            <Link to={`${base}/payouts`} style={{color:theme.accent}}>История выплат →</Link>
-          </div>
-          {(data.balances.debt??0)>0&&<p style={{color:theme.textMuted,fontSize:12}}>Корректировка прошлых выплат: {money(data.balances.debt??0,data.currency??'RUB')}. Учитывается при следующей выплате.</p>}
-        </>
-      ) : null}
-    </Page>
-  );
 }
 
 // ---------- Admin ----------

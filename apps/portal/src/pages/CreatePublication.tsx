@@ -1,3 +1,4 @@
+import {VisualButton,VisualSelect} from '../components/tremor/VisualControls.js';
 import {useRef,useState} from 'react';
 import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {Check,Copy,FilePlus2,X} from 'lucide-react';
@@ -45,30 +46,30 @@ export function CreatePublication({partnerId,programId,onClose,onCreated}:{
     finally{sending.current=false;setBusy(false);}
   };
   return <section className="publication-create" aria-label="Создание ссылки на публикацию">
-    <header className="publication-create__header"><div className="publication-create__heading"><span className="publication-create__icon"><FilePlus2 size={20}/></span><div><h2>{result?'Ссылка готова':'Ссылка на публикацию'}</h2><p>{result?'Используйте её в выбранном посте, ролике или статье.':'Создайте отслеживаемую ссылку без калькулятора. Результаты появятся в общей аналитике.'}</p></div></div><button type="button" className="results-icon-button" aria-label="Закрыть создание публикации" disabled={busy} onClick={onClose}><X size={17}/></button></header>
+    <header className="publication-create__header"><div className="publication-create__heading"><span className="publication-create__icon"><FilePlus2 size={20}/></span><div><h2>{result?'Ссылка готова':'Ссылка на публикацию'}</h2><p>{result?'Используйте её в выбранном посте, ролике или статье.':'Создайте отслеживаемую ссылку без калькулятора. Результаты появятся в общей аналитике.'}</p></div></div><VisualButton type="button" className="results-icon-button" aria-label="Закрыть создание публикации" disabled={busy} onClick={onClose}><X size={17}/></VisualButton></header>
     <ErrorBanner error={error??catalog.error??links.error}/>
     {result?<div className="publication-create__success" role="status">
       <label>Ссылка для размещения<input aria-label="Готовая ссылка публикации" readOnly value={url} onFocus={event=>event.target.select()}/></label>
-      <button className="results-button publication-create__primary" type="button" onClick={()=>{void navigator.clipboard.writeText(url).then(()=>{setCopied(true);setError(null);}).catch(()=>setError(new Error('Копирование недоступно. Выделите и скопируйте ссылку из поля.')));}}>{copied?<Check size={16}/>:<Copy size={16}/>} {copied?'Скопировано':'Копировать ссылку'}</button>
+      <VisualButton className="results-button publication-create__primary" type="button" onClick={()=>{void navigator.clipboard.writeText(url).then(()=>{setCopied(true);setError(null);}).catch(()=>setError(new Error('Копирование недоступно. Выделите и скопируйте ссылку из поля.')));}}>{copied?<Check size={16}/>:<Copy size={16}/>} {copied?'Скопировано':'Копировать ссылку'}</VisualButton>
       <p>{result.source.publishedAt?'Размещение отмечено опубликованным.':'Пока это подготовленная ссылка, а не опубликованный материал. После размещения отметьте публикацию в списке ниже.'} {scenarioId?'Результаты будут учтены и в выбранном сценарии.':'Результаты учитываются без привязки к сценарию; в калькуляторе доступны в режиме «Весь контент».'}</p>
-      <button className="results-button" type="button" onClick={onClose}>Перейти к отчёту</button>
+      <VisualButton className="results-button" type="button" onClick={onClose}>Перейти к отчёту</VisualButton>
     </div>:<form onSubmit={event=>{event.preventDefault();void submit();}}>
       <fieldset disabled={busy||catalog.isPending||!!catalog.error||!programId}>
         <div className="publication-create__grid">
           <label className="publication-create__wide">Название материала<input autoFocus required maxLength={200} value={title} onChange={event=>setTitle(event.target.value)} placeholder="Например, обзор Syntolk на YouTube"/></label>
-          <label>Тип контента<select aria-label="Тип контента публикации" value={formatId} onChange={event=>setFormatId(event.target.value)}>{catalog.data?.formats.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
-          <label>Площадка<select required aria-label="Площадка новой публикации" value={platformId} onChange={event=>setPlatformId(event.target.value)}><option value="">Выберите площадку</option>{catalog.data?.platforms.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}<option value="__custom__">Другая площадка…</option></select></label>
+          <label>Тип контента<VisualSelect aria-label="Тип контента публикации" value={formatId} onChange={event=>setFormatId(event.target.value)}>{catalog.data?.formats.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</VisualSelect></label>
+          <label>Площадка<VisualSelect required aria-label="Площадка новой публикации" value={platformId} onChange={event=>setPlatformId(event.target.value)}><option value="">Выберите площадку</option>{catalog.data?.platforms.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}<option value="__custom__">Другая площадка…</option></VisualSelect></label>
           {platformId==='__custom__'&&<label className="publication-create__wide">Название площадки<input required maxLength={120} value={customPlatform} onChange={event=>setCustomPlatform(event.target.value)} placeholder="Ваша площадка"/></label>}
         </div>
         <details className="publication-create__details"><summary>Дополнительно: сценарий, канал и адрес публикации</summary><div className="publication-create__grid">
-          <label>Сценарий <select aria-label="Сценарий новой публикации" value={scenarioId} onChange={event=>setScenarioId(event.target.value)}><option value="">Без сценария</option>{catalog.data?.scenarios?.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+          <label>Сценарий <VisualSelect aria-label="Сценарий новой публикации" value={scenarioId} onChange={event=>setScenarioId(event.target.value)}><option value="">Без сценария</option>{catalog.data?.scenarios?.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</VisualSelect></label>
           <label>Канал / аккаунт<input maxLength={120} value={channelName} onChange={event=>setChannelName(event.target.value)} placeholder="Необязательно"/></label>
           <label className="publication-create__wide">Адрес опубликованного материала<input type="url" maxLength={2048} value={publicationUrl} onChange={event=>setPublicationUrl(event.target.value)} placeholder="https://… — можно добавить позже"/></label>
-          {(links.data?.links.length??0)>0&&<label className="publication-create__wide">Основная партнёрская ссылка<select aria-label="Основная ссылка новой публикации" value={linkId} onChange={event=>setLinkId(event.target.value)}><option value="">Выбрать автоматически</option>{links.data?.links.map(l=><option key={l.id} value={l.id}>{l.label||l.linkKey}</option>)}</select></label>}
+          {(links.data?.links.length??0)>0&&<label className="publication-create__wide">Основная партнёрская ссылка<VisualSelect aria-label="Основная ссылка новой публикации" value={linkId} onChange={event=>setLinkId(event.target.value)}><option value="">Выбрать автоматически</option>{links.data?.links.map(l=><option key={l.id} value={l.id}>{l.label||l.linkKey}</option>)}</VisualSelect></label>}
         </div></details>
         <label className="publication-create__published"><input type="checkbox" checked={published} onChange={event=>setPublished(event.target.checked)}/>Материал уже опубликован</label>
         <p className="publication-create__hint">Для каждой площадки — отдельная ссылка. Переходы, регистрации и оплаты попадут в статистику автоматически. {links.isSuccess&&!links.data.links.length?'Основная партнёрская ссылка будет создана вместе с публикацией.':'Существующие ссылки и их история сохранятся.'}</p>
-        <div className="publication-create__actions"><button className="results-button publication-create__primary" type="submit" disabled={!valid||busy||links.isPending||!!links.error}>{busy?'Создаём…':'Создать отслеживаемую ссылку'}</button><button className="results-button" type="button" onClick={onClose}>Отмена</button></div>
+        <div className="publication-create__actions"><VisualButton className="results-button publication-create__primary" type="submit" disabled={!valid||busy||links.isPending||!!links.error}>{busy?'Создаём…':'Создать отслеживаемую ссылку'}</VisualButton><VisualButton className="results-button" type="button" onClick={onClose}>Отмена</VisualButton></div>
       </fieldset>
     </form>}
   </section>;
