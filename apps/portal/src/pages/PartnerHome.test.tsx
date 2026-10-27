@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach,beforeAll,describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
@@ -17,11 +17,14 @@ const balances={total:103259,accrued:0,available:0,pending:0,paid:103259};
 const report=(clicks=119)=>({currency:'RUB',counts:{clicks,registrations:21,payingCustomers:9},amountsMinor:{observedPayments:9703500,netAccrued:1940700},conversions:{registrationToPayment:.375},balances,timezone:'Europe/Moscow',series:{bucket:'day',points:[{date:'2026-10-20',clicks,registrations:21,payingCustomers:9,customerPaymentsMinor:9703500,earningsMinor:1940700}]}});
 const textMoney=(value:number)=>money(value,'RUB').replace(/\s/g,' ');
 let client:QueryClient;
+beforeAll(()=>{Object.defineProperty(HTMLDialogElement.prototype,'showModal',{value:function(this:HTMLDialogElement){this.setAttribute('open','');},configurable:true});});
 afterEach(()=>{cleanup();client?.clear();vi.clearAllMocks();});
-function show({termsAccepted=true,path='/'}={}) {
+function show({termsAccepted=true,path='/',sources=[{name:'vk.com',count:80},{name:'Источник не передан',count:39}]}={}) {
   client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
   vi.mocked(api).mockImplementation(async url=>{
-    if(url.includes('/analytics/details?'))return {traffic:{referrers:[{name:'vk.com',count:80},{name:'Источник не передан',count:39}]},registrations:[{id:'registration-1',userId:'actual-user-id',registeredAt:'2026-10-20T12:00:00Z',source:'vk.com',paidMinor:1293000,currency:'RUB'}]};
+    const registrations=[{id:'registration-1',userId:'actual-user-id',registeredAt:'2026-10-20T12:00:00Z',source:'vk.com',paidMinor:1293000,currency:'RUB'}];
+    if(url.includes('/analytics/registrations?'))return {registrations,total:1,nextCursor:null,timezone:'Europe/Moscow'};
+    if(url.includes('/analytics/details?'))return {traffic:{referrers:sources},registrations,registrationsTotal:1};
     if(url.includes('/analytics?'))return report(new URLSearchParams(url.split('?')[1]).get('period')==='7d'?17:119);
     return {termsAcceptedAt:termsAccepted?'2026-10-01':null};
   });
@@ -61,10 +64,14 @@ describe('partner workday homepage',()=>{
     await waitFor(()=>expect(screen.getByRole('link',{name:'Выручка'}).getAttribute('href')).toContain('period=all'));
     expect(screen.queryByText('vs. предыдущие 30 дней')).toBeNull();
   });
-  it('uses the chosen end date for all current queries and keeps tenant navigation',async()=>{
+  it('uses both chosen dates for all queries and compares the preceding equally long range',async()=>{
     show({path:'/t/syntolk/'});await waitClicks();
-    fireEvent.change(screen.getByLabelText('Последний день периода'),{target:{value:'2026-09-30'}});
-    await waitFor(()=>expect(screen.getByRole('link',{name:'Выручка'}).getAttribute('href')).toBe('/t/syntolk/results?period=custom&currency=RUB&from=2026-09-01&to=2026-09-30'));
+    fireEvent.click(screen.getByRole('button',{name:'Выбрать даты статистики'}));
+    fireEvent.change(screen.getByLabelText('Период статистики: начало'),{target:{value:'2026-09-10'}});
+    fireEvent.change(screen.getByLabelText('Период статистики: конец'),{target:{value:'2026-09-20'}});
+    fireEvent.click(screen.getByRole('button',{name:'Применить'}));
+    await waitFor(()=>expect(screen.getByRole('link',{name:'Выручка'}).getAttribute('href')).toBe('/t/syntolk/results?period=custom&currency=RUB&from=2026-09-10&to=2026-09-20'));
+    expect(vi.mocked(api).mock.calls.some(([url])=>url.includes('/analytics?period=custom&from=2026-08-30&to=2026-09-09'))).toBe(true);
     expect(screen.getByRole('link',{name:'История выплат'}).getAttribute('href')).toBe('/t/syntolk/payouts');
   });
   it('renders actual identifiers, source, registration date and payment without fake emails',async()=>{
@@ -72,15 +79,63 @@ describe('partner workday homepage',()=>{
     const table=screen.getByRole('region',{name:'Последние регистрации'});
     expect(within(table).getByText('20.10.2026, 15:00')).toBeTruthy();
     expect(within(table).getByText(textMoney(12930))).toBeTruthy();
-    expect(within(table).getByText('Платящий клиент')).toBeTruthy();
+    expect(within(table).getByText('Есть оплата')).toBeTruthy();
+    expect(within(table).getByRole('columnheader',{name:'ID пользователя'})).toBeTruthy();
     expect(within(table).queryByText(/@/)).toBeNull();
     expect(vi.mocked(api).mock.calls.every(([,options])=>!options?.method||options.method==='GET')).toBe(true);
+  });
+  it('opens actual registration rows from both the KPI and the all-registrations button',async()=>{
+    show();await waitClicks();fireEvent.click(screen.getByRole('button',{name:'Подробнее: Регистрации'}));
+    const dialog=await screen.findByRole('dialog',{name:'Регистрации за период'});await within(dialog).findByText('actual-user-id');
+    expect(vi.mocked(api).mock.calls.some(([url])=>url.includes('/analytics/registrations?period=30d'))).toBe(true);
+    expect(within(dialog).getByText('Показано 1 из 1')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button',{name:'Закрыть регистрации'}));
+    fireEvent.click(screen.getByRole('button',{name:/Все регистрации/}));expect(await screen.findByRole('dialog',{name:'Регистрации за период'})).toBeTruthy();
+  });
+  it('keeps every referrer in the scrollable list even when the donut groups small sources',async()=>{
+    show({sources:Array.from({length:12},(_,i)=>({name:`source-${i}.test`,count:i+1}))});await waitClicks();
+    const list=screen.getByRole('region',{name:'Список источников переходов'});
+    expect(within(list).getAllByRole('listitem')).toHaveLength(12);expect(within(list).getByText('source-0.test')).toBeTruthy();expect(list.tabIndex).toBe(0);
+  });
+  it('shows tracked publications from canonical source rows without adding them to parent totals',async()=>{
+    show();await waitClicks();const original=vi.mocked(api).getMockImplementation()!;
+    vi.mocked(api).mockImplementation(async(url,o)=>{if(url.includes('groupBy=source'))return {...report(100),rows:[{id:'post-source',name:'Пост',counts:{clicks:40},placement:{materialTitle:'Обзор',platformName:'ВКонтакте',publicationUrl:'https://vk.com/wall-1_2'}},{id:'__none__',name:'Без метки публикации',counts:{clicks:60}}]};return original(url,o);});
+    await client.invalidateQueries({queryKey:['partner-analytics']});const traffic=screen.getByRole('region',{name:'Источники трафика'});await within(traffic).findByRole('link',{name:'Обзор'});
+    expect(within(traffic).getByLabelText('100 переходов')).toBeTruthy();expect(within(traffic).queryByLabelText('140 переходов')).toBeNull();
+    expect(within(traffic).getByRole('link',{name:'Обзор'}).getAttribute('href')).toContain('sourceId=post-source');expect(within(traffic).getByRole('link',{name:'Открыть публикацию: Обзор'}).getAttribute('href')).toBe('https://vk.com/wall-1_2');
+    fireEvent.click(within(traffic).getByRole('button',{name:'Сайты'}));expect(within(traffic).getByText('vk.com')).toBeTruthy();
   });
   it('preserves terms acceptance',async()=>{
     show({termsAccepted:false});await screen.findByRole('button',{name:'Принять условия'});
     expect(screen.getByRole('link',{name:'Открыть условия'}).getAttribute('href')).toBe('https://example.test/terms');
     fireEvent.click(screen.getByRole('button',{name:'Принять условия'}));
     await waitFor(()=>expect(api).toHaveBeenCalledWith('/partners/partner/terms',{method:'POST',body:{accepted:true,version:'syntolk-v1'}}));
+  });
+  it('sends one acceptance while saving and removes the prompt after confirmation',async()=>{
+    show({termsAccepted:false});const button=await screen.findByRole('button',{name:'Принять условия'});
+    const original=vi.mocked(api).getMockImplementation()!;let finish!:()=>void,accepted=false;
+    vi.mocked(api).mockImplementation(async(url,options)=>{
+      if(url.endsWith('/terms')){await new Promise<void>(resolve=>{finish=resolve;});accepted=true;return {partner:{termsAcceptedAt:'2026-10-24'}};}
+      if(url==='/partners/partner'&&accepted)return {termsAcceptedAt:'2026-10-24'};
+      return original(url,options);
+    });
+    fireEvent.click(button);fireEvent.click(button);
+    const saving=await screen.findByRole('button',{name:'Сохраняем…'});expect((saving as HTMLButtonElement).disabled).toBe(true);
+    expect(vi.mocked(api).mock.calls.filter(([url])=>url.endsWith('/terms'))).toHaveLength(1);
+    finish();await waitFor(()=>expect(screen.queryByText('Подтвердите условия партнёрской программы')).toBeNull());
+  });
+  it('keeps the prompt and allows retry after a failed acceptance',async()=>{
+    show({termsAccepted:false});await screen.findByRole('button',{name:'Принять условия'});
+    const original=vi.mocked(api).getMockImplementation()!;let attempts=0;
+    vi.mocked(api).mockImplementation(async(url,options)=>{if(url.endsWith('/terms')){attempts++;throw new Error('Не удалось сохранить условия');}return original(url,options);});
+    fireEvent.click(screen.getByRole('button',{name:'Принять условия'}));await screen.findByText('Не удалось сохранить условия');
+    const retry=screen.getByRole('button',{name:'Принять условия'});expect((retry as HTMLButtonElement).disabled).toBe(false);fireEvent.click(retry);await waitFor(()=>expect(attempts).toBe(2));
+  });
+  it('uses the confirmed acceptance even if the following profile refresh fails',async()=>{
+    show({termsAccepted:false});await screen.findByRole('button',{name:'Принять условия'});const original=vi.mocked(api).getMockImplementation()!;
+    vi.mocked(api).mockImplementation(async(url,options)=>{if(url.endsWith('/terms'))return {partner:{termsAcceptedAt:'2026-10-24'}};if(url==='/partners/partner')throw new Error('Не удалось обновить профиль');return original(url,options);});
+    fireEvent.click(screen.getByRole('button',{name:'Принять условия'}));await waitFor(()=>expect(screen.queryByRole('button',{name:'Принять условия'})).toBeNull());
+    expect(client.getQueryData(['partner-profile','partner'])).toMatchObject({termsAcceptedAt:'2026-10-24'});
   });
   it('does not show invented zeroes during loading',()=>{
     client=new QueryClient({defaultOptions:{queries:{retry:false}}});vi.mocked(api).mockImplementation(()=>new Promise(()=>{}));

@@ -128,6 +128,7 @@ export class ApiError extends Error {
 
 export interface Principal {
   role: 'admin' | 'partner';
+  dataRevision?: string;
   source?: string;
   partnerId?: string;
   partner?: { id: string; name: string; email: string };

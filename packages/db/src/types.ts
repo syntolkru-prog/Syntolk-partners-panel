@@ -577,7 +577,9 @@ export interface PartnerLinkSourceRow {
 export interface PartnerMaterialRow {
   id:string; tenantId:string; partnerId:string; programId:string; scenarioId:string|null;
   title:string; formatId:string; formatName:string; scheduledDay:string|null;
-  platforms:Array<{id:string;name:string}>; customTitle:boolean; archivedAt:Date|null; createdAt:Date; updatedAt:Date;
+  platforms:Array<{id:string;name:string;url?:string}>; customTitle:boolean; archivedAt:Date|null; createdAt:Date; updatedAt:Date;
+  content?:string; revision?:number; preparedAt?:Date|null;
+  scheduledTime?:string|null; assignedToMaterialId?:string|null;
 }
 
 export type ClickFraudFlag = 'velocity' | 'manual' | 'revoked' | null;

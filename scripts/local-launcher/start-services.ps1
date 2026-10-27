@@ -44,8 +44,10 @@ function Build([string]$Name) {
     Phase ('Сборка ' + $Name + '…')
     Push-Location $root
     try {
-        & $PnpmPath --filter $Name build *> (Join-Path $logs ('build-' + ($Name -replace '[^a-zA-Z0-9]', '-') + '.log'))
-        if ($LASTEXITCODE -ne 0) { throw ('Не удалось собрать ' + $Name + '. Подробности в outputs\local-launcher.') }
+        $buildLog = 'build-' + ($Name -replace '[^a-zA-Z0-9]', '-')
+        $buildCommand = '""' + $PnpmPath + '" --filter "' + $Name + '" build"'
+        $buildProcess = Start-Process -FilePath $env:ComSpec -ArgumentList @('/d', '/s', '/c', $buildCommand) -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs ($buildLog + '.log')) -RedirectStandardError (Join-Path $logs ($buildLog + '.stderr.log')) -Wait -PassThru
+        if ($buildProcess.ExitCode -ne 0) { throw ('Не удалось собрать ' + $Name + '. Подробности в outputs\local-launcher.') }
     } finally { Pop-Location }
 }
 function EnsureService([string]$Name, [int]$Port, [string]$Url, [string]$Entry, [string]$Directory, [string]$Package) {

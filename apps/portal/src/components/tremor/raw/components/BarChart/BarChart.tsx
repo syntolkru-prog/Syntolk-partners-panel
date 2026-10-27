@@ -60,6 +60,7 @@ const renderShape = (
   activeLegend: string | undefined,
   layout: string,
   columnSelection?: { index: string; value: string | null },
+  hover?: { active: boolean; scale: number },
 ) => {
   const { fillOpacity, name, payload, value } = props
   let { x, width, y, height } = props
@@ -74,10 +75,17 @@ const renderShape = (
 
   return (
     <rect
+      className={hover ? "tremor-bar-zoom" : undefined}
       x={x}
       y={y}
       width={width}
       height={height}
+      style={hover ? {
+        transformBox: "view-box",
+        transformOrigin: `${x + width / 2}px ${(props.background?.y ?? y) + (props.background?.height ?? height)}px`,
+        transform: `scale(${hover.active ? hover.scale : 1})`,
+        transition: "transform 140ms ease-out",
+      } : undefined}
       opacity={
         columnSelection
           ? activeLegend && !activeBar && activeLegend !== name
@@ -560,6 +568,9 @@ interface BarChartProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Keep short time series compact instead of stretching categories apart. */
   maxCategoryWidth?: number
   maxBarSize?: number
+  xAxisPadding?: number
+  showTooltipCursor?: boolean
+  hoverScale?: number
   xAxisLabel?: string
   yAxisLabel?: string
   layout?: "vertical" | "horizontal"
@@ -599,6 +610,9 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
       barCategoryGap,
       maxCategoryWidth,
       maxBarSize,
+      xAxisPadding,
+      showTooltipCursor = true,
+      hoverScale = 1,
       tickGap = 5,
       xAxisLabel,
       yAxisLabel,
@@ -610,8 +624,8 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
       ...other
     } = props
     const CustomTooltip = customTooltip
-    const paddingValue =
-      (!showXAxis && !showYAxis) || (startEndOnly && !showYAxis) ? 0 : 20
+    const paddingValue = xAxisPadding ?? (
+      (!showXAxis && !showYAxis) || (startEndOnly && !showYAxis) ? 0 : 20)
     const [containerWidth, setContainerWidth] = React.useState(0)
     const onContainerResize = React.useCallback((width: number) => {
       setContainerWidth(width)
@@ -629,6 +643,7 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
     )
     const categoryColors = constructCategoryColors(categories, colors)
     const [activeBar, setActiveBar] = React.useState<any | undefined>(undefined)
+    const [hoveredColumn, setHoveredColumn] = React.useState<string | null>(null)
     React.useEffect(() => {
       if (selectedIndex === undefined) return
       setActiveBar(undefined)
@@ -825,7 +840,7 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
               wrapperStyle={{ outline: "none" }}
               isAnimationActive={true}
               animationDuration={100}
-              cursor={{ fill: "#d1d5db", opacity: "0.15" }}
+              cursor={showTooltipCursor ? { fill: "#d1d5db", opacity: "0.15" } : false}
               offset={20}
               position={{
                 y: layout === "horizontal" ? 0 : undefined,
@@ -911,8 +926,10 @@ const BarChart = React.forwardRef<HTMLDivElement, BarChartProps>(
                 isAnimationActive={false}
                 fill=""
                 shape={(props: any) =>
-                  renderShape(props, activeBar, activeLegend, layout, selectedIndex === undefined ? undefined : { index, value: selectedIndex })
+                  renderShape(props, activeBar, activeLegend, layout, selectedIndex === undefined ? undefined : { index, value: selectedIndex }, hoverScale > 1 && layout === "horizontal" ? { active: String(props.payload[index]) === hoveredColumn, scale: hoverScale } : undefined)
                 }
+                onMouseEnter={hoverScale > 1 ? (entry: any) => setHoveredColumn(String(entry.payload[index])) : undefined}
+                onMouseLeave={hoverScale > 1 ? () => setHoveredColumn(null) : undefined}
                 onClick={onBarClick}
                 minPointSize={minPointSize}
               />

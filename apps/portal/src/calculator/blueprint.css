@@ -3,7 +3,6 @@
 .pf-blueprint-heading { display:none; }
 .pf-frequency-control > button { display:none; }
 .calculator-blueprint { --calc-card:#090e1a; --calc-line:var(--color-gray-800); }
-.calculator-page.calculator-blueprint > .op-page { max-width:none !important; padding:20px 24px !important; }
 .calculator-page.calculator-blueprint > .op-page > header { margin-bottom:18px !important; }
 .calculator-blueprint .op-page-subtitle { font-size:12px !important; line-height:18px; }
 .calculator-blueprint *, .calculator-blueprint *::before, .calculator-blueprint *::after { box-sizing:border-box; }
@@ -14,6 +13,12 @@
 }
 .calculator-blueprint .calculator-setup-scenario { min-width:0; padding-right:24px; border-right:1px solid var(--calc-line); }
 .calculator-blueprint .calculator-setup h2 { margin:0 0 12px; font-size:14px; line-height:20px; font-weight:600; }
+.calculator-blueprint .calculator-period-options { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+.calculator-blueprint .calculator-period-options>button,.calculator-blueprint .calculator-period-options>.results-date-picker>.results-button { min-height:36px; padding:6px 9px!important; font-size:11px!important; white-space:nowrap; }
+.calculator-blueprint .calculator-period-options>.results-date-picker>.results-button.is-active { border-color:var(--color-blue-500); background:var(--color-blue-500); color:#fff; }
+.calculator-blueprint .calculator-schedule-grid .calculator-schedule-weekdays { margin:0; align-self:center; }
+.calculator-blueprint .calculator-schedule-grid .calculator-period-range { align-self:center; color:var(--color-gray-400); font-size:11px; white-space:nowrap; }
+.calculator-blueprint .calculator-save-hint { color:var(--color-gray-400); font-size:11px; line-height:16px; }
 .calculator-blueprint .calculator-intro { display:block; margin:0; }
 .calculator-blueprint .calculator-intro > .coach-muted { margin:8px 0 0 !important; font-size:11px; line-height:16px; }
 .calculator-blueprint .calculator-scenario-picker { flex-wrap:nowrap; gap:10px; margin:0; }
@@ -33,9 +38,57 @@
 .calculator-blueprint .calculator-planning [aria-label="Рабочие дни"] button { min-width:30px; min-height:32px; padding:5px 7px !important; font-size:11px !important; }
 .calculator-blueprint .calculator-planning .calculator-save-actions { margin-left:auto; }
 .calculator-blueprint .calculator-save-actions button { min-height:34px; font-size:11px !important; padding:7px 12px !important; }
+.calculator-blueprint .calculator-setup { grid-template-columns:minmax(260px,.8fr) minmax(0,1.2fr); padding:12px 16px; gap:16px; }
+.calculator-blueprint .calculator-setup-scenario { padding-right:16px; }
+.calculator-blueprint .calculator-scenario-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.calculator-blueprint .calculator-scenario-actions .calculator-save-actions { margin:0; }
+.calculator-blueprint .calculator-scenario-actions button { min-height:34px; padding:7px 10px!important; font-size:11px!important; }
+.calculator-blueprint .calculator-setup--library { grid-template-columns:minmax(150px,.72fr) minmax(180px,.95fr) minmax(0,1.6fr); }
+.calculator-blueprint .calculator-setup-library { min-width:0; padding-right:16px; border-right:1px solid var(--calc-line); }
+.calculator-blueprint .calculator-setup--library .calculator-scenario-actions { display:flex; width:100%; gap:6px; margin:0; }
+.calculator-blueprint .calculator-setup--library .calculator-scenario-actions button { width:100%; }
+.calculator-blueprint .calculator-setup--library .calculator-save-actions button { white-space:normal; line-height:1.35; }
+.calculator-blueprint .calculator-setup--library .calculator-save-actions { display:flex; width:100%; }
+.calculator-blueprint .calculator-library-controls { display:flex; gap:6px; align-items:center; min-width:0; }
+.calculator-blueprint .calculator-library-controls select { flex:1; min-width:0; width:100%; height:34px; font-size:11px!important; font-weight:600; text-overflow:ellipsis; }
+.calculator-blueprint .calculator-library-controls>button { flex-shrink:0; width:32px; height:34px; padding:5px; }
+.calculator-library-menu { min-width:190px; font-size:12px; }
+.calculator-library-menu [role=menuitem] { gap:8px; font-size:12px; }
+.calculator-library-menu .calculator-library-delete { color:var(--color-red-400); }
+.calculator-blueprint .calculator-setup--library .calculator-new-scenario { margin:0 0 8px; padding:0; border:0; background:transparent; font-size:11px; }
+.calculator-blueprint .calculator-setup--library .calculator-new-scenario span { display:none; }
+.calculator-blueprint .calculator-scenario-state { display:flex; flex-direction:column; align-items:flex-start; gap:5px; min-width:0; margin-bottom:10px; font-size:11px; line-height:15px; }
+.calculator-blueprint .calculator-scenario-status { display:inline-flex; align-items:center; gap:4px; padding:2px 6px; border:1px solid var(--calc-line); border-radius:4px; color:var(--color-gray-400); background:var(--color-gray-900); font-size:10px; line-height:14px; }
+.calculator-blueprint .calculator-scenario-status[data-state="editing"] { color:var(--color-blue-300); border-color:color-mix(in oklab,var(--color-blue-500) 35%,var(--calc-line)); background:color-mix(in oklab,var(--color-blue-500) 8%,var(--calc-card)); }
+.calculator-blueprint .calculator-scenario-status[data-state="saved"] { color:var(--color-emerald-400); }
+.calculator-blueprint .calculator-scenario-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--color-gray-200); font-size:12px; font-weight:600; }
+.calculator-blueprint .calculator-scenario-heading-row { display:flex; flex-direction:column; align-items:stretch; gap:8px; margin-bottom:8px; }
+.calculator-blueprint .calculator-scenario-heading-row .calculator-scenario-state { flex:0 1 auto; margin:0; }
+.calculator-blueprint .calculator-scenario-heading-row .calculator-scenario-state:empty { display:none; }
+.calculator-blueprint .calculator-new-scenario-button { order:-1; flex-shrink:0; }
+.calculator-blueprint .calculator-new-scenario-button,
+.calculator-blueprint .calculator-setup--library .calculator-scenario-actions .calculator-save-actions button { box-sizing:border-box; width:100%; height:34px; min-height:34px; padding:5px 9px!important; font-size:11px!important; line-height:1.35; }
+/* A slow halo guides first-time creation without changing the button palette. */
+.calculator-blueprint .calculator-new-scenario-button[data-attention="true"]::after { content:""; position:absolute; inset:-2px; border:1px solid var(--color-blue-400); border-radius:inherit; box-shadow:0 0 12px color-mix(in srgb,var(--color-blue-500) 20%,transparent); pointer-events:none; animation:calculator-create-attention 4s ease-in-out infinite; }
+@keyframes calculator-create-attention { 0%,100% { opacity:.12; } 50% { opacity:.6; } }
+@media(prefers-reduced-motion:reduce) {
+  .calculator-blueprint .calculator-new-scenario-button[data-attention="true"]::after { animation:none; opacity:.2; }
+}
+.calculator-blueprint .calculator-setup[data-scenario-active="true"] { border-color:color-mix(in oklab,var(--color-blue-500) 25%,var(--calc-line)); }
+.calculator-blueprint .calculator-planning fieldset { min-width:0; margin:0; padding:0; border:0; }
+.calculator-blueprint.calculator-page--inactive .calculator-planning fieldset { opacity:.45; }
+.calculator-blueprint.calculator-page--inactive .pf-controls { opacity:.45; }
+.calculator-blueprint .calculator-setup-create { grid-column:1/-1; padding-top:12px; border-top:1px solid var(--calc-line); }
+.calculator-blueprint .calculator-create-inline { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; margin:0; }
+.calculator-blueprint .calculator-create-inline .coach-field { flex:1; min-width:180px; max-width:400px; margin:0; }
+.calculator-blueprint .calculator-create-inline .coach-field>span { font-size:11px; color:var(--color-gray-400); }
+.calculator-blueprint .calculator-create-inline input { min-height:34px; height:34px; font-size:12px; }
+.calculator-blueprint .calculator-create-actions { display:flex; gap:6px; }
+.calculator-blueprint .calculator-create-actions button { min-height:34px; padding:6px 10px; font-size:11px; }
+.calculator-blueprint .calculator-create-inline .coach-warning { flex-basis:100%; margin:0; font-size:11px; }
 
 html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-app { border:0; background:transparent; box-shadow:none; overflow:visible; }
-.calculator-blueprint .pf-section .pf-workspace { grid-template-columns:minmax(0,.82fr) minmax(0,1.3fr); gap:16px; align-items:start; }
+.calculator-blueprint .pf-section .pf-workspace { grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); gap:16px; align-items:start; }
 html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section :is(.pf-controls,.pf-result) {
   padding:16px 20px !important; border:1px solid var(--calc-line); border-radius:10px;
   background:linear-gradient(110deg,color-mix(in oklab,var(--color-gray-900) 55%,transparent),transparent),var(--calc-card) !important;
@@ -57,7 +110,7 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section :is(
 .calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-frequency-control > button { color:var(--color-gray-600); opacity:.45; cursor:default; }
 .calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-quick-assumptions > p:last-child { display:none; }
 .calculator-blueprint .pf-section .pf-help { margin:9px 0; font-size:11px; line-height:17px; }
-.calculator-blueprint .pf-section .pf-custom-form { margin:10px 0; }
+.calculator-blueprint .pf-section :is(.pf-custom-form,.pf-add-platform) { margin:6px 0 10px; }
 .calculator-blueprint .pf-section .pf-custom-form > button { min-height:34px; font-size:12px; }
 .calculator-blueprint .pf-section .pf-details { margin-top:10px; }
 .calculator-blueprint .pf-section .pf-details > summary { padding:10px 12px; font-size:12px; min-height:36px; }
@@ -66,12 +119,12 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
 .calculator-blueprint .pf-work > div::before { content:'↗'; display:grid; place-items:center; width:30px; height:30px; flex-shrink:0; border-radius:6px; color:var(--color-emerald-400); background:color-mix(in oklab,var(--color-emerald-500) 12%,transparent); font-size:22px; }
 .calculator-blueprint .pf-work > div:last-child::before { content:'↗'; color:var(--color-violet-400); background:color-mix(in oklab,var(--color-violet-500) 12%,transparent); }
 .calculator-blueprint .pf-section .pf-work strong { font-size:11px; line-height:17px; font-weight:500; }
-.calculator-blueprint .pf-result-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.calculator-blueprint .pf-section .pf-result-heading .pf-scenarios { flex:1; max-width:390px; margin:0; grid-template-columns:repeat(2,minmax(0,1fr)) 32px; }
+.calculator-blueprint .pf-result-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.calculator-blueprint .pf-section .pf-result-heading .pf-scenarios { flex:1 1 280px; max-width:390px; margin:0; grid-template-columns:repeat(2,minmax(0,1fr)) 32px; }
 .calculator-blueprint .pf-section .pf-scenarios .pf-refresh { width:28px; height:28px; min-height:28px; padding:0; border-radius:5px !important; }
 .calculator-blueprint .pf-section .pf-scenarios .pf-refresh svg { width:15px; height:15px; }
 .calculator-blueprint .pf-section .pf-scenario-note { margin:10px 0 16px; font-size:11px; line-height:17px; min-height:17px; }
-.calculator-blueprint .pf-result-metrics { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) minmax(0,1.6fr); gap:12px 18px; align-items:start; }
+.calculator-blueprint .pf-result-metrics { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) minmax(0,1.6fr); gap:12px 18px; align-items:start; margin-top:16px; }
 .calculator-blueprint .pf-section :is(.pf-income-top,.pf-year-totals) { display:contents; }
 .calculator-blueprint .pf-income-top > div { grid-column:1; grid-row:1; min-width:0; }
 .calculator-blueprint .pf-section .pf-income-top p { margin:0 0 6px; font-size:11px; line-height:17px; }
@@ -84,26 +137,54 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
 .calculator-blueprint .pf-section .pf-income-range { grid-column:1; grid-row:2; margin:0; font-size:11px; line-height:17px; align-self:center; }
 .calculator-blueprint .pf-section .pf-horizon { grid-column:2; grid-row:2; margin:0; flex-direction:column; align-items:stretch; gap:5px; font-size:11px; }
 .calculator-blueprint .pf-section .pf-month-select { grid-column:3; grid-row:2; margin:0; max-width:none !important; font-size:11px; gap:5px; }
+.calculator-blueprint #partner-forecast[data-fixed-horizon="12"]:not([data-values-mode="current"]) .pf-horizon { display:none!important; }
 .calculator-blueprint .pf-section :is(.pf-horizon,.pf-month-select) select { width:100%; height:34px; min-height:34px !important; font-size:12px !important; }
-.calculator-blueprint .pf-section .pf-result-analysis { margin-top:14px; }
+.calculator-blueprint #partner-forecast:not([data-values-mode="current"]) .pf-month-select { width:112px; max-width:100% !important; justify-self:end; }
+.calculator-blueprint #partner-forecast:not([data-values-mode="current"]) .pf-month-select select { height:32px; min-height:32px !important; padding:5px 9px; }
+.calculator-blueprint .pf-section .pf-result-analysis { margin-top:8px; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-result-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:16px; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-income-top > div { grid-column:1; grid-row:1; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-year-totals > div:first-child { grid-column:2; grid-row:1; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-income-range { grid-column:1/-1; grid-row:3; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-horizon { grid-column:1; grid-row:2; }
+.calculator-blueprint #partner-forecast[data-values-mode="current"] .pf-month-select { grid-column:2; grid-row:2; }
+.calculator-blueprint .pf-section .pf-result-analysis { border-top:1px solid var(--calc-line); padding-top:6px; }
 .calculator-blueprint .pf-section .pf-chart-caption { margin:0; padding-top:12px; border-top:1px solid var(--calc-line); font-size:12px; line-height:18px; }
 .calculator-blueprint .pf-chart-caption > span:first-child { font-weight:600; color:var(--color-gray-100); }
 .calculator-blueprint .pf-chart-caption > span:last-child { font-size:10px; color:var(--color-gray-400); }
-html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .tremor-calculator-chart { height:220px; margin:6px 0 14px; }
+.calculator-blueprint { --calculator-chart-height:220px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart { height:var(--calculator-chart-height); margin:6px 0 14px; }
+.calculator-blueprint .pf-chart[data-tremor-mounted] { position:absolute !important; width:1px !important; height:1px !important; overflow:hidden; clip-path:inset(50%); }
+.calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart:not([data-tremor-mounted]) { height:var(--calculator-chart-height); margin:6px 0 14px; }
+.calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart-month { height:100%; background:transparent !important; box-shadow:none !important; }
+.calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart-track { height:calc(var(--calculator-chart-height) - 42px); }
+.calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart-track>.pf-chart-stack { display:flex; flex-direction:column-reverse; max-width:30px; min-height:0; overflow:hidden; background:transparent !important; }
+/* The agreed chart hover scales only the stack, never its full-height button. */
+.calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart-track > span { transform-origin:center bottom; transition:transform 140ms ease-out; }
+.calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart-month:focus-visible .pf-chart-track > span { transform:scale(1.06); filter:none; }
+@media (hover:hover) {
+  .calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart-month:hover .pf-chart-track > span { transform:scale(1.06); filter:none; }
+}
+.calculator-blueprint .tremor-calculator-chart .recharts-tooltip-cursor { display:none; }
+.calculator-blueprint .pf-chart-stack>[data-chart-metric] { display:block; flex-shrink:0; width:100%; }
+.calculator-blueprint .pf-chart-stack>[data-chart-metric="clicks"] { background:var(--color-violet-500,#8b5cf6); }
+.calculator-blueprint .pf-chart-stack>[data-chart-metric="registrations"] { background:var(--color-blue-500,#3b82f6); }
+.calculator-blueprint .pf-chart-stack>[data-chart-metric="firstPayments"] { background:var(--color-emerald-500,#10b981); }
 .calculator-blueprint .tremor-calculator-chart .recharts-legend-wrapper :is(ol,p) { margin:0; padding:0; list-style:none; }
 .calculator-blueprint .tremor-calculator-chart .recharts-legend-wrapper li { list-style:none; }
 /* Keep the Tremor tooltip independent of the calculator's paragraph spacing. */
 .calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper { z-index:5; pointer-events:none; }
 .calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div {
-  min-width:140px; max-width:min(210px,calc(100vw - 32px)); border-radius:6px; font-size:10px; line-height:13px;
+  min-width:112px; max-width:min(180px,calc(100vw - 24px)); border-radius:5px; font-size:9px; line-height:11px;
 }
-.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div { padding:4px 7px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div { padding:3px 5px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:first-child { display:none; }
 .calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper p {
-  margin:0 !important; padding:0; font-size:10px !important; line-height:13px !important;
+  margin:0 !important; padding:0; font-size:9px !important; line-height:11px !important;
 }
-.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div { min-height:14px; column-gap:10px; }
-.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div + div { margin-top:2px; }
-.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper [aria-hidden="true"] { width:5px; height:5px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div { min-height:11px; column-gap:8px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div + div { margin-top:1px; }
+.calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper [aria-hidden="true"] { width:4px; height:4px; }
 .calculator-blueprint .pf-section .tremor-calculator-chart .recharts-tooltip-wrapper > div > div:last-child > div > :last-child { margin-inline:0 !important; }
 .calculator-blueprint .pf-section .pf-funnel { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; border:0; margin:0; padding:0; }
 .calculator-blueprint .pf-funnel > div { position:relative; padding:8px 10px 8px 36px; border:1px solid var(--calc-line); background:var(--color-gray-900); border-radius:7px; min-width:0; }
@@ -126,7 +207,6 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
 .calculator-blueprint .calculator-connection p { font-size:12px; margin:8px 0; }
 .calculator-blueprint .calculator-connection small { font-size:11px; }
 @media (min-width:1000px) and (max-height:800px) {
-  .calculator-page.calculator-blueprint > .op-page { padding:16px 20px !important; }
   .calculator-blueprint .calculator-setup { padding:12px 16px; gap:16px; }
   .calculator-blueprint .calculator-setup h2 { margin-bottom:8px; }
   .calculator-blueprint .calculator-intro > .coach-muted { font-size:10px; margin-top:5px; }
@@ -135,7 +215,8 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
   .calculator-blueprint .pf-section .pf-frequency-control { top:4px; }
   .calculator-blueprint .pf-section .pf-scenario-note { margin:8px 0 10px; }
   .calculator-blueprint .pf-section .pf-result-analysis { margin-top:10px; }
-  html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .tremor-calculator-chart { height:150px; margin-bottom:10px; }
+  .calculator-blueprint { --calculator-chart-height:200px; }
+  .calculator-blueprint .pf-section .tremor-calculator-chart { margin-bottom:10px; }
   .calculator-blueprint .pf-section .pf-funnel > div { padding-top:8px; padding-bottom:8px; }
   .calculator-blueprint .pf-funnel > div > svg { top:11px; }
   .calculator-blueprint .pf-payment-summary { margin-top:10px; }
@@ -145,17 +226,15 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
 @media (hover:hover) {
   .calculator-blueprint .pf-section .pf-frequency-control > button:hover:not(:disabled) { background:var(--color-gray-800); }
 }
-@media (min-width:1450px) {
-  html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .tremor-calculator-chart { height:180px; }
-}
 @media (max-width:1200px) {
   .calculator-blueprint .calculator-setup { grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:16px; padding:16px; }
+  .calculator-blueprint .calculator-setup--library { grid-template-columns:minmax(145px,.75fr) minmax(170px,.95fr) minmax(0,1.5fr); gap:12px; }
   .calculator-blueprint .calculator-setup-scenario { padding-right:16px; }
   .calculator-blueprint .calculator-planning .calculator-save-actions { margin-left:0; width:100%; }
   .calculator-blueprint .calculator-scenario-picker { flex-wrap:wrap; }
   .calculator-blueprint .pf-result-heading { flex-wrap:wrap; }
   .calculator-blueprint .pf-section .pf-result-heading .pf-scenarios { max-width:none; flex-basis:100%; }
-  .calculator-blueprint .pf-section .pf-workspace { grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:12px; }
+  .calculator-blueprint .pf-section .pf-workspace { grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); gap:12px; }
   html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section :is(.pf-controls,.pf-result) { padding:14px !important; }
   .calculator-blueprint .pf-section .pf-funnel { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .calculator-blueprint .pf-result-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
@@ -172,10 +251,63 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
   .calculator-blueprint .pf-section .pf-work { grid-template-columns:1fr !important; }
 }
 @media (max-width:900px) {
-  .calculator-blueprint .calculator-setup, .calculator-blueprint .pf-section .pf-workspace { grid-template-columns:1fr; }
+  .calculator-blueprint .calculator-setup, .calculator-blueprint .calculator-setup--library, .calculator-blueprint .pf-section .pf-workspace { grid-template-columns:1fr; }
   .calculator-blueprint .calculator-setup-scenario { padding:0 0 14px; border-right:0; border-bottom:1px solid var(--calc-line); }
   .calculator-blueprint .calculator-planning .calculator-save-actions { width:auto; margin-left:auto; }
   .calculator-blueprint .pf-section .pf-work { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+}
+@media (max-width:600px) {
+  .calculator-blueprint .calculator-planning .calculator-schedule-grid { grid-template-columns:1fr; }
+}
+.pf-fact-date-fields .results-date-picker>button{width:100%;justify-content:flex-start;min-height:36px;font-size:12px}
+.pf-fact-date-fields .results-calendar--single .results-calendar__navigation{margin:0 0 8px;font-size:11px}
+.pf-fact-date-fields .results-calendar--single .results-calendar__navigation button{width:24px;height:24px;min-width:24px;min-height:24px;padding:4px}
+.pf-fact-date-fields .results-calendar--single .results-calendar__navigation svg{width:12px;height:12px}
+.pf-fact-date-fields .results-calendar--single .results-calendar__days{grid-template-rows:22px repeat(6,25px);gap:1px}
+.pf-fact-date-fields .results-calendar--single .results-calendar__days button{height:25px;min-height:25px;font-size:11px;padding:0}
+/* Tabs scroll inside one shared panel size, including added formats and editors. */
+.calculator-blueprint .pf-section .pf-controls {
+  display:grid; position:relative; grid-template-columns:minmax(0,1fr);
+  grid-template-rows:auto auto minmax(0,1fr) auto;
+  grid-template-areas:"heading" "tabs" "panel" "work";
+}
+.calculator-blueprint .pf-controls > .pf-toolbar { grid-area:heading; }
+.calculator-blueprint .pf-controls > .pf-tabs { grid-area:tabs; }
+.calculator-blueprint .pf-controls > .pf-work { grid-area:work; }
+.calculator-blueprint .pf-controls > #pf-panel-content {
+  grid-area:panel; display:flex !important; flex-direction:column; min-height:0;
+  max-height:560px;
+  overflow:hidden;
+}
+.calculator-blueprint .pf-controls > #pf-panel-content > .pf-row-head { flex-shrink:0; }
+.calculator-blueprint .pf-controls > #pf-panel-content > .pf-custom-form { flex-shrink:0; max-height:60%; overflow:auto; scrollbar-width:thin; }
+.calculator-blueprint .pf-controls > #pf-panel-content > .pf-format-list { flex:1 1 auto; min-height:0; overflow:auto; scrollbar-gutter:stable; overscroll-behavior:contain; }
+.calculator-blueprint .pf-controls > #pf-panel-content > .pf-more-settings { flex-shrink:0; max-height:55%; overflow:auto; margin:10px 0 0; scrollbar-width:thin; }
+.calculator-blueprint .pf-controls > #pf-panel-content[hidden] { visibility:hidden; pointer-events:none; }
+.calculator-blueprint .pf-controls > :is(#pf-panel-platforms,#pf-panel-sales) {
+  grid-area:panel; position:absolute; inset:0; min-height:0;
+  overflow:auto; scrollbar-gutter:stable; overscroll-behavior:contain;
+}
+.calculator-blueprint .pf-section #pf-panel-platforms .pf-channel-list { max-height:none; overflow:visible; padding-right:0; }
+.calculator-blueprint .pf-section #pf-panel-platforms .pf-channel { margin-bottom:6px; }
+.calculator-blueprint .pf-section #pf-panel-platforms .pf-channel > summary { min-height:34px; padding:6px 10px; font-size:12px; }
+@media (min-width:901px) {
+  .calculator-blueprint .pf-section .pf-workspace { align-items:stretch; }
+  .calculator-blueprint .pf-section .pf-controls { height:clamp(540px,calc(100dvh - 260px),680px); min-height:0; }
+  .calculator-blueprint .pf-section .pf-result {
+    contain:size; display:flex; flex-direction:column; align-self:stretch; min-height:0;
+    overflow:auto; scrollbar-gutter:stable;
+  }
+  .calculator-blueprint .pf-result > :is(.pf-result-heading,.pf-result-metrics) { flex-shrink:0; }
+  .calculator-blueprint .pf-section .pf-result-analysis { display:flex; flex-direction:column; flex:1; min-height:0; }
+  .calculator-blueprint .pf-result-analysis > .tremor-calculator-chart { flex:1 1 0; height:auto; min-height:120px; }
+  .calculator-blueprint .pf-result-analysis > :is(.pf-funnel,.pf-payment-summary) { flex-shrink:0; }
+  .calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-result-analysis > .pf-chart:not([data-tremor-mounted]) { flex:1 1 0; height:auto; min-height:120px; }
+  .calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-result-analysis .pf-chart-track { flex:1; height:auto; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .calculator-blueprint .tremor-bar-zoom { transition:none!important; }
+  .calculator-blueprint #partner-forecast[data-chart-kind="funnel"] .pf-chart-track > span { transition:none; }
 }
 @media (max-width:520px) {
   .calculator-blueprint .pf-section .pf-funnel > div { padding:10px; }
@@ -189,4 +321,9 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
   .calculator-blueprint .pf-section .pf-year-totals strong { font-size:15px; }
   .calculator-blueprint .pf-section .pf-chart-caption { flex-wrap:wrap; gap:4px; }
   .calculator-blueprint .pf-app[data-mobile-mode="compact"] .pf-result-heading { display:none; }
+}
+@media (max-width:900px) {
+  .calculator-blueprint .calculator-setup--library .calculator-setup-library { padding:0 0 14px; border-right:0; border-bottom:1px solid var(--calc-line); }
+  .calculator-blueprint .calculator-setup--library .calculator-scenario-actions { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .calculator-blueprint .calculator-setup--library .calculator-save-actions { width:100%; margin:0; }
 }

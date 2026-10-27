@@ -28,23 +28,27 @@ authRouter.get('/auth/introspect', requireAuth, async (req, res) => {
  * to render after login.
  */
 authRouter.get('/auth/whoami', requireAuth, async (req, res) => {
-  const { db } = tenantOf(req);
+  const { db, tenantId } = tenantOf(req);
   const p = req.principal!;
+  const reset = await db(TABLES.Config).where({tenantId,key:'cabinet_data_revision'}).first('value');
+  const revision = typeof reset?.value === 'string' ? {dataRevision:reset.value} : {};
   if (p.role === 'admin') {
     if (p.source === 'session') {
       const admin = await db<AdminRow>(TABLES.Admin).where({ id: p.adminId }).first();
       return res.json({
         role: 'admin',
         source: 'session',
+        ...revision,
         admin: admin ? { id: admin.id, email: admin.email, name: admin.name } : null,
       });
     }
-    return res.json({ role: 'admin', source: p.source });
+    return res.json({ role: 'admin', source: p.source, ...revision });
   }
   if (p.role === 'partner') {
     const partner = await db<PartnerRow>(TABLES.Partner).where({ id: p.partnerId }).first();
     return res.json({
       role: 'partner',
+      ...revision,
       partnerId: p.partnerId,
       partner: partner
         ? { id: partner.id, name: partner.name, email: partner.email }

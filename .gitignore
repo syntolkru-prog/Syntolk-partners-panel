@@ -15,6 +15,9 @@ build
 !.vscode/settings.json
 coverage
 /outputs/
+/output/
+/work/
+/Запустить Syntolk.lnk
 .nyc_output
 .claude/settings.local.json
 *.tsbuildinfo

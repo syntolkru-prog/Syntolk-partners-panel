@@ -403,6 +403,18 @@ export interface ImportReport {
   skipped: Record<string, number>;
 }
 
+async function insertImportRows(db:Knex,table:string,rows:Record<string,unknown>[],primaryKey:string){
+  const columns=new Set<string>();for(const row of rows)for(const column of Object.keys(row))columns.add(column);
+  // PostgreSQL binds at most 65,535 parameters in a statement.
+  const size=Math.max(1,Math.min(500,Math.floor(60000/Math.max(1,columns.size))));
+  let inserted=0;
+  for(let offset=0;offset<rows.length;offset+=size){
+    const result=await db(table).insert(rows.slice(offset,offset+size)).onConflict(primaryKey).ignore().returning(primaryKey);
+    inserted+=result.length;
+  }
+  return inserted;
+}
+
 /**
  * Re-import a bundle. We use onConflict(pk).ignore so the operation is
  * idempotent: running the same export twice won't create duplicates, and
@@ -442,21 +454,16 @@ export async function importBundle(
     // The conflict target has to be the table's REAL primary key —
     // assuming `id` silently broke every table keyed on something else
     // (PartnerCommission is keyed on partnerId).
-    const result = await db(table)
-      .insert(normalized)
-      .onConflict(primaryKey)
-      .ignore()
-      .returning(primaryKey);
-
-    inserted[table] = result.length;
-    skipped[table] = rows.length - result.length;
+    const count = await insertImportRows(db,table,normalized,primaryKey);
+    inserted[table] = count;
+    skipped[table] = rows.length - count;
   }
 
   // Older bundles predate the material registry. Keep their task/source IDs.
   if (!bundle.PartnerMaterial && bundle.CoachTask?.length) {
     const tasks = await db('CoachTask as t').join('CoachPlan as p', function () {
       this.on('p.id', '=', 't.planId').andOn('p.tenantId', '=', 't.tenantId').andOn('p.partnerId', '=', 't.partnerId');
-    }).where('t.tenantId', tenantId).whereIn('t.id', (bundle.CoachTask as Array<{id:string}>).map(t => t.id))
+    }).where('t.tenantId', tenantId).whereRaw('t.id = ANY(?::text[])', [(bundle.CoachTask as Array<{id:string}>).map(t => t.id)])
       .whereRaw("t.data->>'kind'='content' AND p.data->>'source'='calculator_schedule_v1'")
       .select('t.*', 'p.data as planData').orderBy('t.createdAt').orderBy('t.id');
     const ordinals = new Map<string, number>();
@@ -470,8 +477,8 @@ export async function importBundle(
         scheduledDay:day,platforms:JSON.stringify(data.placements??[]),createdAt:t.createdAt};
     });
     if (materials.length) {
-      const restored = await db('PartnerMaterial').insert(materials).onConflict('id').ignore().returning('id');
-      inserted.PartnerMaterial = restored.length; skipped.PartnerMaterial = materials.length - restored.length;
+      const count=await insertImportRows(db,'PartnerMaterial',materials,'id');
+      inserted.PartnerMaterial = count; skipped.PartnerMaterial = materials.length - count;
     }
   }
   return { inserted, skipped };

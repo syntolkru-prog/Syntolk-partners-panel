@@ -106,9 +106,9 @@ describe('scenario tracking and shared partner analytics',()=>{
     const excessive=new URLSearchParams({programId,includeSeries:'true'});for(let i=0;i<51;i++)excessive.append('platformIds',`platform-${i}`);
     expect((await get(`/partners/${partnerId}/analytics?${excessive}`)).status).toBe(400);
   });
-  it('has no account-login, upload or automatic-publication endpoints',async()=>{
+  it('has no account-login or automatic-publication endpoints',async()=>{
     expect((await get(`/partners/${partnerId}/publisher`)).status).toBe(404);
-    for(const path of ['publisher/accounts','publisher/accounts/account/connect','publisher/jobs/job/retry','materials/material/publish','materials/material/import','materials/material/files']){
+    for(const path of ['publisher/accounts','publisher/accounts/account/connect','publisher/jobs/job/retry','materials/material/publish','materials/material/import']){
       expect((await post(`/partners/${partnerId}/${path}`,{})).status,path).toBe(404);
     }
     expect((await request(app).patch(`/partners/${partnerId}/materials/material`).set('Authorization',`Bearer ${key}`).send({title:'Название',content:'Текст'})).status).toBe(400);
@@ -211,7 +211,7 @@ describe('scenario tracking and shared partner analytics',()=>{
     expect((await get(`/partners/${partnerId}/links?programId=`)).status).toBe(400);
     expect((await get(`/partners/${partnerId}/link-sources?scenarioId=`)).status).toBe(400);
   });
-  it('captures validated source tags through the real redirect router and leaves forged tags unassigned',async()=>{
+  it('tracks real redirects through signup and recurring payments, rejects forged tags and blocked traffic',async()=>{
     const context=await source();
     const probe=createServer();await new Promise<void>(resolve=>probe.listen(0,'127.0.0.1',resolve));
     const port=(probe.address() as {port:number}).port;await new Promise<void>((resolve,reject)=>probe.close(error=>error?reject(error):resolve()));
@@ -225,10 +225,27 @@ describe('scenario tracking and shared partner analytics',()=>{
       expect(response.status).toBe(302);
       const clickId=new URL(response.headers.get('location')!).searchParams.get('cref');
       expect((await db('Click').where({id:clickId,tenantId}).first()).trackingSourceId).toBe(context.id);
+      expect(response.headers.get('set-cookie')).toContain(`_cref=${clickId}`);
+      const userId=ulid();await identify(clickId!,userId);await event(userId,'signup');
+      const payment=await event(userId,'invoice_paid',1000);await event(userId,'recurring_payment',500);
+      const replay=await request(app).post('/attribution/events').set('Authorization',admin()).send({userId,type:'invoice_paid',value:1000,currency:'RUB',externalEventId:payment.externalEventId});
+      expect(replay.status,replay.text).toBe(200);
+      const tracked=await report('&scenarioId=a');
+      expect(tracked.counts).toMatchObject({clicks:1,registrations:1,paymentCount:2,payingCustomers:1,firstPaymentCount:1,repeatPaymentCount:1});
+      expect(tracked.amountsMinor).toMatchObject({observedPayments:150000,netAccrued:30000});
+      expect((await report('&groupBy=link')).counts).toEqual(tracked.counts);
       params.set('utm_campaign','b');
       const forged=await fetch(`http://127.0.0.1:${port}/r/${link.linkKey}?${params}`,{redirect:'manual'});
       const forgedId=new URL(forged.headers.get('location')!).searchParams.get('cref');
       expect((await db('Click').where({id:forgedId,tenantId}).first()).trackingSourceId).toBeNull();
+      await db('Partner').where({id:partnerId,tenantId}).update({revokedAt:new Date()});
+      const revoked=await fetch(`http://127.0.0.1:${port}/r/${link.linkKey}`,{redirect:'manual'});
+      expect(revoked.status).toBe(302);
+      const revokedId=new URL(revoked.headers.get('location')!).searchParams.get('cref');
+      expect((await db('Click').where({id:revokedId,tenantId}).first()).fraudFlag).toBe('revoked');
+      await db('Program').where({id:programId,tenantId}).update({blockedAt:new Date()});
+      expect((await fetch(`http://127.0.0.1:${port}/r/${link.linkKey}`,{redirect:'manual'})).status).toBe(410);
+      expect((await fetch(`http://127.0.0.1:${port}/r/missing-${ulid()}`,{redirect:'manual'})).status).toBe(404);
     }finally{if(child.pid&&child.exitCode===null){const stopped=new Promise<void>(resolve=>child.once('exit',()=>resolve()));child.kill();await Promise.race([stopped,delay(2000)]);}}
   });
   it('separates scenarios and platforms through signup, first and recurring payments',async()=>{
@@ -505,6 +522,32 @@ describe('scenario tracking and shared partner analytics',()=>{
 });
 
 describe('homepage registration rows',()=>{
+  it('pages only unique attributed signup users and matches the registration KPI',async()=>{
+    const placement=await source();
+    for(let i=0;i<5;i++)await customer(placement,i===0?100:undefined);
+    const signupUser=await db('Event').where({tenantId,type:'signup'}).whereIn('userId',db('Attribution as a').join('Event as e','e.id','a.eventId').where('a.partnerId',partnerId).select('e.userId')).first('userId');
+    await event(signupUser.userId,'signup');
+    const paymentOnly=ulid(),touch=await click(placement);await identify(touch,paymentOnly);await event(paymentOnly,'invoice_paid',200);
+    const path=`/partners/${partnerId}/analytics/registrations?programId=${programId}&period=all&limit=2`;
+    const collected:string[]=[];let cursor:string|null=null;
+    do{const page=await get(path+(cursor?`&cursor=${encodeURIComponent(cursor)}`:''));expect(page.status,page.text).toBe(200);expect(page.body.total).toBe(5);collected.push(...page.body.registrations.map((row:any)=>row.userId));cursor=page.body.nextCursor;}while(cursor);
+    expect(new Set(collected).size).toBe(5);expect(collected).not.toContain(paymentOnly);expect((await report()).counts.registrations).toBe(5);
+    expect((await get(path+'&cursor=invalid')).status).toBe(400);expect((await get('/partners/other/analytics/registrations?period=all')).status).toBe(403);
+  });
+  it('keeps inclusive Moscow date boundaries consistent between the KPI and registration table',async()=>{
+    const placement=await source();
+    for(const date of ['2026-10-01T20:59:59Z','2026-10-01T21:00:00Z','2026-10-02T20:59:59Z','2026-10-02T21:00:00Z']){
+      const user=await customer(placement);await db('Event').where({tenantId,userId:user.userId,type:'signup'}).update({ts:new Date(date)});
+    }
+    const query=`programId=${programId}&period=custom&from=2026-10-02&to=2026-10-02`;
+    const rows=await get(`/partners/${partnerId}/analytics/registrations?${query}`),summary=await get(`/partners/${partnerId}/analytics?${query}`);
+    expect(rows.status,rows.text).toBe(200);expect(rows.body.total).toBe(2);expect(rows.body.registrations).toHaveLength(2);expect(summary.body.counts.registrations).toBe(2);
+  });
+  it('returns every actual referrer rather than hiding hosts in an aggregate row',async()=>{
+    for(let i=0;i<12;i++){const id=await click();await db('Click').where({id}).update({referer:`https://host-${i}.test/private/path`});}
+    const response=await get(`/partners/${partnerId}/analytics/details?programId=${programId}&period=all`);
+    expect(response.status,response.text).toBe(200);expect(response.body.traffic.referrers).toHaveLength(12);expect(response.body.traffic.referrers.reduce((n:number,row:any)=>n+row.count,0)).toBe(12);expect(response.text).not.toContain('/private/path');
+  });
   it('deduplicates users, excludes simulator data, and preserves the existing details contract',async()=>{
     const tracked=await source(),valid=await customer(tracked,100),simulator=await customer(tracked,500);
     await event(valid.userId,'signup');

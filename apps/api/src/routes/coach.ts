@@ -183,6 +183,11 @@ partnerCoach.post('/calculator-plan/tasks/:id/complete',async(req,res)=>{
   await assertProgram(s.db,s.tenantId,s.partnerId,task.programId);
   const active=await s.db('CoachPlan').where({id:task.planId,tenantId:s.tenantId,partnerId:s.partnerId,status:'active'}).first();
   if(!active||task.version!==body.version||task.status==='cancelled')throw new CoachError('version_conflict',409,'Шаг изменён. Обновите календарь.');
+  const materialId=task.data.materialId??task.id;
+  const material=await s.db('PartnerMaterial').where({id:materialId,tenantId:s.tenantId,partnerId:s.partnerId}).first();
+  const alreadyPublished=!body.completed&&await s.db('PartnerLinkSource').where({tenantId:s.tenantId,partnerId:s.partnerId,materialId}).whereNotNull('publishedAt').first();
+  if(alreadyPublished)throw new CoachError('material_published',409,'У материала уже есть публикации. История готовности сохранена.');
+  if(material&&!alreadyPublished)await s.db('PartnerMaterial').where({id:materialId,tenantId:s.tenantId,partnerId:s.partnerId}).update({preparedAt:body.completed?(material.preparedAt??new Date()):null,revision:s.db.raw('revision + 1'),updatedAt:new Date()});
   const publicationUrl=body.publicationUrl?safePublicationUrl(body.publicationUrl):null;
   await s.db('CoachTask').where({id:task.id,tenantId:s.tenantId}).update({status:body.completed?'completed':'planned',version:task.version+1,updatedAt:new Date(),data:JSON.stringify({...task.data,completion:body.completed?{at:new Date().toISOString(),verificationLevel:'partner_self_report',publicationUrl}:null})});
   await auditCoach(s.db,s.tenantId,s.partnerId,'calculator_step_updated',{taskId:task.id,completed:body.completed});
@@ -315,23 +320,51 @@ partnerCoach.post('/forecast-snapshots', async (req,res) => {
 partnerCoach.delete('/forecast-snapshots/:scenarioId', async (req,res) => {
   const s=owner(req),programId=z.string().min(1).parse(req.query.programId),scenarioId=z.string().min(1).max(100).parse(req.params.scenarioId);
   await assertProgram(s.db,s.tenantId,s.partnerId,programId);
-  const snapshots=await s.db('CoachForecastSnapshot').where({tenantId:s.tenantId,partnerId:s.partnerId,programId,status:'confirmed'});
-  const matches=snapshots.filter(row=>String(row.data?.scenarioId??row.id)===scenarioId);
-  if(!matches.length)throw new CoachError('not_found',404,'Сценарий не найден.');
-  const snapshotIds=matches.map(row=>row.id);
-  const plans=await s.db('CoachPlan').where({tenantId:s.tenantId,partnerId:s.partnerId,programId}).whereRaw("data->>'source' = ?",[CALCULATOR_PLAN_SOURCE]);
-  const planIds=plans.filter(row=>String(row.data?.scenarioId??row.data?.snapshotId??'')===scenarioId||(!row.data?.scenarioId&&snapshotIds.includes(row.data?.snapshotId))).map(row=>row.id);
-  await s.db.transaction(async trx=>{
-    await trx('CoachForecastSnapshot').whereIn('id',snapshotIds).update({status:'archived',updatedAt:new Date()});
-    await trx('PartnerMaterial').where({tenantId:s.tenantId,partnerId:s.partnerId,programId,scenarioId,customTitle:false})
-      .whereNotIn('id',trx('PartnerLinkSource').where({tenantId:s.tenantId,partnerId:s.partnerId}).whereNotNull('materialId').select('materialId')).update({archivedAt:new Date()});
-    if(planIds.length){
-      await trx('CoachTask').whereIn('planId',planIds).whereNot('status','completed').update({status:'cancelled',updatedAt:new Date()});
-      await trx('CoachPlan').whereIn('id',planIds).update({status:'archived',updatedAt:new Date()});
+  const scope={tenantId:s.tenantId,partnerId:s.partnerId,programId},ownerScope={tenantId:s.tenantId,partnerId:s.partnerId};
+  const deleted=await s.db.transaction(async trx=>{
+    await trx('Partner').where({tenantId:s.tenantId,id:s.partnerId}).forUpdate().first();
+    // Include archived revisions so an earlier partial deletion can be completed.
+    const snapshots=await trx('CoachForecastSnapshot').where(scope).whereRaw("COALESCE(data->>'scenarioId',id) = ?",[scenarioId]).forUpdate();
+    const snapshotIds=snapshots.map(row=>row.id);
+    const plans=await trx('CoachPlan').where(scope).whereRaw("data->>'source' = ?",[CALCULATOR_PLAN_SOURCE]).forUpdate();
+    const planIds=plans.filter(row=>String(row.data?.scenarioId??row.data?.snapshotId??'')===scenarioId||(!row.data?.scenarioId&&snapshotIds.includes(row.data?.snapshotId))).map(row=>row.id);
+    const materials=await trx('PartnerMaterial').where(scope).where(q=>{
+      q.where({scenarioId});
+      if(planIds.length)q.orWhereIn('id',trx('CoachTask').where(scope).whereIn('planId',planIds).select(trx.raw("COALESCE(data->>'materialId',id)")));
+    }).forUpdate().select('id');
+    if(!snapshots.length&&!planIds.length&&!materials.length)throw new CoachError('not_found',404,'Сценарий не найден.');
+    const materialIds=materials.map(row=>row.id);
+    if(materialIds.length){
+      const assigned=await trx('PartnerMaterial').where(scope).whereIn('assignedToMaterialId',materialIds).forUpdate().select('id');
+      materialIds.push(...assigned.map(row=>row.id).filter(id=>!materialIds.includes(id)));
+      // Source identifiers and tracking parameters must survive material deletion.
+      // Preserve the latest material name on each existing link before removing files/content.
+      await trx.raw(`UPDATE "PartnerLinkSource" AS source SET "materialTitle"=material.title
+        FROM "PartnerMaterial" AS material
+        WHERE source."tenantId"=? AND source."partnerId"=? AND source."programId"=?
+          AND material."tenantId"=source."tenantId" AND material."partnerId"=source."partnerId"
+          AND material."programId"=source."programId" AND material.id=source."materialId"
+          AND material.id=ANY(?::text[])`,[s.tenantId,s.partnerId,programId,materialIds]);
     }
+    const tasks=planIds.length||materialIds.length?await trx('CoachTask').where(scope).where(q=>{
+      if(planIds.length)q.whereIn('planId',planIds);
+      if(materialIds.length)q.orWhereRaw("COALESCE(data->>'materialId',id) = ANY(?::text[])",[materialIds]);
+    }).forUpdate().select('id'):[];
+    const taskIds=tasks.map(row=>row.id);
+    if(taskIds.length){
+      await trx('CoachReview').where(ownerScope).whereIn('taskId',taskIds).del();
+      await trx('CoachPlacement').where(ownerScope).whereIn('taskId',taskIds).del();
+      await trx('CoachTask').where(ownerScope).whereIn('id',taskIds).del();
+    }
+    // Files and publication jobs are owned by the material and cascade with it.
+    // Link, PartnerLinkSource, clicks, events, commissions and payouts remain intact.
+    if(materialIds.length)await trx('PartnerMaterial').where(scope).whereIn('id',materialIds).del();
+    if(planIds.length)await trx('CoachPlan').where(scope).whereIn('id',planIds).del();
+    if(snapshotIds.length)await trx('CoachForecastSnapshot').where(scope).whereIn('id',snapshotIds).del();
+    return {snapshotIds,planIds,deletedMaterials:materialIds.length,deletedTasks:taskIds.length};
   });
-  await auditCoach(s.db,s.tenantId,s.partnerId,'calculator_scenario_archived',{programId,scenarioId,planIds,snapshotIds});
-  res.json({ok:true,scenarioId,archivedPlans:planIds.length});
+  await auditCoach(s.db,s.tenantId,s.partnerId,'calculator_scenario_deleted',{programId,scenarioId,...deleted});
+  res.json({ok:true,scenarioId,deletedPlans:deleted.planIds.length,deletedMaterials:deleted.deletedMaterials});
 });
 partnerCoach.get('/forecast-snapshots', async (req,res) => { const s=owner(req),programId=z.string().min(1).optional().parse(req.query.programId);if(programId)await assertProgram(s.db,s.tenantId,s.partnerId,programId,false);res.json({snapshots:await s.db('CoachForecastSnapshot').where({tenantId:s.tenantId,partnerId:s.partnerId,status:'confirmed'}).modify(q=>{if(programId)q.where({programId});}).orderBy('createdAt','desc').limit(100)}); });
 partnerCoach.use(errors);

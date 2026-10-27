@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { clearApiKey, api, type Principal } from './api.js';
+import { applyCabinetDataRevision } from './lib/cabinet-data-revision.js';
 import { useTenantBase } from './tenant-base.js';
 import { theme } from './theme.js';
 import { useIsMobile } from './lib/useMediaQuery.js';
@@ -223,7 +224,7 @@ function Shell() {
 
   useEffect(() => {
     api<Principal>('/auth/whoami')
-      .then((p) => setAuth({ loading: false, principal: p }))
+      .then((p) => { applyCabinetDataRevision(p.dataRevision); setAuth({ loading: false, principal: p }); })
       .catch(() => setAuth({ loading: false, principal: null }));
   }, []);
 
@@ -415,7 +416,7 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
   const nav = useNavigate();
   const tenantBase = useTenantBase();
   const { pathname } = useLocation();
-  const workdayVisual = principal.role === 'partner' && [tenantBase,`${tenantBase}/calculator`].includes(pathname.replace(/\/$/, ''));
+  const workdayVisual = principal.role === 'partner' && [tenantBase,`${tenantBase}/calculator`,`${tenantBase}/plan`].includes(pathname.replace(/\/$/, ''));
   const { programName, supportEmail, logoUrl, whiteLabel } = useBrand();
   const isDrawer = variant === 'drawer';
 

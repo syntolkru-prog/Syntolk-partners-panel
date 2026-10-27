@@ -1,9 +1,9 @@
 import type { Knex } from 'knex';
 import { ulid } from 'ulid';
-import { CoachError, profileSchema } from './schemas.js';
+import { CoachError, profileSchema, formats as legacyFormats } from './schemas.js';
 import { calculateCoachForecast } from './forecast-adapter.js';
 import { localDay } from './daily-plan.js';
-import { calendarMaterialTitle, materialFormats } from '../materials-service.js';
+import { calendarMaterialTitle } from '../materials-service.js';
 
 export const CALCULATOR_PLAN_SOURCE = 'calculator_schedule_v1';
 type SnapshotRow = { id: string; data: Record<string, any>; createdAt: Date | string };
@@ -46,10 +46,8 @@ export async function calculatorSchedule(settings: Record<string, unknown>, star
   const forecast = await calculateCoachForecast(settings);
   const config = forecast.settings;
   if (forecast.workload.originals <= 0 || config.stopAfter === 0) throw new CoachError('calculator_empty', 422, 'В калькуляторе не выбран выпуск контента. Укажите количество материалов.');
-  if(forecast.workload.unplaced.length){
-    const names=forecast.formats.filter((format:{id:string})=>forecast.workload.unplaced.includes(format.id)).map((format:{name:string})=>format.name).join(', ');
-    throw new CoachError('calculator_unplaced',422,`Не выбраны площадки для: ${names}. Выберите их во вкладке «Площадки».`);
-  }
+  // Content can be planned and prepared before its publication platforms are chosen.
+  // Only explicitly selected placements contribute traffic and income to the forecast.
   const tasks: CalendarTask[] = [];
   const publicationEnd=new Date(`${startDate}T12:00:00Z`);
   const originalDay=publicationEnd.getUTCDate();
@@ -121,7 +119,7 @@ export async function createCalculatorPlan(db: Knex, tenantId: string, partnerId
   }
   const snapshot = await db('CoachForecastSnapshot').where({ tenantId, partnerId, programId: input.programId, id: input.snapshotId, status: 'confirmed' }).first();
   if (!snapshot) throw new CoachError('calculator_not_saved', 409, 'Сначала сохраните свой сценарий в калькуляторе.');
-  const scenarioId = String(input.scenarioId ?? snapshot.data?.scenarioId ?? snapshot.id);
+  const scenarioId = scenarioIdForSnapshot(snapshot);
   if (input.scenarioId && input.scenarioId !== scenarioId) throw new CoachError('scenario_mismatch', 409, 'Сценарий не совпадает с сохранённым расчётом.');
   const scenarioName = scenarioNameForSnapshot(snapshot, 'Сценарий');
   const profileTimezone=(await db('CoachProfile').where({tenantId,partnerId}).first())?.data?.timezone??'Europe/Moscow';
@@ -140,6 +138,7 @@ export async function createCalculatorPlan(db: Knex, tenantId: string, partnerId
   const oldIds = oldPlans.map((row: { id: string }) => row.id);
   if (oldIds.length) {
     await db('PartnerMaterial').where({tenantId,partnerId,customTitle:false}).whereIn('id',db('CoachTask').where({tenantId,partnerId}).whereIn('planId',oldIds).whereNot('status','completed').select('id'))
+      .where({content:''}).whereNull('preparedAt').whereNotIn('id',db('PartnerMaterialFile').where({tenantId,partnerId}).select('materialId'))
       .whereNotIn('id',db('PartnerLinkSource').where({tenantId,partnerId}).whereNotNull('materialId').select('materialId')).update({archivedAt:new Date()});
     await db('CoachTask').where({ tenantId, partnerId }).whereIn('planId', oldIds).whereNot('status','completed').update({ status: 'cancelled', updatedAt: new Date() });
     await db('CoachPlan').where({ tenantId, partnerId }).whereIn('id', oldIds).update({ status: 'archived', updatedAt: new Date() });
@@ -148,14 +147,14 @@ export async function createCalculatorPlan(db: Knex, tenantId: string, partnerId
   for (const item of tasks) {
     const taskId = ulid();
     await db('PartnerMaterial').insert({id:taskId,tenantId,partnerId,programId:input.programId,scenarioId,title:item.title,formatId:item.format,
-      formatName:materialFormats.find(f=>f.id===item.format)?.name??item.title.split(' · ')[0],scheduledDay:item.day,platforms:JSON.stringify(item.placements.map(p=>({id:p.id,name:p.name}))) });
+      formatName:forecast.formats.find((format:{id:string})=>format.id===item.format)?.name??item.title.split(' · ')[0],scheduledDay:item.day,platforms:JSON.stringify(item.placements.map(p=>({id:p.id,name:p.name,...(p.url?{url:p.url}:{})}))) });
     const taskData={ ...item, materialId:taskId, source: CALCULATOR_PLAN_SOURCE, snapshotId: snapshot.id, scheduledDay: item.day, steps: [{ title: item.title }], criteria: 'Подготовить материал и отметить его публикации на выбранных площадках.', draft: '' };
     await db('CoachTask').insert({ id: taskId, tenantId, partnerId, programId: input.programId, planId: id, status: 'planned',
       dueAt: new Date(`${item.day}T18:00:00Z`), data: JSON.stringify(taskData) });
   }
   // The calculator config supplies the context; a second questionnaire is not needed.
   const oldProfile = await db('CoachProfile').where({ tenantId, partnerId }).first();
-  const channels = forecast.channels.filter((channel: { id: string }) => forecast.settings.channels[channel.id].enabled&&forecast.settings.channels[channel.id].formats.length).slice(0,10).map((channel: { id: string; name: string }) => ({ platform: ['telegram','vk','youtube','blog','email'].includes(channel.id) ? channel.id : 'other', label: channel.name, formats: [...new Set((forecast.settings.channels[channel.id].formats as string[]).map(id=>forecast.formats.find((f:{id:string})=>f.id===id)?.base??id))].slice(0,5), audience: '', views: null }));
+  const channels = forecast.channels.filter((channel: { id: string }) => forecast.settings.channels[channel.id].enabled&&forecast.settings.channels[channel.id].formats.length).map((channel: { id: string; name: string }) => ({ platform: ['telegram','vk','youtube','blog','email'].includes(channel.id) ? channel.id : 'other', label: channel.name, formats: [...new Set((forecast.settings.channels[channel.id].formats as string[]).map(id=>forecast.formats.find((f:{id:string})=>f.id===id)?.base??id))].filter((id):id is typeof legacyFormats[number]=>legacyFormats.includes(id as typeof legacyFormats[number])).slice(0,5), audience: '', views: null })).filter((channel:{formats:string[]})=>channel.formats.length).slice(0,10);
   const profile = profileSchema.parse({ goalMinor: 3000000, goalMetric: 'monthly_net_accrual', targetDate: addDays(input.startDate,90), sessionMinutes: 30, timezone, experience: 'new', mode: 'on_request', quietStart: 21, quietEnd: 9, proactiveConsent: false, ...oldProfile?.data, channels,
     weeklyMinutes: 0, daysPerWeek:input.weekdays.length,productUnderstanding:'',interviewAnswers:[],onboardingVersion:0,preferences: 'Рабочий план формируется только из сохранённого сценария калькулятора. Помогай выполнять его шаги; не придумывай альтернативные задания. Калькулятор не оценивает трудозатраты. goalMinor, weeklyMinutes и sessionMinutes — старые технические поля, не параметры партнёра; не озвучивай их.' });
   const value = { status: 'complete', version: (oldProfile?.version ?? 0) + 1, data: JSON.stringify(profile), updatedAt: new Date() };

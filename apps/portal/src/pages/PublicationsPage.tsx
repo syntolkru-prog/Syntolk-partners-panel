@@ -129,7 +129,7 @@ export function PartnerPublicationsPage({partnerId,permanentLinks}:{partnerId:st
                 <VisualButton type="button" className="publication-title" aria-expanded={open} aria-controls={`publication-${source.id}`} onClick={()=>{setExpanded(open?null:source.id);setEditing(null);setCopyFallback('');}}>
                   <ChevronDown size={15} className={open?'is-open':''}/><span>{source.materialTitle||'Материал не указан'}</span>
                 </VisualButton>
-                <small className="publication-subtitle">{source.formatName}{source.materialArchivedAt?' · Архив материала':''}</small>
+                <small className="publication-subtitle">{source.formatName}{source.materialDeleted?' · Материал удалён':source.materialArchivedAt?' · Архив материала':''}</small>
                 <div className="publication-row-actions">
                   {href&&<a href={href} target="_blank" rel="noopener noreferrer">Публикация <ExternalLink size={12}/></a>}
                   <VisualButton type="button" disabled={!data} onClick={()=>setDetails(source)} aria-label={`Статистика: ${source.materialTitle||source.platformName}`}><BarChart3 size={13}/>Статистика</VisualButton>
@@ -147,8 +147,8 @@ export function PartnerPublicationsPage({partnerId,permanentLinks}:{partnerId:st
                 <div><dt>Сценарий</dt><dd>{source.scenarioName||'Без сценария'}</dd></div>
               </dl>
               {copyFallback&&<label>Скопируйте ссылку вручную<input aria-label="Ссылка для ручного копирования" readOnly value={copyFallback} onFocus={event=>event.target.select()}/></label>}
-              {source.materialId&&<VisualButton type="button" className="results-button" aria-expanded={editing===source.id} onClick={()=>setEditing(editing===source.id?null:source.id)}>{editing===source.id?'Закрыть редактирование':'Материал и его размещения'}</VisualButton>}
-              {editing===source.id&&source.materialId&&<MaterialEditor partnerId={partnerId} materialId={source.materialId}/>}
+              {source.materialId&&<VisualButton type="button" className="results-button" aria-expanded={editing===source.id} onClick={()=>setEditing(editing===source.id?null:source.id)}>{editing===source.id?'Закрыть редактирование':source.materialDeleted?'Ссылка и публикация':'Материал и его размещения'}</VisualButton>}
+              {editing===source.id&&source.materialId&&<MaterialEditor partnerId={partnerId} materialId={source.materialId} archivedSource={source.materialDeleted?{...source,linkKey:source.linkKey??''}:undefined}/>}
             </div></VisualTableCell></VisualTableRow>}
           </Fragment>;
         })}</VisualTableBody></VisualTable></div><footer className="publications-pagination"><span>{number(filtered.length)} размещений · страница {page} из {pageCount}</span><div><VisualButton type="button" className="results-icon-button" aria-label="Предыдущая страница публикаций" disabled={page===1} onClick={()=>update('page',String(page-1))}><ChevronLeft size={17}/></VisualButton><VisualButton type="button" className="results-icon-button" aria-label="Следующая страница публикаций" disabled={page===pageCount} onClick={()=>update('page',String(page+1))}><ChevronRight size={17}/></VisualButton></div></footer>

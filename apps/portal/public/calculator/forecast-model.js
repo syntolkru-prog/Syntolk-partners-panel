@@ -66,10 +66,12 @@
       if(!item||typeof item!=='object')continue;
       const id=text(item.id,40).toLowerCase(),name=text(item.name,80);
       if(!/^format-[a-z0-9-]+$/.test(id)||ids.has(id)||!name)continue;
-      const base=FORMATS.find(f=>f.id===item.base)??FORMATS[0];
+      // The old global form silently stored "post" without a type picker.
+      const inferredPost=item.base==='post'&&!item.channelId&&item.baseExplicit!==true;
+      const base=FORMATS.find(f=>f.id===item.base&&!inferredPost);
       const channelId=text(item.channelId,40).toLowerCase();
       const scopedChannel=CHANNELS.some(c=>c.id===channelId)||/^custom-[a-z0-9-]+$/.test(channelId)?channelId:'';
-      ids.add(id);result.push({id,name,base:base.id,channelId:scopedChannel,hint:text(item.hint,160)||base.hint,tail:base.tail,custom:true});
+      ids.add(id);result.push({id,name,base:base?.id??'',baseExplicit:!!base,channelId:scopedChannel,hint:text(item.hint,160)||base?.hint||'',tail:base?.tail??0.10,custom:true});
     }
     return result;
   }
@@ -90,7 +92,8 @@
       if(url&&!/^https?:\/\//i.test(url))url='';
       const availableFormats=formatDefs.filter(f=>!f.channelId||f.channelId===id);
       const formats=availableFormats.filter(f=>Array.isArray(item.formats)&&(item.formats.includes(f.id)||item.formats.includes(f.base))).map(f=>f.id);
-      result.push({id,name,formats:formats.length?formats:availableFormats.map(f=>f.id),selected:[],enabled:item.enabled!==false,views:num(item.views,250,0,1000000),ctr:num(item.ctr,1,0,100),group:'custom',note:text(item.note,240)||'',url});
+      const group=['social','video','expert','owned','custom'].includes(item.group)?item.group:'custom';
+      result.push({id,name,formats:formats.length?formats:availableFormats.map(f=>f.id),selected:[],enabled:item.enabled!==false,views:num(item.views,250,0,1000000),ctr:num(item.ctr,1,0,100),group,note:text(item.note,240)||'',url});
     }
     return result;
   }
@@ -99,7 +102,7 @@
     return [...CHANNELS.filter(c=>!removed.includes(c.id)).map(c=>({...c,
       name:text(settings.channelOverrides?.[c.id]?.name,80)||c.name,
       url:typeof settings.channelOverrides?.[c.id]?.url==='string'?text(settings.channelOverrides[c.id].url,300):c.url,
-      formats:formatDefs.filter(f=>c.formats.includes(f.base??f.id)&&(!f.channelId||f.channelId===c.id)).map(f=>f.id),
+      formats:formatDefs.filter(f=>(!f.base||c.formats.includes(f.base))&&(!f.channelId||f.channelId===c.id)).map(f=>f.id),
       selected:c.selected.filter(id=>formatDefs.some(f=>f.id===id))})),...normalizeCustomChannels(settings.customChannels,formatDefs)];
   }
   function defaults() {
@@ -167,7 +170,7 @@
       }:undefined);
       out.channels[c.id]={
         enabled:rawChannel&&typeof rawChannel==='object'&&typeof rawChannel.enabled==='boolean'?rawChannel.enabled:(rawChannel&&typeof rawChannel==='object'&&Array.isArray(rawChannel.formats)?rawChannel.formats.length>0:c.enabled!==false&&c.selected.length>0),
-        formats:rawChannel&&typeof rawChannel==='object'&&Array.isArray(rawChannel.formats)?c.formats.filter(f=>rawChannel.formats.includes(f)):[...(c.selected.length?c.selected:(c.group==='custom'?c.formats:[]))],
+        formats:rawChannel&&typeof rawChannel==='object'&&Array.isArray(rawChannel.formats)?c.formats.filter(f=>rawChannel.formats.includes(f)):[...(c.selected.length?c.selected:(c.id.startsWith('custom-')?c.formats:[]))],
         views:num(rawChannel&&typeof rawChannel==='object'?rawChannel.views:undefined,c.views,0,1000000), ctr:num(rawChannel&&typeof rawChannel==='object'?rawChannel.ctr:undefined,c.ctr,0,100)
       };
     });
@@ -195,11 +198,15 @@
     return { originals, placements,
       unplaced:formatDefs.filter(f=>s.frequency[f.id]>0&&!channelDefs.some(c=>s.channels[c.id].enabled&&s.channels[c.id].formats.includes(f.id))).map(f=>f.id) };
   }
+  function matchingFormats(settings,channel) {
+    const formats=allFormats(settings);
+    return channel.formats.filter(id=>settings.frequency[id]>0&&formats.some(f=>f.id===id&&f.base));
+  }
   function selectMatchingChannels(raw) {
     const s=normalize(raw);
     Object.values(s.channels).forEach(channel=>{channel.enabled=false;channel.formats=[];});
     allChannels(s).forEach(channel=>{
-      const formats=channel.formats.filter(id=>s.frequency[id]>0);
+      const formats=matchingFormats(s,channel);
       s.channels[channel.id].enabled=formats.length>0;
       s.channels[channel.id].formats=formats;
     });
@@ -296,5 +303,5 @@
     }
     return { settings:s,scenario:scenarioKey,work,months,year:months[11],mix:[...personalMix,...businessMix] };
   }
-  globalThis.SyntolkForecast=Object.freeze({ WEEKS,COMMISSION,VERIFIED,FORMATS,PLANS,CHANNELS,SCENARIOS,defaults,normalize,newScenario,allFormats,allChannels,workload,selectMatchingChannels,transition,forecast });
+  globalThis.SyntolkForecast=Object.freeze({ WEEKS,COMMISSION,VERIFIED,FORMATS,PLANS,CHANNELS,SCENARIOS,defaults,normalize,newScenario,allFormats,allChannels,workload,matchingFormats,selectMatchingChannels,transition,forecast });
 })();

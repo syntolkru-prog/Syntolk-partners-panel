@@ -13,6 +13,10 @@
    native form, keyboard and calculator event behaviour. */
 html[data-portal-visual="tremor-partner"] {
   color-scheme: dark;
+  --op-content-max-width:1480px;
+  --op-content-padding:32px;
+  --op-sidebar-width:256px;
+  --op-sidebar-padding:24px 16px;
   --op-bg: var(--color-gray-950); --op-surface: #090e1a; --op-surface-2: var(--color-gray-900);
   --op-text: var(--color-gray-50); --op-text-muted: var(--color-gray-400); --op-text-dim: var(--color-gray-500);
   --op-border: var(--color-gray-800); --op-border-subtle: var(--color-gray-900);
@@ -38,14 +42,21 @@ html[data-portal-visual="tremor-partner"] {
 }
 html[data-portal-visual="tremor-partner"] { background: var(--op-bg) !important; color: var(--op-text); font-size: 14px; line-height: 1.5; }
 html[data-portal-visual="tremor-partner"] body { -webkit-font-smoothing:antialiased; }
-html[data-portal-visual="tremor-partner"] .tremor-partner > aside { background: var(--op-bg) !important; border-color: var(--op-border) !important; width: 256px !important; padding: 24px 16px !important; }
+html[data-portal-visual="tremor-partner"] .tremor-partner > aside { background: var(--op-bg) !important; border-color: var(--op-border) !important; width:var(--op-sidebar-width) !important; padding:var(--op-sidebar-padding) !important; }
 html[data-portal-visual="tremor-partner"] .tremor-partner > main { background: var(--op-bg); }
 html[data-portal-visual="tremor-partner"] aside a { border-radius: 6px !important; font-size: 14px !important; }
 html[data-portal-visual="tremor-partner"] aside a[aria-current="page"] { background: var(--color-gray-900) !important; color: var(--color-gray-50) !important; }
 html[data-portal-visual="tremor-partner"] aside a[aria-current="page"] svg { color: var(--color-blue-400) !important; }
 html[data-portal-visual="tremor-partner"] :is(h1,h2,h3) { color: var(--color-gray-50); letter-spacing: -.025em; }
 html[data-portal-visual="tremor-partner"] h1 { font-size: 24px !important; font-weight: 600 !important; line-height: 32px !important; }
-html[data-portal-visual="tremor-partner"] :is(.op-page,.results-layout) { padding: 32px !important; max-width: 1480px !important; width: 100%; }
+/* One page frame for every partner route. Keep it outside cards and dialogs,
+   so the calculator and calendar cannot expand past the Results boundaries. */
+html[data-portal-visual="tremor-partner"] .tremor-partner > main :is(.op-page,.results-layout,.partner-workday,.work-calendar) {
+  box-sizing:border-box; width:100%; min-width:0;
+  max-width:var(--op-content-max-width) !important;
+  margin-inline:auto !important;
+  padding:var(--op-content-padding) !important;
+}
 html[data-portal-visual="tremor-partner"] :is(.op-page > header,.results-header) { margin-bottom: 24px; }
 html[data-portal-visual="tremor-partner"] :is(.op-page-subtitle,.results-subtitle) { color: var(--color-gray-400) !important; font-size: 14px !important; }
 html[data-portal-visual="tremor-partner"] :is(.op-section-heading) { color: var(--color-gray-200) !important; text-transform: none !important; letter-spacing: normal !important; font-size: 16px !important; }
@@ -199,8 +210,50 @@ html[data-portal-visual="tremor-partner"] :is(.recharts-wrapper,.tremor-metric-c
 @media (hover:hover) {
   html[data-portal-visual="tremor-partner"] :is(button,a[href],summary):not(:disabled,[aria-disabled=true],[aria-selected=true],[aria-pressed=true],[aria-current=page]):hover { background-color:var(--color-gray-900) !important; transform:none !important; }
 }
+/* One primary-action contract for React/Tremor and the legacy calculator.
+   Explicit legacy selectors also outrank its neutral toolbar/button overrides. */
+html[data-portal-visual="tremor-partner"] :is(
+  [data-op-variant=primary],[data-tremor-variant=primary],
+  #pf-reset,#pf-format-menu-toggle,#pf-add-format,
+  .pf-add-platform button,.pf-platform-menu>button:not(.pf-platform-menu-close),
+  .publication-create__primary,.results-multiselect__actions button:last-child,.partner-message-panel .message-send
+):not(:disabled,[aria-disabled=true]) {
+  background-color:var(--color-blue-500) !important;
+  color:var(--color-white) !important;
+  border-color:transparent !important;
+  transform:none !important;
+  transition:background-color 150ms ease,border-color 150ms ease !important;
+}
+@media (hover:hover) {
+  html[data-portal-visual="tremor-partner"] :is(
+    [data-op-variant=primary],[data-tremor-variant=primary],
+    #pf-reset,#pf-format-menu-toggle,#pf-add-format,
+    .pf-add-platform button,.pf-platform-menu>button:not(.pf-platform-menu-close),
+    .publication-create__primary,.results-multiselect__actions button:last-child,.partner-message-panel .message-send
+  ):not(:disabled,[aria-disabled=true]):hover {
+    background-color:var(--color-blue-600) !important;
+    border-color:var(--color-blue-500) !important;
+  }
+}
+html[data-portal-visual="tremor-partner"] :is(
+  [data-op-variant=primary],[data-tremor-variant=primary],
+  #pf-reset,#pf-format-menu-toggle,#pf-add-format,
+  .pf-add-platform button,.pf-platform-menu>button:not(.pf-platform-menu-close),
+  .publication-create__primary,.results-multiselect__actions button:last-child,.partner-message-panel .message-send
+):not(:disabled,[aria-disabled=true]):active {
+  background-color:var(--color-blue-700) !important;
+  border-color:var(--color-blue-600) !important;
+}
+@media (prefers-reduced-motion:reduce) {
+  html[data-portal-visual="tremor-partner"] :is(
+    [data-op-variant=primary],[data-tremor-variant=primary],
+    #pf-reset,#pf-format-menu-toggle,#pf-add-format,
+    .pf-add-platform button,.pf-platform-menu>button:not(.pf-platform-menu-close),
+    .publication-create__primary,.results-multiselect__actions button:last-child,.partner-message-panel .message-send
+  ) { transition:none !important; }
+}
 @media (max-width: 768px) {
-  html[data-portal-visual="tremor-partner"] :is(.op-page,.results-layout) { padding:24px 16px !important; }
+  html[data-portal-visual="tremor-partner"] { --op-content-padding:24px 16px; }
   html[data-portal-visual="tremor-partner"] :is(.pf-controls,.pf-result) { padding:16px !important; }
   html[data-portal-visual="tremor-partner"] .ph-header { padding:24px 16px 0; }
 }

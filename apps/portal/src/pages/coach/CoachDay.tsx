@@ -1,5 +1,5 @@
 import {VisualButton} from '../../components/tremor/VisualControls.js';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight, CalendarDays, Check, ClipboardCheck, Grid2X2, Grid3X3, List, ListTodo } from 'lucide-react';
@@ -10,8 +10,9 @@ import './coach.css';
 import { usePartnerSelection } from '../../lib/partner-selection.js';
 import { TremorProgressBar } from '../../components/tremor/HomePrimitives.js';
 import { ProgressBar } from '../../components/tremor/raw/components/ProgressBar/ProgressBar.js';
+import { invalidateAnalytics } from '../results-scope.js';
 
-interface DayTask {status:string;data:{scheduledDay:string;title:string}}
+interface DayTask {id:string;version:number;status:string;data:{scheduledDay:string;title:string}}
 interface DayPlan {plan:{data:{days:number;startDate:string;scenarioId?:string;scenarioName?:string}}|null;today:string;tasks:DayTask[]}
 type HomeTaskView = 'row' | 'small' | 'large';
 
@@ -22,11 +23,15 @@ function readHomeTaskView(partnerId: string, fallback:HomeTaskView='small'): Hom
 }
 
 export function CoachDay({partnerId,appearance}:{partnerId:string;appearance?:'workspace'|'workday'}) {
-  const base=useTenantBase(),key=['coach',currentTenantSlug(),partnerId,'/coach/me'];
+  const tenant=currentTenantSlug(),cache=useQueryClient(),base=useTenantBase(),key=['coach',tenant,partnerId,'/coach/me'];
   const me=useQuery({queryKey:[...key,'me'],queryFn:()=>api<{programs:Array<{id:string}>}>('/coach/me'),staleTime:30000});
   const selection=usePartnerSelection(partnerId,me.data?.programs??[]),programId=selection.programId;
   const requestedScenarioId=selection.scenarioId&&selection.scenarioId!=='all'?selection.scenarioId:'';
   const calendar=useQuery({queryKey:[...key,'calculator-plan',programId,requestedScenarioId||'latest'],queryFn:()=>api<DayPlan>(`/coach/me/calculator-plan?programId=${encodeURIComponent(programId)}${requestedScenarioId?`&scenarioId=${encodeURIComponent(requestedScenarioId)}`:''}`),enabled:!!programId,placeholderData:previous=>previous?.plan?.data.scenarioId===requestedScenarioId?previous:undefined,refetchInterval:30000});
+  const completion=useMutation({
+    mutationFn:({task,completed}:{task:DayTask;completed:boolean})=>api(`/coach/me/calculator-plan/tasks/${encodeURIComponent(task.id)}/complete`,{method:'POST',body:{version:task.version,completed}}),
+    onSettled:()=>Promise.all([cache.invalidateQueries({queryKey:['coach',tenant,partnerId]}),cache.invalidateQueries({queryKey:['work-calendar',tenant,partnerId]}),cache.invalidateQueries({queryKey:['partner-material',tenant,partnerId]}),invalidateAnalytics(cache)]),
+  });
   const [taskView,setTaskView]=useState<HomeTaskView>(()=>readHomeTaskView(partnerId,appearance==='workspace'?'row':'small'));
   const data=calendar.data,today=data?.tasks.filter(t=>t.data.scheduledDay===data.today)??[];
   const completed=today.filter(t=>t.status==='completed').length;
@@ -36,7 +41,7 @@ export function CoachDay({partnerId,appearance}:{partnerId:string;appearance?:'w
   useEffect(()=>{if(scenarioId&&scenarioId!==rememberedScenarioId)rememberScenario(scenarioId);},[scenarioId,rememberedScenarioId,rememberScenario]);
   const scenarioName=data?.plan?.data.scenarioName?.trim()||'вашему сценарию';
   const query=`?programId=${encodeURIComponent(programId)}${scenarioId?`&scenarioId=${encodeURIComponent(scenarioId)}`:''}`;
-  const expired=data?.plan?data.today>=new Date(Date.parse(data.plan.data.startDate)+data.plan.data.days*86400000).toISOString().slice(0,10):false;
+  const expired=data?.plan?data.today>=new Date(Date.parse(data.plan.data.startDate)+data.plan.data.days*86400000).toISOString().slice(0,10)&&!data.tasks.some(task=>task.data.scheduledDay>=data.today):false;
   const next=data?.tasks.filter(t=>t.data.scheduledDay>=data.today&&t.status!=='completed').sort((a,b)=>a.data.scheduledDay.localeCompare(b.data.scheduledDay))[0];
   const displayDay=today.length?data?.today:next?.data.scheduledDay;
   const dayTasks=data?.tasks.filter(task=>task.data.scheduledDay===displayDay)??[];
@@ -48,13 +53,13 @@ export function CoachDay({partnerId,appearance}:{partnerId:string;appearance?:'w
     {value:'large' as const,label:'Большие квадраты',icon:<Grid2X2 size={17} strokeWidth={2}/>},
   ];
   if(appearance==='workday')return <section className="wd-day" aria-label="План из калькулятора">
-    <ErrorBanner error={me.error??calendar.error}/>
-    {me.isLoading||calendar.isLoading?<p className="wd-empty" role="status">Загружаем ваш календарь…</p>:!data?.plan||expired?<div className="wd-day-empty"><span className="wd-day-symbol"><ClipboardCheck size={36}/></span><div><h2>{expired?'Сценарий завершён':'С чего начнём?'}</h2><p>{expired?'Выберите новый срок в калькуляторе и сохраните сценарий.':'Создайте ссылку на публикацию или составьте сценарий работ с задачами в календаре.'}</p><div><Link className="wd-link-button" to={`${base}/calculator${query}`}>{expired?'Продолжить сценарий':'Создать сценарий'} <ArrowUpRight size={13}/></Link>{!expired&&<Link className="wd-link-button" to={`${base}/links?section=create&view=publications&create=publication`}>Создать ссылку на публикацию <ArrowUpRight size={13}/></Link>}</div></div></div>:<>
+    <ErrorBanner error={completion.error??me.error??calendar.error}/>
+    {me.isLoading||calendar.isLoading?<p className="wd-empty" role="status">Загружаем ваш календарь…</p>:!data?.plan||expired?<div className="wd-day-empty"><span className="wd-day-symbol"><ClipboardCheck size={36}/></span><div><h2>{expired?'Сценарий завершён':'С чего начнём?'}</h2><p>{expired?'Выберите новый срок в калькуляторе и сохраните сценарий.':'Создайте ссылку на публикацию или составьте сценарий работ с задачами в календаре.'}</p><div><Link className="wd-link-button" data-op-variant="primary" to={`${base}/calculator${query}`}>{expired?'Продолжить сценарий':'Создать сценарий'} <ArrowUpRight size={13}/></Link>{!expired&&<Link className="wd-link-button" to={`${base}/links?section=create&view=publications&create=publication`}>Создать ссылку на публикацию <ArrowUpRight size={13}/></Link>}</div></div></div>:<>
       <div className="wd-day-summary"><div className="wd-day-summary-heading"><span className="wd-day-symbol"><ClipboardCheck size={36}/></span><div><h2>{today.length?'Результаты работы на сегодня':displayDay?`Ближайшие задачи · ${dayLabel}`:'План работ'}</h2><p>{today.length?<>Выполнено задач: <strong>{dayCompleted} из {dayTasks.length}</strong></>:displayDay?'На сегодня задач нет.':'Все задачи сценария отмечены выполненными.'}</p></div>{today.length>0&&<span className="wd-day-percent"><strong>{Math.round(dayCompleted/dayTasks.length*100)}%</strong> выполнено</span>}</div>
         {today.length>0&&<ProgressBar className="wd-segmented" variant="success" value={dayCompleted} max={dayTasks.length} showAnimation={false} aria-label="Выполнение плана калькулятора"/>}
       </div>
       <div className="wd-day-tasks"><div className="wd-day-tasks-heading"><h2><span className="wd-icon"><ListTodo size={18}/></span>{today.length?'Задачи на сегодня':'Ближайшие задачи'}</h2><strong>{dayCompleted} из {dayTasks.length}</strong></div>
-        <div className="wd-task-list">{dayTasks.map((task,index)=><Link key={`${task.data.scheduledDay}:${task.data.title}`} className={`wd-task${task.status==='completed'?' is-completed':''}`} to={`${base}/plan${query}&day=${encodeURIComponent(task.data.scheduledDay)}`} aria-label={`${task.data.title}, задача ${index+1}`}><span className="wd-task-number">{String(index+1).padStart(2,'0')}</span><span className="wd-task-check">{task.status==='completed'&&<Check size={12}/>}</span><span className="wd-task-title">{task.data.title}</span><ArrowUpRight size={14}/></Link>)}</div>
+        <div className="wd-task-list">{dayTasks.map((task,index)=><div key={task.id} className={`wd-task${task.status==='completed'?' is-completed':''}`}><span className="wd-task-number">{String(index+1).padStart(2,'0')}</span><button type="button" role="checkbox" className="wd-task-check" aria-checked={task.status==='completed'} aria-label={`${task.status==='completed'?'Снять отметку выполнения':'Отметить выполненной'}: ${task.data.title}`} title={task.status==='completed'?'Снять отметку выполнения':'Отметить выполненной'} disabled={completion.isPending} onClick={()=>completion.mutate({task,completed:task.status!=='completed'})}>{task.status==='completed'&&<Check size={12}/>}</button><Link className="wd-task-link" to={`${base}/plan${query}&day=${encodeURIComponent(task.data.scheduledDay)}`} aria-label={`${task.data.title}, задача ${index+1}`}><span className="wd-task-title">{task.data.title}</span><ArrowUpRight size={14}/></Link></div>)}</div>
       </div>
     </>}
   </section>;

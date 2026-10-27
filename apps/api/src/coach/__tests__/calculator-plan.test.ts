@@ -35,6 +35,22 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await db.destroy();await appDb.destroy();});
 describe('calculator is the sole work-plan source',()=>{
+ it('rejects a snapshot from a different scenario without creating work',async()=>{
+  const first=await saveNamed('First'),second=await saveNamed('Second');
+  const result=await post('/coach/me/calculator-plan',{programId,snapshotId:second.id,scenarioId:first.scenarioId,startDate:day(),days:7,weekdays:[0,1,2,3,4,5,6],requestId:ulid()});
+  expect(result.status,result.text).toBe(409);expect(result.body.error).toBe('scenario_mismatch');
+  expect(await db('CoachPlan').where({partnerId})).toHaveLength(0);expect(await db('PartnerMaterial').where({partnerId})).toHaveLength(0);
+ });
+ it('keeps prepared text and attachments visible when their scenario is archived',async()=>{
+  const saved=await saveNamed('Prepared');
+  const built=await post('/coach/me/calculator-plan',{programId,snapshotId:saved.id,scenarioId:saved.scenarioId,startDate:day(),days:14,weekdays:[0,1,2,3,4,5,6],requestId:ulid()});expect(built.status,built.text).toBe(201);
+  const materials=await db('PartnerMaterial').where({partnerId}).orderBy('id');expect(materials.length).toBeGreaterThanOrEqual(3);
+  await db('PartnerMaterial').where({id:materials[0].id}).update({content:'Prepared draft'});
+  await db('PartnerMaterial').where({id:materials[1].id}).update({preparedAt:new Date()});
+  await db('PartnerMaterialFile').insert({id:ulid(),tenantId,partnerId,materialId:materials[2].id,name:'draft.txt',contentType:'text/plain',size:4,data:Buffer.from('test').toString('base64')});
+  const removed=await request(app).delete(`/coach/me/forecast-snapshots/${saved.scenarioId}?programId=${programId}`).set('Authorization',`Bearer ${key}`);expect(removed.status,removed.text).toBe(200);
+  const visible=await db('PartnerMaterial').where({partnerId}).whereNull('archivedAt');expect(visible.map(row=>row.id)).toEqual(expect.arrayContaining(materials.slice(0,3).map(row=>row.id)));
+ });
  it('saves ten posts per week on all matching platforms as one calendar with forty materials',async()=>{
   const context={SyntolkForecast:undefined as unknown as {selectMatchingChannels:(input:Record<string,unknown>)=>Record<string,unknown>}};
   runInNewContext(readFileSync(resolve('../../apps/portal/public/calculator/forecast-model.js'),'utf8'),context);

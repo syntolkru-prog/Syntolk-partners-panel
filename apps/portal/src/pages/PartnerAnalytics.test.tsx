@@ -10,6 +10,8 @@ import { MaterialEditor } from './MaterialEditor.js';
 import { Dashboard } from './Dashboard.js';
 
 vi.mock('../api.js',()=>({api:vi.fn(),currentTenantSlug:()=>null}));
+// This suite checks shared scopes; chart rendering is verified separately in the browser.
+vi.mock('../components/tremor/raw/components/DonutChart/DonutChart.js',()=>({DonutChart:()=> <div data-testid="traffic-donut"/>}));
 let client:QueryClient;
 afterEach(()=>{cleanup();client?.clear();localStorage.clear();vi.restoreAllMocks();vi.clearAllMocks();});
 const counts={clicks:10,registrations:2,payingCustomers:1,paymentCount:1,firstPaymentCount:1,repeatPaymentCount:0};

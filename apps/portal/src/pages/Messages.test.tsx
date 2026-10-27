@@ -38,6 +38,11 @@ function setup(principal = partner, url = '/messages', widget = false, history: 
   return client;
 }
 describe('partner correspondence', () => {
+  it('keeps a small attachment control and a send control inside the message field',async()=>{
+    setup(partner,'/',true);fireEvent.click(screen.getByRole('button',{name:'Написать в тех. поддержку'}));
+    const composer=await screen.findByRole('textbox',{name:'Сообщение'}),attach=screen.getByRole('button',{name:'Прикрепить файл'}),send=screen.getByRole('button',{name:'Отправить'});
+    expect(attach.parentElement).toBe(composer.parentElement);expect(send.parentElement).toBe(composer.parentElement);expect(attach.querySelector('svg')?.getAttribute('width')).toBe('14');
+  });
   it('grows the composer for multiline text and resets its height after sending', async () => {
     setup(partner, '/', true);
     fireEvent.click(screen.getByRole('button', { name: 'Написать в тех. поддержку' }));

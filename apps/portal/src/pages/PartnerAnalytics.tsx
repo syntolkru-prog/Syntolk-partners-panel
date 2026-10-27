@@ -11,7 +11,6 @@ import { usePartnerSelection } from '../lib/partner-selection.js';
 import { ResultsChart, ResultsChartSkeleton, chartMetricKeys, defaultChartMetrics, useMetricLabels, type ChartMetric, type SeriesPoint, type ChartSeriesBy, type ChartInspection } from './ResultsChart.js';
 import { ResultsDrawer, PaymentDetails, dateLabel } from './ResultsDetails.js';
 import { downloadResultsCsv } from './results-export.js';
-import { ResultsMultiSelect } from './ResultsMultiSelect.js';
 import { ResultsExplorer } from './ResultsExplorer.js';
 import { ResultsDatePicker, calendarDay, reportRange, rangeCaption, validDateRange, applyResultsPeriods, clearResultsComparison, type DateChoice, type ResultsPeriod } from './ResultsDatePicker.js';
 import { analyticsChartTotals, analyticsChartChanges, inspectionScope, resetResultsFilters } from './results-scope.js';
@@ -33,6 +32,7 @@ export interface AnalyticsReport {
   counts:Counts;amountsMinor:Amounts;conversions:{clickToRegistration:number|null;registrationToPayment:number|null;clickToPayment:number|null};
   rows:MetricRow[];groupBy:string;options:{scenarios:Option[];platforms:Option[];formats:Option[];partners?:Option[]};
   balances?:{total:number;available:number;pending:number;paid:number;accrued?:number;debt?:number;netPaidEarnings?:number};
+  periodBalances?:{total:number;available:number;pending:number;paid:number};
   series?:{bucket:string;points:SeriesPoint[];by?:Exclude<ChartSeriesBy,'total'>;groups?:Array<{id:string;name:string;points:SeriesPoint[]}>};
   period?:{since:string;until:string};
   timezone?:string;
@@ -42,6 +42,7 @@ export interface AnalyticsReport {
 function selectedValues(params:URLSearchParams,field:string) {
   return [...new Set([...params.getAll(`${field}s`),...params.getAll(field)].filter(value=>value&&!['all','new'].includes(value)))];
 }
+const sourceScope=(params:URLSearchParams)=>JSON.stringify(['scenarioId','platformId','formatId'].map(field=>selectedValues(params,field).sort()));
 function selectionCaption(options:Option[],ids:string[],label:string) {
   return ids.length>1?`${label}: ${ids.length}`:ids.length?options.find(option=>option.id===ids[0])?.name??(ids[0]==='__none__'?'Без сценария':'Выбранный вариант'):'';
 }
@@ -86,7 +87,8 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
   const programId=adminContext?params.get('programId')??'':selection.programId;
   const requestedCurrency=params.get('currency')??'RUB';
   const currency=/^[A-Z]{3}$/.test(requestedCurrency)?requestedCurrency:'RUB';
-  const scenarioIds=selectedValues(params,'scenarioId'),platformIds=selectedValues(params,'platformId'),formatIds=selectedValues(params,'formatId');
+  const scenarioIds=params.has('scenarioId')||params.has('scenarioIds')?selectedValues(params,'scenarioId'):!adminContext&&selection.scenarioId&&!['all','new'].includes(selection.scenarioId)?[selection.scenarioId]:[];
+  const platformIds=selectedValues(params,'platformId'),formatIds=selectedValues(params,'formatId');
   const period:ResultsPeriod=['today','7d','30d','all','custom'].includes(params.get('period')??'')?params.get('period') as ResultsPeriod:'30d';
   const bucket=['day','week','month'].includes(params.get('bucket')??'')?params.get('bucket') as 'day'|'week'|'month':undefined;
   const groupBy=['link','material','source','platform','scenario','format'].includes(params.get('groupBy')??'')?params.get('groupBy')!:'platform';
@@ -106,27 +108,32 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
   const from=params.get('from')??'',to=params.get('to')??'';
   const customReady=period!=='custom'||validDateRange({from,to});
   const report=useQuery({queryKey:['partner-analytics',currentTenantSlug(),partnerId,query.toString()],queryFn:()=>api<AnalyticsReport>(`/partners/${partnerId}/analytics?${query}`),enabled:customReady&&!programs.isLoading,refetchInterval:adminContext?false:30000,refetchOnWindowFocus:true,
-    placeholderData:(previous,previousQuery)=>previousQuery?.queryKey[1]===currentTenantSlug()&&previousQuery.queryKey[2]===partnerId&&new URLSearchParams(String(previousQuery.queryKey[3]??'')).get('programId')===query.get('programId')&&new URLSearchParams(String(previousQuery.queryKey[3]??'')).get('currency')===currency?previous:undefined});
+    placeholderData:(previous,previousQuery)=>previousQuery?.queryKey[1]===currentTenantSlug()&&previousQuery.queryKey[2]===partnerId&&new URLSearchParams(String(previousQuery.queryKey[3]??'')).get('programId')===query.get('programId')&&new URLSearchParams(String(previousQuery.queryKey[3]??'')).get('currency')===currency&&sourceScope(new URLSearchParams(String(previousQuery.queryKey[3]??'')))===sourceScope(query)?previous:undefined});
   const data=report.data;
   const primaryRange:DateChoice=(period==='custom'&&from&&to?{from,to}:reportRange(data?.period,data?.timezone))??{from:calendarDay(new Date().toISOString()),to:calendarDay(new Date().toISOString())};
   const comparisonRange:DateChoice=(compareFrom&&compareTo?{from:compareFrom,to:compareTo}:reportRange(data?.comparison?.period,data?.timezone))??{from:'',to:''};
   const applyPeriods=(main:DateChoice,comparison:DateChoice|null)=>setParams(previous=>applyResultsPeriods(previous,main,comparison));
   const clearComparison=()=>setParams(previous=>clearResultsComparison(previous));
   const owner=`${currentTenantSlug()??'default'}:${partnerId}`;
-  const [previousOptions,setPreviousOptions]=useState<{owner:string;programId:string;options:AnalyticsReport['options']}|null>(null);
-  useEffect(()=>{if(data&&!report.isPlaceholderData)setPreviousOptions({owner,programId,options:data.options});},[data,owner,programId,report.isPlaceholderData]);
-  const options=data?.options??(previousOptions?.owner===owner&&previousOptions.programId===programId?previousOptions.options:{scenarios:[],platforms:[],formats:[]});
+  const catalogScope=JSON.stringify([programId,[...scenarioIds].sort()]);
+  const [previousOptions,setPreviousOptions]=useState<{owner:string;programId:string;scope:string;options:AnalyticsReport['options']}|null>(null);
+  useEffect(()=>{if(data&&!report.isPlaceholderData)setPreviousOptions({owner,programId,scope:catalogScope,options:data.options});},[data,owner,programId,catalogScope,report.isPlaceholderData]);
+  const options=data?.options??(previousOptions?.owner===owner&&previousOptions.scope===catalogScope?previousOptions.options:{scenarios:previousOptions?.owner===owner&&previousOptions.programId===programId?previousOptions.options.scenarios:[],platforms:[],formats:[]});
   const update=(field:string,value:string)=>setParams(previous=>{const next=new URLSearchParams(previous);if(value)next.set(field,value);else next.delete(field);return next;});
   const chooseValues=(field:'scenarioId'|'platformId'|'formatId',values:string[])=>{
-    if(!adminContext&&field==='scenarioId'&&values.length===1)selection.rememberScenario(values[0]!);
+    if(!adminContext&&field==='scenarioId')selection.rememberScenario(values[0]??'all');
     setParams(previous=>{
       const next=new URLSearchParams(previous);next.delete(field);next.delete(`${field}s`);
+      if(field==='scenarioId'){
+        for(const key of ['platformId','platformIds','formatId','formatIds','materialId','sourceId','linkId'])next.delete(key);
+        if(!values.length)next.set('scenarioId','all');
+      }
       for(const value of values)next.append(`${field}s`,value);
       return next;
     });
   };
-  const reset=()=>{setSearch('');setExpanded(null);setParams(previous=>{const next=new URLSearchParams(previous);for(const field of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','linkId','sourceId','groupBy','chartBy','activity','includeEmpty','sort'])next.delete(field);return next;});};
-  const resetReport=()=>{const next=resetResultsFilters(params,!adminContext);setSearch('');setExpanded(null);setInspection(null);setExplorer(null);setDownloadError(null);if(payments.current)payments.current.open=false;setParams(next);if(next.toString()===params.toString())void report.refetch();};
+  const reset=()=>{if(!adminContext)selection.rememberScenario('all');setSearch('');setExpanded(null);setParams(previous=>{const next=new URLSearchParams(previous);for(const field of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','linkId','sourceId','groupBy','chartBy','activity','includeEmpty','sort'])next.delete(field);next.set('scenarioId','all');return next;});};
+  const resetReport=()=>{const next=resetResultsFilters(params,!adminContext);if(!adminContext)selection.rememberScenario('all');next.set('scenarioId','all');setSearch('');setExpanded(null);setInspection(null);setExplorer(null);setDownloadError(null);if(payments.current)payments.current.open=false;setParams(next);if(next.toString()===params.toString())void report.refetch();};
   const scopeLink=(id:string)=>{setExpanded(null);update('linkId',id);};
   const inspect=(selected:ChartInspection)=>{
     if(!data)return;
@@ -153,9 +160,9 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
     </div></header>
     <div className="results-filterbar results-surface" aria-label="Отбор результатов">
       {(adminContext||(programs.data?.programs?.length??0)>1)&&<label className="coach-field"><span>Программа</span><VisualSelect aria-label="Программа аналитики" value={programId} onChange={e=>{if(!adminContext)selection.selectProgram(e.target.value);setSearch('');setParams(previous=>{const next=new URLSearchParams(previous);next.set('programId',e.target.value);for(const key of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','linkId','sourceId'])next.delete(key);return next;});}}>{adminContext&&<option value="">Все программы</option>}{programs.data?.programs.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</VisualSelect></label>}
-      <ResultsMultiSelect key={`scenario-${programId}`} label="Сценарии" ariaLabel="Сценарий аналитики" allLabel="Все сценарии" options={[...options.scenarios,{id:'__none__',name:'Без сценария'}]} value={scenarioIds} onChange={values=>chooseValues('scenarioId',values)}/>
-      <ResultsMultiSelect key={`platform-${programId}`} label="Площадки" ariaLabel="Площадка аналитики" allLabel="Все площадки" options={[...options.platforms,{id:'__none__',name:'Площадка не указана'}]} value={platformIds} onChange={values=>chooseValues('platformId',values)}/>
-      <ResultsMultiSelect key={`format-${programId}`} label="Форматы" ariaLabel="Формат аналитики" allLabel="Все форматы" options={[...options.formats,{id:'__none__',name:'Формат не указан'}]} value={formatIds} onChange={values=>chooseValues('formatId',values)}/>
+      <label className="coach-field"><span>Сценарии</span><VisualSelect aria-label="Сценарий аналитики" value={scenarioIds[0]??''} onChange={event=>chooseValues('scenarioId',event.target.value?[event.target.value]:[])}><option value="">Все сценарии</option>{options.scenarios.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}<option value="__none__">Без сценария</option></VisualSelect></label>
+      <label className="coach-field"><span>Площадки</span><VisualSelect aria-label="Площадка аналитики" value={platformIds[0]??''} onChange={event=>chooseValues('platformId',event.target.value?[event.target.value]:[])}><option value="">Все площадки</option>{options.platforms.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}<option value="__none__">Площадка не указана</option></VisualSelect></label>
+      <label className="coach-field"><span>Контент</span><VisualSelect aria-label="Тип контента" value={formatIds[0]??''} onChange={event=>chooseValues('formatId',event.target.value?[event.target.value]:[])}><option value="">Тип контента</option>{options.formats.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}<option value="__none__">Тип контента не указан</option></VisualSelect></label>
     </div>
     <ErrorBanner error={report.error??programs.error??downloadError}/>
     {!customReady&&!data?<div className="results-empty results-surface" role="status">{from&&to?'Конец периода не может быть раньше начала.':'Выберите начало и конец периода.'}</div>:report.isLoading||programs.isLoading?<ResultsChartSkeleton/>:data?<div className="results-report" data-pending={report.isPlaceholderData||!customReady} aria-busy={report.isFetching}>

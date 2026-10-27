@@ -204,6 +204,7 @@ function MessageThread({ principal, partnerId, active = true, embedded = false, 
     if (!input || !active) return;
     input.style.height = '0px';
     input.style.height = `${Math.min(input.scrollHeight, 104)}px`;
+    input.style.overflowY = input.scrollHeight > 104 ? 'auto' : 'hidden';
     if (atBottom.current && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
   }, [draft, active]);
   useEffect(() => {
@@ -297,11 +298,11 @@ function MessageThread({ principal, partnerId, active = true, embedded = false, 
       }}><X size={12} /></button></span>)}</div>}
       <div className="message-input-row">
         <input type="file" ref={fileInput} multiple hidden aria-label="Выбрать файлы" onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; if (files.length) upload.mutate(files); }} />
-        <button type="button" className="message-attach" aria-label="Прикрепить файл" title="Прикрепить файл" disabled={!partner || upload.isPending || send.isPending} onClick={() => fileInput.current?.click()}><Paperclip size={19} /></button>
+        <button type="button" className="message-attach" aria-label="Прикрепить файл" title="Прикрепить файл" disabled={!partner || upload.isPending || send.isPending} onClick={() => fileInput.current?.click()}><Paperclip size={14} /></button>
         <textarea id={composerId} ref={composer} rows={1} maxLength={8000} enterKeyHint="send" aria-label={embedded ? 'Сообщение' : admin ? 'Ответ партнёру' : 'Сообщение в тех. поддержку'} placeholder="Сообщение" value={draft} disabled={!partner || send.isPending} onChange={event => setDraft(event.target.value)} onKeyDown={event => {
           if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); if (!event.repeat) submitMessage(); }
         }} />
-        <button type="submit" className="message-send" aria-label="Отправить" disabled={!canSend} aria-busy={send.isPending || upload.isPending}><SendHorizontal size={19} /></button>
+        {!embedded && <button type="submit" className="message-send" aria-label="Отправить" title="Отправить сообщение" disabled={!canSend} aria-busy={send.isPending || upload.isPending}><SendHorizontal size={16} /></button>}
       </div>
     </form>
   </section>;

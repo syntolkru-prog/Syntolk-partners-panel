@@ -26,9 +26,9 @@ export function applyResultsPeriods(params:URLSearchParams,primary:DateChoice,co
 export const resultsPeriods={today:'Сегодня','7d':'Последние 7 дней','30d':'Последние 30 дней',all:'Всё время',custom:'Свои даты'};
 export type ResultsPeriod=keyof typeof resultsPeriods;
 
-export function ResultsDatePicker({label,value,timezone='Europe/Moscow',onChange,onApply,comparison=false,onClear,active=true,caption,disabled=false,primaryValue,period,onPeriodChange,calendarLabel=label}:{
+export function ResultsDatePicker({label,value,timezone='Europe/Moscow',onChange,onApply,comparison=false,onClear,active=true,caption,disabled=false,primaryValue,period,onPeriodChange,calendarLabel=label,single=false,allowFuture=false,showQuickActions=false,triggerClassName='',maxRangeDays}:{
   label:string;value:DateChoice;timezone?:string;onChange:(range:DateChoice)=>void;comparison?:boolean;onClear?:()=>void;active?:boolean;caption?:string;disabled?:boolean;
-  period?:ResultsPeriod;onPeriodChange?:(period:ResultsPeriod)=>void;calendarLabel?:string;
+  period?:ResultsPeriod;onPeriodChange?:(period:ResultsPeriod)=>void;calendarLabel?:string;single?:boolean;allowFuture?:boolean;showQuickActions?:boolean;triggerClassName?:string;maxRangeDays?:number;
   /** When comparing, the main period can be edited in the same menu as the comparison period. */
   primaryValue?:DateChoice;onApply?:(primary:DateChoice|undefined,comparison:DateChoice)=>void;
 }) {
@@ -45,62 +45,65 @@ export function ResultsDatePicker({label,value,timezone='Europe/Moscow',onChange
   const close=()=>{setOpen(false);trigger.current?.focus({preventScroll:true});};
   useLayoutEffect(()=>{
     if(!open)return;
-    const place=()=>{const anchor=trigger.current?.getBoundingClientRect();if(!anchor)return;const width=Math.min(periodMenu?230:comparison?660:320,window.innerWidth-32),left=Math.max(16,Math.min(anchor.left,window.innerWidth-width-16));setPosition({width,left:left-anchor.left,maxHeight:Math.max(180,window.innerHeight-anchor.bottom-28)});};
+    const place=()=>{const anchor=trigger.current?.getBoundingClientRect();if(!anchor)return;const dialog=showQuickActions?trigger.current?.closest('dialog'):null,bounds=dialog?.getBoundingClientRect();const width=Math.min(periodMenu?230:single?250:comparison?660:320,window.innerWidth-32,bounds?bounds.width-24:Infinity),left=Math.max(bounds?bounds.left+12:16,Math.min(anchor.left,bounds?bounds.right-width-12:window.innerWidth-width-16));setPosition(bounds?{position:'fixed',width,left,top:anchor.bottom+9,maxHeight:Math.max(180,window.innerHeight-anchor.bottom-28)}:{width,left:left-anchor.left,maxHeight:Math.max(180,window.innerHeight-anchor.bottom-28)});};
     place();window.addEventListener('resize',place);return()=>window.removeEventListener('resize',place);
-  },[open,periodMenu,comparison]);
+  },[open,periodMenu,comparison,single,showQuickActions]);
   useEffect(()=>{
     if(!open)return;
     const outside=(event:PointerEvent)=>{if(!root.current?.contains(event.target as Node))setOpen(false);};
-    const input=periodMenu?root.current?.querySelector<HTMLElement>('[role=menuitemradio][aria-checked=true]'):[...(root.current?.querySelectorAll<HTMLInputElement>('input')??[])].find(element=>element.getAttribute('aria-label')===`${calendarLabel}: начало`);
+    const input=periodMenu?root.current?.querySelector<HTMLElement>('[role=menuitemradio][aria-checked=true]'):single?root.current?.querySelector<HTMLElement>(`[data-day="${focusDay}"]`):[...(root.current?.querySelectorAll<HTMLInputElement>('input')??[])].find(element=>element.getAttribute('aria-label')===`${calendarLabel}: начало`);
     input?.focus({preventScroll:true});
     document.addEventListener('pointerdown',outside);return()=>document.removeEventListener('pointerdown',outside);
-  },[open,periodMenu,calendarLabel]);
+  },[open,periodMenu,calendarLabel,single]);
   useEffect(()=>{if(open&&pendingFocus.current){root.current?.querySelector<HTMLButtonElement>(`[data-day="${focusDay}"]`)?.focus({preventScroll:true});pendingFocus.current=false;}},[focusDay,month,open]);
   const chooseDay=(day:string)=>{
     setFocusDay(day);
+    if(single){onChange({from:day,to:day});close();return;}
     if(!choosingEnd){setSelected({from:day,to:''});setChoosingEnd(true);}
     else{setSelected({from:day<selected.from?day:selected.from,to:day<selected.from?selected.from:day});setChoosingEnd(false);}
   };
   const keyboardDay=(event:React.KeyboardEvent,day:string)=>{
     const steps:Record<string,number>={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7};
     if(!(event.key in steps))return;event.preventDefault();
-    const next=shiftDay(day,steps[event.key]!);if(next>today)return;
+    const next=shiftDay(day,steps[event.key]!);if(!allowFuture&&next>today)return;
     if(next.slice(0,7)<month||next.slice(0,7)>shiftMonth(month,monthCount-1))setMonth(next.slice(0,7));
     pendingFocus.current=true;setFocusDay(next);
   };
-  const valid=validDateRange(draft,today)&&(!comparison||!primaryDraft||validDateRange(primaryDraft,today));
+  const lastAllowedDay=allowFuture?undefined:today;
+  const valid=validDateRange(draft,lastAllowedDay)&&(!maxRangeDays||Date.parse(draft.to)-Date.parse(draft.from)<maxRangeDays*86400000)&&(!comparison||!primaryDraft||validDateRange(primaryDraft,lastAllowedDay));
   const changeMonth=(value:string)=>{if(/^\d{4}-\d{2}$/.test(value)){setMonth(value);setFocusDay(`${value}-01`);}};
   const inputs=(range:DateChoice,slot:'primary'|'comparison',fieldLabel:string)=>{
     const change=(field:'from'|'to',value:string)=>{const changed={from:range.from,to:range.to,[field]:value};if(slot==='primary')setPrimaryDraft(changed);else setDraft(changed);setEditing(slot);setChoosingEnd(false);if(value)setMonth(anchorMonth(value));};
-    return <div className="results-calendar__inputs"><label>Начало<input type="date" aria-label={`${fieldLabel}: начало`} value={range.from} max={today} onFocus={()=>{if(comparison&&editing!==slot)edit(slot);}} onInput={event=>change('from',event.currentTarget.value)} onChange={event=>change('from',event.target.value)}/></label><span>—</span><label>Конец<input type="date" aria-label={`${fieldLabel}: конец`} value={range.to} max={today} onFocus={()=>{if(comparison&&editing!==slot)edit(slot);}} onInput={event=>change('to',event.currentTarget.value)} onChange={event=>change('to',event.target.value)}/></label></div>;
+    return <div className="results-calendar__inputs"><label>Начало<input type="date" aria-label={`${fieldLabel}: начало`} value={range.from} max={lastAllowedDay} onFocus={()=>{if(comparison&&editing!==slot)edit(slot);}} onInput={event=>change('from',event.currentTarget.value)} onChange={event=>change('from',event.target.value)}/></label><span>—</span><label>Конец<input type="date" aria-label={`${fieldLabel}: конец`} value={range.to} max={lastAllowedDay} onFocus={()=>{if(comparison&&editing!==slot)edit(slot);}} onInput={event=>change('to',event.currentTarget.value)} onChange={event=>change('to',event.target.value)}/></label></div>;
   };
   return <div ref={root} className={`results-date-picker${comparison&&active&&onClear?' results-date-picker--comparing':''}`}>
-    <VisualButton ref={trigger} type="button" className={`results-button${comparison&&active?' is-active':''}`} aria-label={label} aria-haspopup={open&&!periodMenu?'dialog':onPeriodChange?'menu':'dialog'} aria-expanded={open} aria-controls={id} onClick={()=>{
+    <VisualButton ref={trigger} type="button" className={`results-button${comparison&&active?' is-active':''}${triggerClassName?` ${triggerClassName}`:''}`} aria-label={label} aria-haspopup={open&&!periodMenu?'dialog':onPeriodChange?'menu':'dialog'} aria-expanded={open} aria-controls={id} onClick={()=>{
       if(open){close();return;}if(onPeriodChange){setPeriodMenu(true);setOpen(true);}else openCalendar();
     }} disabled={disabled}>{comparison?<GitCompareArrows size={15}/>:<CalendarDays size={15}/>}<span>{caption??(comparison?(active?`Сравнение: ${rangeCaption(value)}`:'Сравнить периоды'):period&&period!=='custom'?resultsPeriods[period]:rangeCaption(value))}</span>{onPeriodChange&&<ChevronDown size={13}/>}</VisualButton>
     {comparison&&active&&onClear&&<VisualButton type="button" className="results-button results-date-picker__clear" aria-label="Сбросить сравнение" title="Сбросить сравнение" onClick={()=>{onClear();close();}}><X size={14} aria-hidden="true"/><span>Сбросить</span></VisualButton>}
-    {open&&<div id={id} className={`results-calendar${periodMenu?' results-calendar--periods':!comparison?' results-calendar--compact':''}`} style={position} role={periodMenu?'menu':'dialog'} aria-label={periodMenu?label:calendarLabel} data-results-menu onKeyDown={event=>{
+    {open&&<div id={id} className={`results-calendar${periodMenu?' results-calendar--periods':!comparison?' results-calendar--compact':''}${single?' results-calendar--single':''}`} style={position} role={periodMenu?'menu':'dialog'} aria-label={periodMenu?label:calendarLabel} data-results-menu onKeyDown={event=>{
       if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}
       if(periodMenu&&['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const items=[...(root.current?.querySelectorAll<HTMLElement>('[role=menuitemradio]')??[])],index=items.indexOf(document.activeElement as HTMLElement);items[event.key==='Home'?0:event.key==='End'?items.length-1:(index+(event.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus();}
     }}>
       {periodMenu?Object.entries(resultsPeriods).map(([key,name])=><VisualButton key={key} type="button" role="menuitemradio" aria-checked={period===key} onClick={()=>{onPeriodChange?.(key as ResultsPeriod);if(key==='custom')openCalendar();else close();}}>{name}</VisualButton>):<>
       <div className="results-calendar__main">
-        <div className={comparison?'results-calendar__ranges':undefined}>
+        {!single&&<div className={comparison?'results-calendar__ranges':undefined}>
         {comparison&&primaryDraft&&<section className="results-calendar__period-block" data-active={editing==='primary'} onClick={()=>{if(editing!=='primary')edit('primary');}}><strong>Основной период</strong>{inputs(primaryDraft,'primary','Основной период')}</section>}
         <section className={comparison?'results-calendar__period-block':undefined} data-active={comparison?editing==='comparison':undefined} onClick={()=>{if(comparison&&editing!=='comparison')edit('comparison');}}>
           {comparison&&<strong>Период сравнения</strong>}
           {inputs(draft,'comparison',calendarLabel)}
         </section>
-        </div>
-        <div className="results-calendar__navigation"><VisualButton type="button" className="results-icon-button" aria-label="Предыдущий месяц" onClick={()=>setMonth(shiftMonth(month,-1))}><ChevronLeft size={15}/></VisualButton><input type="month" aria-label="Месяц календаря" value={month} max={today.slice(0,7)} onInput={event=>changeMonth(event.currentTarget.value)} onChange={event=>changeMonth(event.target.value)}/><VisualButton type="button" className="results-icon-button" aria-label="Следующий месяц" disabled={shiftMonth(month,monthCount-1)>=today.slice(0,7)} onClick={()=>setMonth(shiftMonth(month,1))}><ChevronRight size={15}/></VisualButton></div>
+        </div>}
+        <div className="results-calendar__navigation"><VisualButton type="button" className="results-icon-button" aria-label="Предыдущий месяц" onClick={()=>setMonth(shiftMonth(month,-1))}><ChevronLeft size={single?12:15}/></VisualButton>{single?<span>{new Date(`${month}-01T12:00:00Z`).toLocaleDateString('ru-RU',{month:'long',year:'numeric',timeZone:'UTC'})}</span>:<input type="month" aria-label="Месяц календаря" value={month} max={lastAllowedDay?.slice(0,7)} onInput={event=>changeMonth(event.currentTarget.value)} onChange={event=>changeMonth(event.target.value)}/>}<VisualButton type="button" className="results-icon-button" aria-label="Следующий месяц" disabled={!allowFuture&&shiftMonth(month,monthCount-1)>=today.slice(0,7)} onClick={()=>setMonth(shiftMonth(month,1))}><ChevronRight size={single?12:15}/></VisualButton></div>
         <div className="results-calendar__months">{Array.from({length:monthCount},(_,i)=>shiftMonth(month,i)).map(current=>{
           const first=new Date(`${current}-01T12:00:00Z`),offset=(first.getUTCDay()+6)%7,last=new Date(first);last.setUTCMonth(last.getUTCMonth()+1);last.setUTCDate(0);
           return <section key={current} aria-label={first.toLocaleDateString('ru-RU',{month:'long',year:'numeric',timeZone:'UTC'})}>{comparison&&<h3>{first.toLocaleDateString('ru-RU',{month:'long',year:'numeric',timeZone:'UTC'})}</h3>}<div className="results-calendar__days">{['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(day=><span key={day}>{day}</span>)}{Array.from({length:offset},(_,i)=><span key={`blank-${i}`}/>)}{Array.from({length:last.getUTCDate()},(_,i)=>{
             const day=`${current}-${String(i+1).padStart(2,'0')}`,edge=day===selected.from||day===selected.to,inRange=!!(selected.from&&selected.to&&day>=selected.from&&day<=selected.to);
-            return <VisualButton key={day} type="button" data-day={day} aria-label={labelDay(day)} aria-pressed={edge} aria-current={day===today?'date':undefined} disabled={day>today} tabIndex={day===focusDay?0:-1} className={`${edge?'is-edge':''}${inRange?' is-in-range':''}`} onClick={()=>chooseDay(day)} onKeyDown={event=>keyboardDay(event,day)}>{i+1}</VisualButton>;
+            return <VisualButton key={day} type="button" data-day={day} aria-label={labelDay(day)} aria-pressed={edge} aria-current={day===today?'date':undefined} disabled={!allowFuture&&day>today} tabIndex={day===focusDay?0:-1} className={`${edge?'is-edge':''}${inRange?' is-in-range':''}`} onClick={()=>chooseDay(day)} onKeyDown={event=>keyboardDay(event,day)}>{i+1}</VisualButton>;
           })}{Array.from({length:42-offset-last.getUTCDate()},(_,i)=><span key={`after-${i}`} aria-hidden="true"/>)}</div></section>;
         })}</div>
-        <footer className="results-calendar__footer">{comparison&&active&&onClear&&<VisualButton type="button" className="results-text-button results-calendar__clear" onClick={()=>{onClear();close();}}>Убрать сравнение</VisualButton>}<VisualButton type="button" className="results-button" onClick={close}>Отмена</VisualButton><VisualButton type="button" className="results-button is-active" disabled={!valid} onClick={()=>{if(onApply)onApply(comparison&&primaryDraft?primaryDraft:undefined,draft);else onChange(draft);close();}}>Применить</VisualButton></footer>
+        {single&&showQuickActions&&<div className="results-calendar__quick-actions"><VisualButton type="button" className="results-text-button" onClick={()=>{onChange({from:'',to:''});close();}}>Очистить</VisualButton><VisualButton type="button" className="results-text-button" onClick={()=>{onChange({from:today,to:today});close();}}>Сегодня</VisualButton></div>}
+        {!single&&<footer className="results-calendar__footer">{comparison&&active&&onClear&&<VisualButton type="button" className="results-text-button results-calendar__clear" onClick={()=>{onClear();close();}}>Убрать сравнение</VisualButton>}<VisualButton type="button" className="results-button" onClick={close}>Отмена</VisualButton><VisualButton type="button" className="results-button is-active" disabled={!valid} onClick={()=>{if(onApply)onApply(comparison&&primaryDraft?primaryDraft:undefined,draft);else onChange(draft);close();}}>Применить</VisualButton></footer>}
       </div>
       </>}
     </div>}

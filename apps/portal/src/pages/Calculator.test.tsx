@@ -60,6 +60,33 @@ afterEach(() => {
 });
 
 describe('calculator portal integration', () => {
+  it('keeps twelve monthly columns in the partner workspace even if an older draft stored a shorter horizon',()=>{
+    const key='fixed-twelve-months';
+    localStorage.setItem(key,JSON.stringify({version:1,settings:{forecastMonths:1}}));
+    render(<CalculatorPage principal={{role:'partner'}} scope={{key}} intro={<span>Параметры сценария</span>} currentValues={<span/>}/>);
+    initialize(false,false);
+    expect(document.getElementById('partner-forecast')!.dataset.fixedHorizon).toBe('12');
+    expect(document.querySelectorAll('[data-month]')).toHaveLength(12);
+    expect((document.getElementById('pf-month') as HTMLSelectElement).options).toHaveLength(12);
+    sendFacts(true);
+    expect(document.getElementById('partner-forecast')!.dataset.valuesMode).toBe('current');
+    expect((document.getElementById('pf-horizon') as HTMLSelectElement).options[0]!.value).toBe('today');
+    sendFacts(false);
+    expect(document.querySelectorAll('[data-month]')).toHaveLength(12);
+  });
+  it('gates content editing until a scenario is created while keeping the result controls available',()=>{
+    const {rerender}=render(<CalculatorPage principal={{role:'partner'}} intro={<span>Создать сценарий</span>} editable={false}/>);
+    initialize(false,false);
+    const controls=document.querySelector('.pf-controls')!;
+    expect(controls.hasAttribute('inert')).toBe(true);
+    expect(controls.getAttribute('aria-disabled')).toBe('true');
+    expect(document.querySelector('.pf-result')!.closest('[inert]')).toBeNull();
+    expect(document.getElementById('pf-reset')).toBeNull();
+    rerender(<CalculatorPage principal={{role:'partner'}} intro={<span>Черновик</span>} editable/>);
+    expect(document.querySelector('.pf-controls')).toBe(controls);
+    expect(controls.hasAttribute('inert')).toBe(false);
+    expect(controls.hasAttribute('aria-disabled')).toBe(false);
+  });
   it('emits the three displayed event counts, never revenue or repeat payments in their place',()=>{
     render(<CalculatorPage principal={{role:'partner'}}/>);
     const chart=vi.fn();document.getElementById('partner-forecast')!.addEventListener('syntolk-calculator-chart',event=>chart((event as CustomEvent).detail));
@@ -94,7 +121,7 @@ describe('calculator portal integration', () => {
     sendFacts(true);
     const add=screen.getByRole('button',{name:'Увеличить количество: Посты'}) as HTMLButtonElement;
     expect(add.disabled).toBe(true);
-    const fact=screen.getByRole('spinbutton',{name:'Посты: создано за период'}) as HTMLInputElement;
+    const fact=screen.getByRole('spinbutton',{name:'Посты: подготовлено за период'}) as HTMLInputElement;
     const value=fact.value;fireEvent.click(add);expect(fact.value).toBe(value);
     sendFacts(false);expect((screen.getByRole('button',{name:'Увеличить количество: Посты'}) as HTMLButtonElement).disabled).toBe(false);
   });
@@ -105,7 +132,7 @@ describe('calculator portal integration', () => {
     fireEvent.click(screen.getByRole('button',{name:'Текущие значения'}));sendFacts(true);
     expect(frame()).toEqual(before);expect(document.getElementById('pf-current-values')).toBeNull();expect(document.getElementById('pf-current-controls')).toBeNull();
     expect(document.getElementById('pf-income')!.closest<HTMLElement>('.pf-income-top')!.hidden).toBe(false);expect(income()).toBe('19407,00₽');
-    expect((screen.getByLabelText('Посты: создано за период') as HTMLInputElement).value).toBe('8');expect((screen.getByLabelText('Посты: создано за период') as HTMLInputElement).readOnly).toBe(true);
+    expect((screen.getByLabelText('Посты: подготовлено за период') as HTMLInputElement).value).toBe('8');expect((screen.getByLabelText('Посты: подготовлено за период') as HTMLInputElement).readOnly).toBe(true);
     expect(screen.getByRole('button',{name:'Текущие значения'}).getAttribute('aria-pressed')).toBe('true');expect(root.dataset.currentSettings).toBe(settings);
     expect(document.getElementById('pf-panel-content')!.hidden).toBe(false);expect(document.getElementById('pf-work')!.hidden).toBe(false);
     fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));expect(document.getElementById('pf-panel-platforms')!.hidden).toBe(false);
@@ -137,7 +164,7 @@ describe('calculator portal integration', () => {
     expect(income()).toBe('—');expect((document.getElementById('pf-frequency-post') as HTMLInputElement).value).toBe('');
     const custom={...actualPost,id:'custom-format',name:'Мой новый контент'};
     sendFacts(true,{...actualReport,breakdown:{formats:[actualPost,custom],platforms:[actualDzen,{...actualDzen,id:'custom-place',name:'Моя площадка',formats:[custom]}]}});
-    expect((screen.getByLabelText('Мой новый контент: создано за период') as HTMLInputElement).value).toBe('8');fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));expect(screen.getByText('Моя площадка')).toBeTruthy();
+    expect((screen.getByLabelText('Мой новый контент: подготовлено за период') as HTMLInputElement).value).toBe('8');fireEvent.click(screen.getByRole('tab',{name:'Площадки'}));expect(screen.getByText('Моя площадка')).toBeTruthy();
     expect(root.dataset.currentSettings).toBe(settings);sendFacts(false);expect(document.getElementById('pf-frequency-custom-format')).toBeNull();expect(root.dataset.currentSettings).toBe(settings);
   });
   it('keeps the administrator three-scenario calculator unchanged',()=>{
@@ -238,6 +265,29 @@ describe('calculator portal integration', () => {
     expect(document.querySelector('#pf-chart .pf-active-month')?.getAttribute('data-month')).toBe('3');
     expect(income()).toBe('0₽');
     expect(screen.getByRole('button',{name:'Создать сценарий'})).toBeTruthy();
+  });
+
+  it('starts a separate scenario with default formats and assumptions without overwriting the saved scenario',()=>{
+    const key='saved-custom-scenario';
+    render(<CalculatorPage principal={{role:'partner'}} scope={{key}}/>);initialize();
+    const root=document.getElementById('partner-forecast')!;
+    const settings=JSON.parse(root.dataset.currentSettings!);
+    settings.removedFormats=['post','short','long','article','circle'];
+    settings.formatOverrides={post:{name:'Переименованный пост'}};
+    settings.customFormats=[{id:'format-mine',name:'Мой контент',base:'post'}];
+    settings.frequency['format-mine']=4;settings.registration=99;
+    settings.removedChannels=['youtube'];settings.customChannels=[{id:'custom-mine',name:'Моя площадка',formats:['format-mine'],views:200,ctr:1}];
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{settings}}));
+    const saved=localStorage.getItem(key);
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-reset',{detail:{persist:false,fresh:true}}));
+    const fresh=JSON.parse(root.dataset.currentSettings!);
+    expect(fresh.customFormats).toEqual([]);expect(fresh.removedFormats).toEqual([]);expect(fresh.formatOverrides).toEqual({});
+    expect(fresh.customChannels).toEqual([]);expect(fresh.removedChannels).toEqual([]);expect(fresh.registration).toBe(18);
+    expect(Object.values(fresh.frequency).every(n=>n===0)).toBe(true);
+    for(const name of ['Посты','Короткие видео','Длинные видео','Статьи','Кружочки'])expect(screen.getByLabelText(`${name}: оригиналов в неделю`)).toBeTruthy();
+    expect(screen.queryByText('Мой контент')).toBeNull();expect(localStorage.getItem(key)).toBe(saved);
+    cleanup();render(<CalculatorPage principal={{role:'partner'}} scope={{key}}/>);initialize(false,false);
+    expect(JSON.parse(document.getElementById('partner-forecast')!.dataset.currentSettings!).customFormats[0].name).toBe('Мой контент');
   });
 
   it('clears only task-driving inputs and does not resurrect them from a saved snapshot on reload',()=>{

@@ -4,7 +4,7 @@ import { TABLES, type ClickRow } from '@openpartner/db';
 import { grantScope, requireAuth, requirePartnerOrAdmin } from '../auth.js';
 import { tenantOf } from '../tenancy.js';
 import { parseUserAgent } from '../ua-parse.js';
-import { analyticsDetailsQuerySchema, analyticsFiltersFromQuery, partnerAnalytics, partnerAnalyticsDetails, partnerAnalyticsOverview } from '../partner-analytics.js';
+import { analyticsDetailsQuerySchema, analyticsRegistrationsQuerySchema, analyticsFiltersFromQuery, partnerAnalytics, partnerAnalyticsDetails, partnerAnalyticsOverview,partnerAnalyticsRegistrations } from '../partner-analytics.js';
 import {calculatorCurrentValues} from '../calculator-current-values.js';
 import {assertProgram} from '../coach/policy.js';
 import {CoachError} from '../coach/schemas.js';
@@ -46,6 +46,16 @@ dashboardRouter.get('/partners/:id/analytics', requireAuth, grantScope('partners
     if (error instanceof z.ZodError) return res.status(400).json({ error: 'invalid_query', detail: error.flatten() });
     throw error;
   }
+});
+
+dashboardRouter.get('/partners/:id/analytics/registrations',requireAuth,grantScope('partners:read'),requirePartnerOrAdmin('id'),async(req,res)=>{
+  const {db,tenantId}=tenantOf(req);
+  try{
+    const profile=await db('CoachProfile').where({tenantId,partnerId:req.params.id!}).first();
+    const filters=analyticsFiltersFromQuery(req.query,profile?.data?.timezone??'Europe/Moscow');
+    const {cursor,limit}=analyticsRegistrationsQuerySchema.parse(req.query);
+    res.json(await partnerAnalyticsRegistrations(db,tenantId,req.params.id!,filters,cursor,limit));
+  }catch(error){if(error instanceof z.ZodError)return res.status(400).json({error:'invalid_query',detail:error.flatten()});throw error;}
 });
 
 dashboardRouter.get('/partners/:id/analytics/details', requireAuth, grantScope('partners:read'), requirePartnerOrAdmin('id'), async (req, res) => {

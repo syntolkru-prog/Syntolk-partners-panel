@@ -7,7 +7,7 @@ import '../calculator/portal-theme.css';
 import '../calculator/blueprint.css';
 import { CalculatorCharts } from '../components/tremor/CalculatorCharts.js';
 
-const CALCULATOR_VERSION = 'calculator-three-metrics-v9-2026-10-22';
+const CALCULATOR_VERSION = 'calculator-chart-colors-v13-2026-10-26';
 let calculatorInstance = 0;
 
 // Share the portal's tokens, including tenant-specific accent colors.
@@ -35,15 +35,15 @@ const chartIcon = (paths:string) => `<svg width="18" height="18" viewBox="0 0 24
 const contentIcon=chartIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>');
 const barsIcon=chartIcon('<path d="M4 14h4v7H4zM10 8h4v13h-4zM16 3h4v18h-4z"/>');
 const horizonMarkup=`<label class="pf-field pf-horizon">Период прогноза<select id="pf-horizon">${Array.from({length:12},(_,i)=>`<option value="${i+1}"${i===11?' selected':''}>${i+1} мес.</option>`).join('')}</select></label>`;
-const calculatorMarkup = (withCurrentValues:boolean,partner:boolean) => String.raw`
+const calculatorMarkup = (withCurrentValues:boolean,partner:boolean,workspace=false) => String.raw`
   <section class="pf-section" id="rewards" aria-label="Сценарный расчёт партнёрского дохода">
     <div class="pf-container">
-      <div class="pf-app" id="partner-forecast" data-chart-kind="${partner?'funnel':'income'}">
+      <div class="pf-app" id="partner-forecast" data-chart-kind="${partner?'funnel':'income'}"${partner&&workspace?' data-fixed-horizon="12"':''}>
         ${partner?'':'<div class="pf-toolbar"><div class="pf-toolbar-actions"><button class="pf-text-button" type="button" id="pf-reset" title="Обнулить контент и выбор площадок, сохранив тарифы, конверсии и хвосты">Создать сценарий</button></div></div>'}
         <div class="pf-mode-bar"><button class="pf-mode-toggle" type="button" id="pf-mode-toggle" aria-expanded="false" aria-controls="pf-tabs pf-more-settings pf-result-analysis">Открыть полный калькулятор <span aria-hidden="true">↓</span></button></div>
         <div class="pf-workspace">
           <div class="pf-controls">
-            ${partner?`<div class="pf-toolbar"><h2 class="pf-blueprint-heading"><span class="pf-heading-icon">${contentIcon}</span>План контента</h2><div class="pf-toolbar-actions"><button class="pf-text-button" type="button" id="pf-reset" title="Обнулить контент и выбор площадок, сохранив тарифы, конверсии и хвосты">Создать сценарий</button></div></div>`:''}
+            ${partner?`<div class="pf-toolbar"><h2 class="pf-blueprint-heading"><span class="pf-heading-icon">${contentIcon}</span>План контента</h2>${workspace?'':'<div class="pf-toolbar-actions"><button class="pf-text-button" type="button" id="pf-reset" title="Обнулить контент и выбор площадок, сохранив тарифы, конверсии и хвосты">Создать сценарий</button></div>'}</div>`:''}
             <div class="pf-tabs pf-full-only" id="pf-tabs" role="tablist" aria-label="Настройки партнёрского сценария">
               <button class="pf-tab" type="button" role="tab" id="pf-tab-content" data-pf-tab="content" aria-controls="pf-panel-content" aria-selected="true">Контент</button>
               <button class="pf-tab" type="button" role="tab" id="pf-tab-platforms" data-pf-tab="platforms" aria-controls="pf-panel-platforms" aria-selected="false" tabindex="-1">Площадки</button>
@@ -65,11 +65,11 @@ const calculatorMarkup = (withCurrentValues:boolean,partner:boolean) => String.r
             <p class="pf-scenario-note pf-full-only" id="pf-scenario-note"></p>
             ${partner?'<div class="pf-result-metrics">':horizonMarkup}
             <div class="pf-income-top"><div><p id="pf-income-label">Начисления за 3-й месяц</p><output id="pf-income" aria-labelledby="pf-income-label">—</output></div><label class="pf-month-select" for="pf-month">Месяц<select id="pf-month"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select></label></div>
-            <p class="pf-income-range" id="pf-income-range"></p>
+            <p class="pf-income-range" id="pf-income-range" hidden></p>
             <div class="pf-year-totals"><div><span id="pf-total-label">Всего за 12 месяцев</span><strong id="pf-year">—</strong></div><div><span>Накоплено к выбранному месяцу</span><strong id="pf-cumulative">—</strong></div></div>
             ${partner?horizonMarkup+'</div>':''}
             <div class="pf-result-analysis pf-full-only" id="pf-result-analysis">
-              <div class="pf-chart-caption"><span>Начисления по месяцам</span><span id="pf-chart-hint">Нажмите на столбец</span></div><div class="pf-chart" id="pf-chart" role="group" aria-label="Начисления за каждый из 12 месяцев"></div>
+              <div class="pf-chart-caption"${partner?' hidden':''}><span>${partner?'':'Начисления по месяцам'}</span><span id="pf-chart-hint">${partner?'':'Нажмите на столбец'}</span></div><div class="pf-chart" id="pf-chart" role="group" aria-label="Начисления за каждый из 12 месяцев"></div>
               <div class="pf-funnel">${partner?'':'<div><strong id="pf-views">—</strong><span>Просмотры</span></div>'}<div>${partner?chartIcon('<path d="m4 3 7 18 3-7 7-3Z"/>'):''}<strong id="pf-clicks">—</strong><span>Переходы</span></div><div>${partner?chartIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'):''}<strong id="pf-signups">—</strong><span>Регистрации</span></div><div>${partner?chartIcon('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/>'):''}<strong id="pf-paid">—</strong><span>Первые оплаты</span></div></div>
               ${partner?'<div class="pf-payment-summary">':''}<div class="pf-repeat-bar" id="pf-repeat-bar" aria-hidden="true"${partner?' hidden':''}><span></span></div><div class="pf-repeat-labels"><div>Первые оплаты<strong id="pf-new-income">—</strong></div><div>Повторные оплаты<strong id="pf-repeat-income">—</strong></div></div>${partner?'</div>':''}
             </div>
@@ -93,18 +93,25 @@ function loadScript(src: string): Promise<HTMLScriptElement> {
   });
 }
 
-export function CalculatorPage({principal,scope,connection,actions,intro,planning,onCreateScenario,currentValues,onCurrentValuesChange}: { principal: Principal; scope?: {key:string;settings?:Record<string,unknown>}; connection?:ReactNode;actions?:ReactNode;intro?:ReactNode;planning?:ReactNode;onCreateScenario?: (root: HTMLElement) => void;currentValues?:ReactNode|((root:HTMLElement|null)=>ReactNode);onCurrentValuesChange?:(active:boolean)=>void }) {
+export function CalculatorPage({principal,scope,connection,actions,intro,scenarioPicker,scenarioCreation,editable=true,onEdit,planning,onCreateScenario,currentValues,onCurrentValuesChange}: { principal: Principal; scope?: {key:string;settings?:Record<string,unknown>}; connection?:ReactNode;actions?:ReactNode;intro?:ReactNode;scenarioPicker?:ReactNode;scenarioCreation?:ReactNode;editable?:boolean;onEdit?:()=>void;planning?:ReactNode;onCreateScenario?: (root: HTMLElement) => void;currentValues?:ReactNode|((root:HTMLElement|null)=>ReactNode);onCurrentValuesChange?:(active:boolean)=>void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const createScenarioRef = useRef(onCreateScenario);
   const [error, setError] = useState<Error | null>(null);
   const withCurrentValues=principal.role==='partner'&&currentValues!==undefined;
   const [calculatorRoot,setCalculatorRoot]=useState<HTMLElement|null>(null);
   createScenarioRef.current = onCreateScenario;
+  useEffect(()=>{
+    const controls=rootRef.current?.querySelector<HTMLElement>('.pf-controls');
+    if(!controls)return;
+    if(editable){controls.removeAttribute('inert');controls.removeAttribute('aria-disabled');}
+    else{controls.setAttribute('inert','');controls.setAttribute('aria-disabled','true');}
+  },[editable,scope?.key]);
 
   useEffect(() => {
     const root = rootRef.current?.querySelector<HTMLElement>('#partner-forecast');
     if (!root) return;
     const instance = ++calculatorInstance;
+    root.dataset.calculatorInstance=String(instance);
     root.dataset.storageKey = scope?.key??'syntolk-partner-forecast-v1';
     setCalculatorRoot(root);
     if(scope?.settings)root.dataset.initialState=JSON.stringify({version:1,settings:scope.settings});
@@ -130,24 +137,37 @@ export function CalculatorPage({principal,scope,connection,actions,intro,plannin
       });
     return () => {
       active = false;
+      delete root.dataset.calculatorInstance;
       root.removeEventListener('syntolk-calculator-create-scenario',handleCreateScenario);
       scripts.forEach((script) => script.remove());
     };
-  // Settings are a seed only. Do not overwrite an edited draft on refetch.
+  // The imperative calculator owns this DOM for its whole mounted lifetime.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope?.key]);
+  }, []);
+
+  useEffect(()=>{
+    const root=rootRef.current?.querySelector<HTMLElement>('#partner-forecast');
+    if(!root)return;
+    root.dataset.storageKey=scope?.key??'syntolk-partner-forecast-v1';
+    if(scope?.settings)root.dataset.initialState=JSON.stringify({version:1,settings:scope.settings});
+    else delete root.dataset.initialState;
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{storageKey:root.dataset.storageKey,settings:scope?.settings}}));
+  // Saved settings seed a different scenario; refetch must not erase edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[scope?.key]);
 
   return (
-    <div className={`calculator-page${principal.role==='partner'?' calculator-blueprint':''}`} style={calculatorTheme}>
+    <div className={`calculator-page${principal.role==='partner'?' calculator-blueprint':''}${!editable?' calculator-page--inactive':''}`} style={calculatorTheme}>
       <Page title="Калькулятор" subtitle="Сценарий — ваш план публикаций. Укажите количество материалов и выберите площадки: появится прогноз дохода, после сохранения — задачи в календаре." actions={actions}>
         <ErrorBanner error={error} />
-      {principal.role==='partner'&&(intro||planning)?<section className="calculator-setup" aria-label="Параметры сценария"><div className="calculator-setup-scenario"><h2>Параметры сценария</h2>{intro}</div>{planning}</section>:<>{intro}{planning}</>}
+      {principal.role==='partner'&&(intro||planning)?<section className={`calculator-setup${scenarioPicker?' calculator-setup--library':''}`} data-scenario-active={editable} aria-label="Параметры сценария"><div className="calculator-setup-scenario"><h2>Создать сценарий</h2>{intro}</div>{scenarioPicker&&<div className="calculator-setup-library"><h2>Выбрать сценарий</h2>{scenarioPicker}</div>}{planning}{scenarioCreation&&<div className="calculator-setup-create">{scenarioCreation}</div>}</section>:<>{intro}{planning}</>}
         <div ref={rootRef} onClickCapture={event=>{
+          if((event.target as Element).closest('.pf-controls'))onEdit?.();
           if(!withCurrentValues)return;
           const button=(event.target as Element).closest('button');
           if(button?.hasAttribute('data-current-values'))onCurrentValuesChange?.(true);
           else if(button?.hasAttribute('data-scenario'))onCurrentValuesChange?.(false);
-        }} dangerouslySetInnerHTML={{ __html: calculatorMarkup(withCurrentValues,principal.role==='partner') }} />
+        }} onInputCapture={()=>onEdit?.()} dangerouslySetInnerHTML={{ __html: calculatorMarkup(withCurrentValues,principal.role==='partner',!!intro) }} />
         {withCurrentValues&&(typeof currentValues==='function'?currentValues(calculatorRoot):currentValues)}
         <CalculatorCharts root={calculatorRoot}/>
         {connection}

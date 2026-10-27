@@ -1,0 +1,9 @@
+import {describe,expect,it} from 'vitest';
+import {calendarRange,calendarSummary,filterCalendar,moveCalendar,weekStart,type CalendarMaterial} from './work-calendar-model.js';
+const material=(patch:Partial<CalendarMaterial>={}):CalendarMaterial=>({id:'post',title:'Мой ролик',formatId:'short',formatName:'Короткое видео',scenarioId:null,scheduledDay:'2026-10-23',platforms:[{id:'vk',name:'ВКонтакте'}],revision:1,ready:false,hasContent:false,fileCount:0,status:'draft',publishedPlacements:0,totalPlacements:2,...patch});
+describe('calendar dates and honest counters',()=>{
+  it('uses Monday-first complete weeks including adjacent-month days',()=>{const month=calendarRange('2026-11-15','month');expect(month.start).toBe('2026-11-01');expect(month.end).toBe('2026-11-30');expect(month.days[0]).toBe('2026-10-26');expect(month.days.at(-1)).toBe('2026-12-06');expect(month.days).toHaveLength(42);});
+  it('handles a leap February, year boundary and a whole week',()=>{expect(calendarRange('2028-02-01','month').end).toBe('2028-02-29');expect(moveCalendar('2026-12-31','month',1)).toBe('2027-01-01');expect(moveCalendar('2026-03-31','month',-1)).toBe('2026-02-01');expect(weekStart('2026-11-01')).toBe('2026-10-26');expect(calendarRange('2026-11-01','week').days).toHaveLength(7);});
+  it('does not count material readiness as published placements or duplicate originals',()=>{expect(calendarSummary([material({ready:true}),material({id:'other',totalPlacements:3,publishedPlacements:1,status:'partial'})])).toEqual({materials:2,ready:1,placements:5,published:1,percent:20});expect(calendarSummary([]).percent).toBe(0);});
+  it('filters by type, status and platform as well as title',()=>{const data=[material(),material({id:'2',formatId:'post',title:'Текст',status:'waiting'})];expect(filterCalendar(data,'ВКОНТАКТЕ','','')).toHaveLength(2);expect(filterCalendar(data,'','waiting','post')).toHaveLength(1);expect(filterCalendar(data,'ролик','','post')).toHaveLength(0);});
+});

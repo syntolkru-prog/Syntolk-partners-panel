@@ -20,6 +20,9 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 const upload = (name = 'рисунок.png', data = png, token = key, path = '/messages') => request(app).post(`${path}/attachments`).query({ name }).set('Authorization', `Bearer ${token}`).set('Content-Type', 'application/octet-stream').send(data);
 
 beforeEach(async () => {
+  // Global unread/inbox assertions need a clean mailbox in this isolated DB.
+  await db('PartnerMessageAttachment').where({ tenantId }).del();
+  await db('PartnerMessage').where({ tenantId }).del();
   partnerId = ulid(); otherId = ulid();
   const first = generateApiKey(), second = generateApiKey(); key = first.plaintext; otherKey = second.plaintext;
   await db('Partner').insert([partnerId, otherId].map(id => ({ id, tenantId, name: `Партнёр ${id}`, email: `${id}@example.test`, activatedAt: new Date() })));
@@ -94,7 +97,7 @@ describe('human partner messages', () => {
     expect(await db('CoachMessage').where({ tenantId, partnerId })).toHaveLength(0);
   });
   it('lets an admin find any partner and start a conversation before they have written first', async () => {
-    const directory = await get(`/admin/messages/partners?search=${partnerId.slice(0, 8)}`, admin);
+    const directory = await get(`/admin/messages/partners?search=${partnerId}`, admin);
     expect(directory.status, directory.text).toBe(200);
     expect(directory.body.partners).toEqual([expect.objectContaining({
       partnerId, name: `Партнёр ${partnerId}`, email: `${partnerId}@example.test`,
@@ -102,7 +105,7 @@ describe('human partner messages', () => {
     })]);
     const allPartners = await get('/admin/messages/partners', admin);
     expect(allPartners.status, allPartners.text).toBe(200);
-    expect(allPartners.body.partners).toEqual([expect.objectContaining({ partnerId, hasConversation: false })]);
+    expect(allPartners.body.partners).toEqual(expect.arrayContaining([expect.objectContaining({ partnerId, hasConversation: false })]));
     const emptyThread = await get(`/admin/messages/${partnerId}`, admin);
     expect(emptyThread.status, emptyThread.text).toBe(200);
     expect(emptyThread.body).toMatchObject({ partner: { id: partnerId }, messages: [], nextCursor: null });

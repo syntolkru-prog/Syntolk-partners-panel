@@ -16,13 +16,14 @@ export async function calculatorCurrentValues(db:Knex,tenantId:string,partnerId:
     if(filters.scenarioId)filters.scenarioId==='__none__'?query.whereNull(`${alias}.scenarioId`):query.where(`${alias}.scenarioId`,filters.scenarioId);
     return query;
   };
-  const [report,metrics,sources,completed]=await Promise.all([
+  const [report,metrics,sources,completed,readyMaterials]=await Promise.all([
     partnerAnalyticsOverview(db,tenantId,partnerId,{...filters,until,includeSeries:'true'},false),
     calculatorAnalyticsBreakdown(db,tenantId,partnerId,{...filters,until}),
     scope(db('PartnerLinkSource as p'),'p').select('p.id','p.materialId','p.platformId','p.platformName','p.formatId','p.formatName','p.publishedAt').orderBy('p.createdAt','desc'),
     scope(db('PartnerMaterial as m'),'m').join('CoachTask as t',function(){
       this.on(db.raw('COALESCE(t.data->>\'materialId\',t.id) = m.id')).andOn('t.tenantId','=','m.tenantId').andOn('t.partnerId','=','m.partnerId').andOn('t.programId','=','m.programId');
     }).where('t.status','completed').select('m.id','m.formatId','m.formatName','t.data','t.updatedAt'),
+    scope(db('PartnerMaterial as m'),'m').whereNotNull('m.preparedAt').select('m.id','m.formatId','m.formatName','m.preparedAt'),
   ]);
   const total=work(),formats=new Map<string,Work>(),platforms=new Map<string,Work>(),pairs=new Map<string,Work>();
   const formatNames=new Map<string,string>(),platformNames=new Map<string,string>();
@@ -48,6 +49,10 @@ export async function calculatorCurrentValues(db:Knex,tenantId:string,partnerId:
   for(const row of completed){
     const format=key(row.formatId);if(!formatNames.has(format))formatNames.set(format,row.formatName||'Формат не указан');
     record(String(row.id),row.data?.completion?.at??row.updatedAt,format);
+  }
+  for(const row of readyMaterials){
+    const format=key(row.formatId);if(!formatNames.has(format))formatNames.set(format,row.formatName||'Формат не указан');
+    record(String(row.id),row.preparedAt,format);
   }
   for(const [id,item]of prepared)if(item.at>=since.getTime()){total.prepared.add(id);get(formats,item.format).prepared.add(id);}
   const empty={counts:{clicks:0,registrations:0,payingCustomers:0,paymentCount:0,firstPaymentCount:0,repeatPaymentCount:0},amountsMinor:{observedPayments:0,netAccrued:0},conversions:{clickToRegistration:null,registrationToPayment:null,clickToPayment:null,cohortRegistrations:0,cohortPaidRegistrations:0}};

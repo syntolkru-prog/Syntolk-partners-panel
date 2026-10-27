@@ -235,11 +235,14 @@ async function aggregates(s: Scope, group?: Group) {
 
 const emptyBalances = () => ({ accrued: 0, available: 0, pending: 0, paid: 0, debt: 0, netPaidEarnings: 0, total: 0 });
 async function globalBalances(s: Scope) {
-  const [rows, partnerRows] = await Promise.all([
+  const [rows, partnerRows, paidInPeriod] = await Promise.all([
     scopePartners(s.db('Commission as c').leftJoin('Payout as p', 'p.id', 'c.payoutId')
       .where({ 'c.tenantId': s.tenantId, 'c.currency': s.filters.currency ?? 'RUB' }), s, 'c.partnerId')
       .select('c.id', 'c.partnerId', 'c.amount', 'c.status', 'c.payoutId', 'c.accruedAt', 'p.status as payoutStatus') as PromiseLike<Array<{id:string;partnerId:string;amount:string;status:string;payoutId:string|null;accruedAt:Date;payoutStatus:string|null}>>,
     partners(s).select('partner.id') as PromiseLike<Array<{ id: string }>>,
+    scopePartners(s.db('Payout as p').where({ 'p.tenantId':s.tenantId, 'p.currency':s.filters.currency??'RUB', 'p.status':'paid', 'p.method':'manual' }),s,'p.partnerId')
+      .where('p.completedAt','>=',s.since).where('p.completedAt','<',s.until)
+      .sum({amount:'p.amount'}).first() as PromiseLike<{amount:string|null}>,
   ]);
   const adjustments = await adjustmentTotalsByCommission(s.db, rows.map(row => row.id));
   const groups = partnerRows.map(row => ({ tenantId: s.tenantId, partnerId: row.id, currency: s.filters.currency ?? 'RUB' }));
@@ -250,6 +253,7 @@ async function globalBalances(s: Scope) {
     return [group.partnerId, { balances: { ...emptyBalances(), paid: cash.cashPaid, debt: cash.debt, netPaidEarnings: cash.netPaidEarnings }, commissionByStatus: {} as Record<string, number> }];
   }));
   const commissionByStatus: Record<string, number> = {};
+  const periodBalances={total:0,available:0,pending:0,paid:Number(paidInPeriod?.amount??0)};
   for (const row of rows) {
     const ledger = byPartner.get(row.partnerId);
     if (!ledger) continue;
@@ -259,6 +263,11 @@ async function globalBalances(s: Scope) {
     if (new Date(row.accruedAt) >= s.since && new Date(row.accruedAt) < s.until) {
       commissionByStatus[status] = (commissionByStatus[status] ?? 0) + amount;
       ledger.commissionByStatus[status] = (ledger.commissionByStatus[status] ?? 0) + amount;
+      if(status!=='reversed'){
+        periodBalances.total+=amount;
+        if(status==='approved')periodBalances.available+=payable.get(row.id)??0;
+        if(status==='pending')periodBalances.pending+=payable.get(row.id)??0;
+      }
     }
     if (status === 'reversed') continue;
     if (status === 'accrued') balances.accrued += amount;
@@ -276,7 +285,14 @@ async function globalBalances(s: Scope) {
   }
   for (const key of Object.keys(balances) as Array<keyof typeof balances>) balances[key] = Math.round(balances[key]*100)/100;
   for (const key of Object.keys(commissionByStatus)) commissionByStatus[key] = Math.round(commissionByStatus[key]!*100)/100;
-  return { balances, commissionByStatus, byPartner,
+  for(const key of Object.keys(periodBalances) as Array<keyof typeof periodBalances>){
+    periodBalances[key]=s.filters.period==='all'?balances[key]:Math.round(periodBalances[key]*100)/100;
+  }
+  return { balances, periodBalances, commissionByStatus, byPartner,
+    periodBalanceBasis:{since:s.since,until:s.until,asOf:s.asOf,
+      total:'selected_accrual_period_current_net_earnings' as const,
+      availableAndPending:'current_payable_of_selected_accrual_period_after_lifetime_debt' as const,
+      paid:'manual_payout_cash_by_completion_date' as const},
     balanceBasis: { scope: s.partnerIds?.length === 1 ? 'lifetime_partner_currency' as const : 'lifetime_selected_partners_currency' as const, asOf: s.asOf, ignoresActivityFilters: true,
       paid: 'completed_manual_payout_cash' as const, availableAndPending: 'current_payable_after_debt' as const,
       total: 'current_net_earnings_before_debt' as const },
@@ -359,7 +375,7 @@ export async function partnerAnalyticsOverview(db:Knex,tenantId:string,partnerId
   const s=reportScope(db,tenantId,partnerId,filters);
   const [totals,series,comparison]=await Promise.all([aggregates(s),filters.includeSeries==='true'?timeSeries(s):undefined,
     filters.includeComparison==='true'?comparisonPeriod(s):undefined]);
-  const options=withOptions?await analyticsSourceOptions(db,tenantId,s.partnerIds,filters.programId):{platforms:[],formats:[]};
+  const options=withOptions?await analyticsSourceOptions(db,tenantId,s.partnerIds,filters.programId,selectedIds(filters,'scenarioId')):{platforms:[],formats:[]};
   const ids=[...new Set([...(s.partnerIds??[]),...(filters.seriesBy==='partner'?series?.groups?.map(g=>g.id)??[]:[])])];
   const selectedPartners=ids.length?await db('Partner').where({tenantId}).whereIn('id',ids).select('id','name'):[];
   const dimension=filters.seriesBy;
@@ -475,6 +491,39 @@ async function conversionFunnel(s: Scope) {
 
 const historyCursor = z.object({ ts: z.string().datetime(), id: z.string().min(1).max(70) });
 export const analyticsDetailsQuerySchema = z.object({ cursor: z.string().max(300).optional(), includeRegistrations: z.enum(['true', 'false']).optional() });
+export const analyticsRegistrationsQuerySchema=z.object({cursor:z.string().max(300).optional(),limit:z.coerce.number().int().min(1).max(100).default(50)});
+const referrerName=(value:unknown)=>{try{return new URL(String(value)).hostname||'Источник не передан';}catch{return 'Источник не передан';}};
+
+async function registrationPage(s:Scope,limit:number,rawCursor?:string){
+  const {db,since,until}=s;
+  let cursor:z.infer<typeof historyCursor>|undefined;
+  if(rawCursor){try{cursor=historyCursor.parse(JSON.parse(rawCursor));}catch{throw new z.ZodError([{code:'custom',path:['cursor'],message:'Некорректный курсор регистраций.'}]);}}
+  // The same unique signup users and exclusions as the registration KPI.
+  const signups=attributions(s).where('e.type','signup').where('e.ts','>=',since).where('e.ts','<',until)
+    .distinctOn('e.userId').orderBy('e.userId').orderBy('e.ts').orderBy('e.id').select('e.id','e.userId','e.ts');
+  const base=()=>db.from(signups.clone().as('registered'));
+  const [totalRow,page]=await Promise.all([
+    base().count({total:'*'}).first(),
+    base().select('*').modify(q=>{if(cursor)q.whereRaw('(ts,id) < (?::timestamptz, ?)',[cursor.ts,cursor.id]);}).orderBy('ts','desc').orderBy('id','desc').limit(limit+1),
+  ]);
+  const latest=(page as Array<{id:string;userId:string;ts:Date}>).slice(0,limit);
+  const paid:Array<{userId:string;amountMinor:string|number;paymentCount:number}>=latest.length?await attributions(s).whereIn('e.userId',latest.map(row=>row.userId))
+    .where('e.ts','>=',since).where('e.ts','<',until).whereRaw(paidExpression(),bindings(s))
+    .groupBy('e.userId').select('e.userId').select(db.raw('ROUND(SUM(e.value*a.weight)*100) AS "amountMinor", COUNT(DISTINCT e.id)::int AS "paymentCount"')):[];
+  const sources:Array<{id:string;referer:string|null}>=latest.length?await attributions(s).whereIn('e.id',latest.map(row=>row.id)).distinct('e.id','cl.referer'):[];
+  const registrations=latest.map(row=>{
+    const origins=[...new Set(sources.filter(item=>item.id===row.id).map(item=>referrerName(item.referer)))].sort();
+    const payment=paid.find(item=>item.userId===row.userId);
+    return {id:String(row.id),userId:String(row.userId),registeredAt:new Date(row.ts).toISOString(),source:origins.join(', ')||'Источник не передан',paidMinor:payment?Number(payment.amountMinor):null,paymentCount:Number(payment?.paymentCount??0),currency:s.filters.currency!};
+  });
+  const last=registrations.at(-1);
+  return {registrations,total:Number(totalRow?.total??0),nextCursor:page.length>limit&&last?JSON.stringify({ts:last.registeredAt,id:last.id}):null};
+}
+
+export async function partnerAnalyticsRegistrations(db:Knex,tenantId:string,partnerId:string,filters:AnalyticsFilters={},cursor?:string,limit=50){
+  const s=reportScope(db,tenantId,partnerId,{...filters,currency:filters.currency??'RUB'});
+  return {...await registrationPage(s,limit,cursor),timezone:s.filters.timezone??'Europe/Moscow',currency:s.filters.currency,period:{since:s.since,until:s.until}};
+}
 
 /** Read-only detail view. Reuses the exact scope, payment taxonomy and exclusions of the report. */
 export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partnerId?: string, filters: AnalyticsFilters = {}, rawCursor?: string, includeRegistrations = false) {
@@ -510,8 +559,7 @@ export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partne
   ]);
   const referrers = new Map<string, number>(), devices = new Map<string, number>();
   for (const row of referrerRows) {
-    let name = 'Источник не передан';
-    if (row.referer) { try { name = new URL(String(row.referer)).hostname || name; } catch { /* No inferred source for invalid referrers. */ } }
+    const name = referrerName(row.referer);
     referrers.set(name, (referrers.get(name) ?? 0) + Number(row.count));
   }
   const deviceLabels = { desktop: 'Компьютер', mobile: 'Телефон', tablet: 'Планшет', bot: 'Сервисные / боты', other: 'Не определено' };
@@ -529,24 +577,8 @@ export async function partnerAnalyticsDetails(db: Knex, tenantId: string, partne
   const last = items.at(-1);
   // Optional homepage rows use the same attribution scope/exclusions as Results.
   // This is an additive read model: existing history and metric definitions stay unchanged.
-  let registrations: Array<{id:string;userId:string;registeredAt:string;source:string;paidMinor:number|null;currency:string}> | undefined;
-  if (includeRegistrations) {
-    const signups = attributions(s).where('e.type', 'signup').where('e.ts', '>=', since).where('e.ts', '<', until)
-      .distinctOn('e.userId').orderBy('e.userId').orderBy('e.ts').orderBy('e.id')
-      .select('e.id', 'e.userId', 'e.ts', 'cl.referer');
-    const latest = await db.from(signups.as('recent_signups')).select('*').orderBy('ts', 'desc').orderBy('id', 'desc').limit(4);
-    const paid = latest.length ? await attributions(s).whereIn('e.userId', latest.map(row => row.userId))
-      .where('e.ts', '>=', since).where('e.ts', '<', until).whereRaw(paidExpression(), bindings(s))
-      .groupBy('e.userId').select('e.userId').select(db.raw('ROUND(SUM(e.value*a.weight)*100) AS "amountMinor"')) : [];
-    registrations = latest.map(row => {
-      let source = 'Источник не передан';
-      if (row.referer) { try { source = new URL(String(row.referer)).hostname || source; } catch { /* Unknown remains unknown. */ } }
-      const payment = paid.find((item: {userId:string;amountMinor:string|number}) => item.userId === row.userId);
-      return { id: String(row.id), userId: String(row.userId), registeredAt: new Date(row.ts).toISOString(), source,
-        paidMinor: payment ? Number(payment.amountMinor) : null, currency: filters.currency! };
-    });
-  }
-  return { ...(registrations ? { registrations } : {}), traffic: { referrers: top(referrers), devices: top(devices) }, history: { items,
+  const page=includeRegistrations?await registrationPage(s,4):undefined;
+  return { ...(page ? { registrations:page.registrations,registrationsTotal:page.total } : {}), traffic: { referrers: [...referrers].map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name)), devices: top(devices) }, history: { items,
     nextCursor: actions.length > 20 && last ? JSON.stringify({ ts: last.ts, id: last.id }) : null } };
 }
 
@@ -568,14 +600,14 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     filters.includeSeries === 'true' ? timeSeries(s) : undefined,
     filters.includeComparison === 'true' ? comparisonPeriod(s) : undefined,
     filters.includeFunnel === 'true' ? conversionFunnel(s) : undefined,
-    partnerList?{platforms:[],formats:[]}:analyticsSourceOptions(db,tenantId,s.partnerIds,filters.programId),
+    partnerList?{platforms:[],formats:[]}:analyticsSourceOptions(db,tenantId,s.partnerIds,filters.programId,scenarioSelection),
   ]);
   const [table, diagnostics] = await Promise.all([
     tableOptions || group === 'partner' ? adminPartnerTable(s, tableOptions ?? adminAnalyticsTableQuerySchema.parse({}), ledger) : undefined,
     tableOptions ? adminDiagnostics(s, ledger.balances.debt) : undefined,
   ]);
   const partnerRows = new Map((table?.rows ?? []).map(row => [row.id, row]));
-  const publicLedger = { balances: ledger.balances, commissionByStatus: ledger.commissionByStatus,
+  const publicLedger = { balances: ledger.balances, periodBalances:ledger.periodBalances, periodBalanceBasis:ledger.periodBalanceBasis, commissionByStatus: ledger.commissionByStatus,
     balanceBasis: ledger.balanceBasis, commissionByStatusBasis: ledger.commissionByStatusBasis };
   const sources = sourceRows as PartnerLinkSourceRow[];
   const snapshots = snapshotRows as Array<{id:string;status:string;data:{scenarioId?:string;scenarioName?:string}}>;
@@ -598,7 +630,7 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     }
     for(const id of ids)if(!resultRows.some(row=>row.id===id))resultRows.push(emptyRow(id));
   }
-  const scenarioOptions=[...scenarios.values()].filter(scenario=>scenarioSelection.includes(scenario.id)||sources.some(source=>source.scenarioId===scenario.id));
+  const scenarioOptions=[...scenarios.values()].filter(scenario=>!scenario.archived||scenarioSelection.includes(scenario.id)||sources.some(source=>source.scenarioId===scenario.id));
   const label = (id: string) => {
     if (group === 'partner') return partnerRows.get(id)?.name ?? 'Партнёр';
     if (id === '__none__') return group === 'link' ? 'Без привязки к ссылке' : group === 'material' ? 'Общие ссылки' : group === 'scenario' ? 'Без сценария' : 'Без указанного источника';
@@ -607,6 +639,8 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     if (group === 'material') {const material=materials.find(m=>m.id===id);if(material)return material.title;}
     const field = { platform: 'platformId', format: 'formatId', material: 'materialId', source: 'id' }[group] as string;
     const source = sources.find(source => source[field as keyof PartnerLinkSourceRow] === id);
+    const configured=(group==='platform'?sourceOptions.platforms:group==='format'?sourceOptions.formats:[]).find(option=>option.id===id);
+    if(configured)return configured.name;
     if (!source) return 'Источник не указан';
     return group === 'platform' ? source.platformName : group === 'format' ? source.formatName : group === 'material' ? source.materialTitle || 'Материал' : `${materials.find(m=>m.id===source.materialId)?.title||source.materialTitle||source.formatName} · ${source.channelName||source.platformName}${source.materialId?'':' (общая ссылка)'}`;
   };

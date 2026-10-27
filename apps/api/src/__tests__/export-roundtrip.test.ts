@@ -117,6 +117,16 @@ async function seedEverything(): Promise<Seeded> {
     programId,
     destinationUrl: 'https://x.test/landing',
   });
+  const messageId=ulid(),materialId=ulid(),accountId=ulid(),sourceId=ulid();
+  const fileData=Buffer.from('Текст экспортируемого файла').toString('base64');
+  const fileSize=Buffer.from(fileData,'base64').length;
+  await db(TABLES.PartnerMessage).insert({id:messageId,tenantId:TENANT,partnerId,senderRole:'partner',clientMessageId:ulid(),body:'Сообщение для экспорта'});
+  await db(TABLES.PartnerMessageAttachment).insert({id:ulid(),tenantId:TENANT,partnerId,messageId,uploaderRole:'partner',name:'message.txt',contentType:'application/octet-stream',size:fileSize,data:fileData});
+  await db(TABLES.PartnerMaterial).insert({id:materialId,tenantId:TENANT,partnerId,programId,title:'Материал для экспорта',formatId:'post',formatName:'Пост',content:'Текст материала'});
+  await db(TABLES.PartnerMaterialFile).insert({id:ulid(),tenantId:TENANT,partnerId,materialId,name:'material.txt',contentType:'text/plain',size:fileSize,data:fileData});
+  await db(TABLES.PublisherAccount).insert({id:accountId,tenantId:TENANT,partnerId,name:'Архивный аккаунт',url:'https://example.test/channel',editorUrl:'https://example.test/editor',platformId:'telegram',platformName:'Telegram',status:'disconnected'});
+  await db(TABLES.PartnerLinkSource).insert({id:sourceId,tenantId:TENANT,partnerId,programId,linkId,sourceKey:ulid(),materialId,formatId:'post',formatName:'Пост',platformId:'telegram',platformName:'Telegram'});
+  await db(TABLES.PublicationJob).insert({id:ulid(),tenantId:TENANT,partnerId,programId,materialId,accountId,sourceId,status:'needs_review',data:'{}'});
   await db(TABLES.Click).insert({
     id: clickId,
     tenantId: TENANT,

@@ -1,5 +1,5 @@
 /* Homepage composition supplied by the user; Tremor Raw components and tokens. */
-.partner-workday { --wd-surface:#090e1a; --wd-muted:var(--color-gray-400); --wd-border:var(--color-gray-800); --wd-chart:clamp(150px,23dvh,220px); min-width:0; padding:20px 28px 16px; color:var(--color-gray-50); background:radial-gradient(ellipse at 80% 0%,color-mix(in oklab,var(--color-blue-950) 8%,transparent),transparent 55%); }
+.partner-workday { --wd-surface:#090e1a; --wd-muted:var(--color-gray-400); --wd-border:var(--color-gray-800); --wd-chart:clamp(150px,23dvh,220px); min-width:0; padding:20px 28px 16px; color:var(--color-gray-50); background:radial-gradient(ellipse at 80% 0%,color-mix(in oklab,var(--color-blue-950) 8%,transparent),transparent 55%); overflow-anchor:none; }
 .partner-workday *, .partner-workday *::before, .partner-workday *::after { box-sizing:border-box; }
 .partner-workday :is(h1,h2,p,dl,dd,ul) { margin:0; }
 .partner-workday a { color:inherit; text-decoration:none; }
@@ -8,9 +8,26 @@
 html[data-portal-visual="tremor-partner"] .partner-workday h1 { font-size:28px !important; line-height:36px !important; font-weight:650 !important; letter-spacing:-.025em; }
 .partner-workday .wd-subtitle { font-size:13px; color:var(--wd-muted); margin-top:5px; line-height:20px; }
 .partner-workday .wd-header-controls { display:flex; align-items:center; flex-shrink:0; gap:18px; }
-.partner-workday .wd-period-tabs [role=tablist] { background:transparent !important; border:1px solid var(--wd-border); padding:4px !important; gap:2px; }
-.partner-workday .wd-period-tabs [role=tab] { min-height:28px; padding:4px 12px; font-size:11px !important; white-space:nowrap; }
-html[data-portal-visual="tremor-partner"] .partner-workday .wd-period-tabs [role=tab][data-state=active] { background:color-mix(in oklab,var(--color-blue-600) 30%,var(--color-gray-950)) !important; color:var(--color-gray-50) !important; box-shadow:0 0 0 1px var(--color-blue-500),inset 0 0 12px color-mix(in oklab,var(--color-blue-500) 12%,transparent); }
+.partner-workday .wd-header-controls>.results-date-picker { z-index:50; width:224px; flex:0 0 224px; max-width:100%; }
+.partner-workday .wd-header-controls>.results-date-picker>.results-button { width:100%; justify-content:flex-start; min-height:40px; border:1px solid var(--wd-border); border-radius:7px; padding:8px 12px; gap:10px; font-size:12px; background:var(--wd-surface); color:inherit; }
+.partner-workday button.wd-kpi-link { width:100%; text-align:left; border:0; background:transparent; color:inherit; font:inherit; cursor:pointer; }
+.partner-workday button.wd-link-button { background:transparent; color:inherit; cursor:pointer; }
+.partner-workday .wd-traffic { display:flex; flex-direction:column; min-height:0; }
+.partner-workday .wd-traffic-scroll { min-height:0; max-height:130px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:var(--color-gray-600) transparent; }
+.partner-workday .wd-traffic-scroll:focus-visible { outline:2px solid var(--color-blue-500); outline-offset:-2px; }
+.partner-workday.wd-registration-dialog[open] { display:flex; flex-direction:column; width:min(1100px,calc(100vw - 32px)); max-width:calc(100vw - 32px); max-height:calc(100dvh - 32px); padding:0; border:1px solid var(--wd-border); border-radius:10px; background:var(--wd-surface); color:var(--color-gray-50); }
+.partner-workday.wd-registration-dialog>header { flex-shrink:0; padding:16px 18px; border-bottom:1px solid var(--wd-border); }
+.wd-registration-dialog::backdrop { background:#0009; backdrop-filter:blur(3px); }
+.partner-workday.wd-registration-dialog>header p { margin-top:3px; font-size:11px; color:var(--wd-muted); }
+.wd-registration-dialog-body { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; }
+.wd-registration-dialog-body:focus-visible { outline:2px solid var(--color-blue-500); outline-offset:-2px; }
+.partner-workday.wd-registration-dialog .wd-table-scroll { overflow:visible; }
+.wd-registration-dialog table { min-width:850px; }
+.wd-registration-dialog thead { position:sticky; top:0; z-index:1; background:var(--wd-surface); }
+.wd-registration-dialog-body footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; font-size:12px; color:var(--wd-muted); }
+:is(.partner-workday,.work-calendar) .wd-period-tabs [role=tablist] { background:transparent !important; border:1px solid var(--wd-border,var(--wc-line)); padding:4px !important; gap:2px; }
+:is(.partner-workday,.work-calendar) .wd-period-tabs [role=tab] { min-height:28px; padding:4px 12px; font-size:11px !important; white-space:nowrap; }
+html[data-portal-visual="tremor-partner"] :is(.partner-workday,.work-calendar) .wd-period-tabs [role=tab][data-state=active] { background:color-mix(in oklab,var(--color-blue-600) 30%,var(--color-gray-950)) !important; color:var(--color-gray-50) !important; box-shadow:0 0 0 1px var(--color-blue-500),inset 0 0 12px color-mix(in oklab,var(--color-blue-500) 12%,transparent); }
 .partner-workday .wd-date { position:relative; display:inline-flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid var(--wd-border); border-radius:7px; min-height:40px; padding:8px 12px; font-size:12px; white-space:nowrap; }
 .partner-workday .wd-date input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
 .partner-workday .wd-date:focus-within { outline:2px solid var(--color-blue-500); outline-offset:2px; }
@@ -44,6 +61,10 @@ html[data-portal-visual="tremor-partner"] .partner-workday .wd-period-tabs [role
 .partner-workday .wd-task:last-child { border-bottom:0; }
 .partner-workday .wd-task-number { color:var(--color-blue-200); background:var(--color-gray-900); padding:2px 5px; border-radius:5px; font-variant-numeric:tabular-nums; }
 .partner-workday .wd-task-check { display:grid; place-items:center; width:16px; height:16px; border:1px solid var(--color-gray-500); border-radius:50%; flex-shrink:0; }
+.partner-workday button.wd-task-check { min-width:16px; min-height:16px; padding:0; background:transparent; cursor:pointer; }
+.partner-workday button.wd-task-check:disabled { cursor:wait; opacity:.6; }
+.partner-workday .wd-task-link { display:flex; align-items:center; gap:10px; flex:1; min-width:0; align-self:stretch; }
+.partner-workday .wd-task-link > svg { flex-shrink:0; color:var(--color-gray-300); }
 .partner-workday .is-completed .wd-task-check { color:var(--color-emerald-400); border-color:var(--color-emerald-500); }
 .partner-workday .wd-task-title { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .partner-workday .wd-task > svg { flex-shrink:0; color:var(--color-gray-300); }
@@ -58,11 +79,11 @@ html[data-portal-visual="tremor-partner"] .partner-workday .wd-period-tabs [role
 .partner-workday .wd-kpi-value > strong { font-size:27px; line-height:34px; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:-.025em; }
 .partner-workday .wd-delta { color:var(--color-emerald-400); font-size:12px; font-weight:550; white-space:nowrap; }
 .partner-workday .wd-delta.is-negative { color:var(--color-rose-400); }
-.partner-workday .wd-kpi-comparison { font-size:11px; color:var(--wd-muted); line-height:16px; margin-top:3px; }
+.partner-workday .wd-kpi-comparison { font-size:11px; color:var(--wd-muted); height:16px; line-height:16px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .partner-workday .wd-spark { position:absolute; pointer-events:none; right:12px; bottom:31px; width:76px; height:34px; }
 .partner-workday .wd-spark-chart { width:100%; height:100%; }
 .partner-workday .wd-info { position:absolute; right:12px; top:12px; width:18px; height:18px; border:1px solid var(--wd-border); border-radius:50%; background:transparent; color:var(--wd-muted); font-size:11px; }
-.partner-workday .wd-insights { display:grid; grid-template-columns:minmax(0,2.1fr) minmax(210px,.85fr) minmax(235px,1.05fr); gap:14px; margin-bottom:14px; align-items:stretch; }
+.partner-workday .wd-insights { display:grid; grid-template-columns:minmax(0,2.1fr) minmax(270px,1.2fr) minmax(210px,.8fr); gap:14px; margin-bottom:14px; align-items:stretch; }
 .partner-workday .wd-revenue-value { display:flex; align-items:baseline; gap:14px; padding:9px 16px 6px; }
 .partner-workday .wd-revenue-value > strong { font-size:26px; font-weight:600; line-height:32px; letter-spacing:-.025em; white-space:nowrap; }
 .partner-workday .wd-revenue-chart { height:var(--wd-chart); padding:4px 10px 4px 0; }
@@ -80,6 +101,8 @@ html[data-portal-visual="tremor-partner"] .partner-workday .wd-period-tabs [role
 .partner-workday .wd-traffic-legend li > span:first-of-type { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--color-gray-300); }
 .partner-workday .wd-traffic-legend li strong { font-weight:500; text-align:right; }
 .partner-workday .wd-finance { display:flex; flex-direction:column; }
+.partner-workday .wd-finance .wd-card-heading { flex-wrap:wrap; gap:6px; }
+.partner-workday .wd-finance .wd-scope { margin-left:auto; }
 .partner-workday .wd-scope { display:flex; align-items:center; gap:6px; font-size:10px; color:var(--wd-muted); border:1px solid var(--wd-border); border-radius:6px; padding:5px 7px; white-space:nowrap; }
 .partner-workday .wd-finance dl { padding:10px 16px; }
 .partner-workday .wd-finance dl > div { display:flex; align-items:baseline; justify-content:space-between; gap:8px; padding:8px 0; font-size:12px; border-bottom:1px solid color-mix(in oklab,var(--wd-border) 60%,transparent); }
@@ -110,7 +133,8 @@ html[data-portal-visual="tremor-partner"] .partner-workday th { font-weight:400 
 .partner-workday .wd-customer-status.is-paid i { background:var(--color-emerald-400); }
 .partner-workday .wd-empty { min-height:120px; padding:20px; display:grid; place-items:center; color:var(--wd-muted); font-size:12px; }
 .partner-workday .wd-terms { padding:16px; display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; }
-html[data-portal-visual="tremor-partner"] .tremor-partner > aside.workday-sidebar { width:clamp(224px,17vw,280px) !important; padding:20px 16px !important; background:linear-gradient(180deg,color-mix(in oklab,var(--color-gray-900) 20%,transparent),transparent),var(--color-gray-950) !important; }
+.partner-workday .wd-terms>button { min-width:154px; flex-shrink:0; transition:background-color 150ms ease,border-color 150ms ease; }
+html[data-portal-visual="tremor-partner"] .tremor-partner > aside.workday-sidebar { width:var(--op-sidebar-width,256px) !important; padding:var(--op-sidebar-padding,24px 16px) !important; background:linear-gradient(180deg,color-mix(in oklab,var(--color-gray-900) 20%,transparent),transparent),var(--color-gray-950) !important; }
 .workday-sidebar .wd-brand { display:flex; align-items:center; gap:10px; color:var(--color-gray-50); text-decoration:none; font-size:18px; white-space:nowrap; }
 .workday-sidebar .wd-brand strong { font-weight:600; margin-left:3px; }
 .workday-sidebar .wd-brand span { font-weight:400; color:var(--color-blue-200); font-size:16px; margin-left:-5px; }
@@ -129,7 +153,7 @@ html[data-portal-visual="tremor-partner"] .tremor-partner > aside.workday-sideba
   .partner-workday .wd-day-percent { font-size:11px; }
   .partner-workday .wd-day-symbol { width:40px; }
   .partner-workday .wd-day-percent strong { font-size:15px; }
-  .partner-workday .wd-insights { grid-template-columns:minmax(0,1.75fr) minmax(185px,.85fr) minmax(220px,1fr); }
+  .partner-workday .wd-insights { grid-template-columns:minmax(0,1.75fr) minmax(240px,1.2fr) minmax(200px,.85fr); }
   .partner-workday .wd-kpi-link { padding:10px 12px; }
   .partner-workday .wd-kpi-title { gap:8px; font-size:11px; }
   .partner-workday .wd-spark { width:48px; right:10px; bottom:33px; }
@@ -193,6 +217,8 @@ html[data-portal-visual="tremor-partner"] .tremor-partner > aside.workday-sideba
 @media (max-width:640px) {
   .partner-workday { padding:16px 12px; --wd-chart:180px; }
   .partner-workday .wd-header-controls { flex-wrap:wrap; gap:10px; }
+  .partner-workday .wd-terms { flex-direction:column; align-items:stretch; }
+  .partner-workday .wd-terms>button { width:100%; min-width:0; }
   .partner-workday .wd-day-summary-heading { flex-wrap:wrap; }
   .partner-workday .wd-day-percent { margin-left:52px; }
   .partner-workday .wd-day { padding:12px; }
@@ -205,3 +231,4 @@ html[data-portal-visual="tremor-partner"] .tremor-partner > aside.workday-sideba
   .partner-workday .wd-table-scroll table { min-width:700px; }
 }
 @media (prefers-reduced-motion:reduce) { .partner-workday * { transition:none !important; animation:none !important; } }
+.wd-traffic-tabs{display:flex;gap:5px;margin:0 14px 8px}.wd-traffic-tabs button{border:0;background:transparent;color:var(--color-gray-400);font-size:10px;padding:5px 7px;border-radius:4px;cursor:pointer}.wd-traffic-tabs button[aria-pressed=true],.wd-traffic-tabs button:hover{background:var(--color-gray-800);color:var(--color-gray-100)}.wd-traffic-legend li>span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis}.wd-traffic-legend li a{color:inherit;text-decoration:none}.wd-traffic-legend li a:hover{text-decoration:underline}.wd-traffic-legend small{display:block;color:var(--color-gray-500);font-size:9px;margin-top:2px}

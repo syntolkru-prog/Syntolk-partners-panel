@@ -59,9 +59,9 @@ beforeEach(async () => {
 });
 
 describe.skipIf(skipIntegration)('ultrareview regressions', () => {
-  // -------- 1. Stripe webhook idempotency --------
+  // -------- 1. Payment event idempotency --------
 
-  it('Stripe webhook dedupes by externalEventId (no double attribution on retry)', async () => {
+  it('payment events dedupe by tenant and externalEventId (no double attribution on retry)', async () => {
     const partner = await createPartner();
     const campaign = await createCampaign();
     const link = await createLink(partner.id, campaign.id, `dup-${Date.now()}`);
@@ -110,7 +110,7 @@ describe.skipIf(skipIntegration)('ultrareview regressions', () => {
         metadata: { stripeEventId: externalEventId },
         ts: new Date(),
       })
-      .onConflict('externalEventId')
+      .onConflict(['tenantId', 'externalEventId'])
       .ignore()
       .returning('id');
 
@@ -166,7 +166,7 @@ describe.skipIf(skipIntegration)('ultrareview regressions', () => {
     }
 
     const res = await request(app)
-      .get(`/partners/${partner.id}/dashboard`)
+      .get(`/partners/${partner.id}/dashboard?currency=USD`)
       .set('Authorization', `Bearer ${ADMIN_KEY}`);
     expect(res.status).toBe(200);
     // 300 × (0.3333 × 3) ≈ 299.97 — bug-pre-fix would report 900.
@@ -214,10 +214,11 @@ describe.skipIf(skipIntegration)('ultrareview regressions', () => {
     ]);
 
     // Post an event — only the ok click earns; there's one attribution row.
-    await request(app)
+    const recorded = await request(app)
       .post('/attribution/events')
       .set('Authorization', `Bearer ${ADMIN_KEY}`)
-      .send({ userId, type: 'invoice_paid', value: 100, currency: 'USD' });
+      .send({ userId, type: 'invoice_paid', value: 100, currency: 'USD', externalEventId: ulid() });
+    expect(recorded.status, recorded.text).toBe(200);
 
     const beforeAttrs = await db(TABLES.Attribution).count<{ count: string }[]>('* as count').first();
     const beforeCommissions = await db(TABLES.Commission).count<{ count: string }[]>('* as count').first();

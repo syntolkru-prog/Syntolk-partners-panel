@@ -58,11 +58,11 @@ describe('calculator calendar on the dashboard',()=>{
  });
  it('opens a dated task outside the current week and supports a month view',async()=>{
   client=new QueryClient({defaultOptions:{queries:{retry:false}}});
-  vi.mocked(api).mockImplementation(async path=>path==='/coach/me'?{programs:[{id:'program'}]}:{plan:{id:'p',version:1,data:{startDate:'2026-10-13',days:30,originals:1,placements:1}},today:'2026-10-13',tasks:[{...task,data:{...task.data,scheduledDay:'2026-10-28'}}]});
+  vi.mocked(api).mockImplementation(async path=>path==='/coach/me'?{programs:[{id:'program'}]}:path.includes('material-catalog')?{formats:[],platforms:[],scenarios:[]}:{plans:[],today:'2026-10-13',materials:[{id:'s',title:task.data.title,formatId:'short',formatName:'Короткое видео',scenarioId:null,scheduledDay:'2026-10-28',platforms:[],revision:1,ready:false,status:'draft',fileCount:0,totalPlacements:1,publishedPlacements:0}]});
   render(<MemoryRouter initialEntries={['/plan?programId=program&day=2026-10-28']}><QueryClientProvider client={client}><CalculatorWork partnerId="partner"/><Location/></QueryClientProvider></MemoryRouter>);
   await screen.findByText(task.data.title);
-  fireEvent.click(screen.getByRole('button',{name:'Месяц'}));
-  await screen.findByLabelText('Месяц плана');expect(screen.getByText(task.data.title)).toBeTruthy();
-  expect(screen.getByLabelText('День работы')).toBeTruthy();
+  fireEvent.click(document.querySelector('.wc-period-picker summary')!);fireEvent.change(screen.getByLabelText('Вид календаря'),{target:{value:'month'}});
+  await screen.findByLabelText('Календарь месяца');expect(screen.getByText(task.data.title)).toBeTruthy();
+  expect(screen.getByLabelText('Дата календаря')).toBeTruthy();
  });
 });

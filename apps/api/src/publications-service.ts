@@ -1,6 +1,6 @@
 import type {Knex} from 'knex';
 import {createPartnerLink,LinkError,listPartnerLinks} from './links-service.js';
-import {createMaterial,materialSource} from './materials-service.js';
+import {createMaterial,materialSource,recordMaterialPublication} from './materials-service.js';
 import {assertPartner,assertProgram} from './coach/policy.js';
 import {safePublicationUrl} from './coach/schemas.js';
 import {trackingSourceParams} from '@openpartner/db';
@@ -48,6 +48,7 @@ export async function createPublication(db:Knex,tenantId:string,partnerId:string
     const [source]=await trx('PartnerLinkSource').where({tenantId,partnerId,id:result.source.id}).update({
       channelName:input.channelName||null,publicationUrl,publishedAt:input.published?new Date():null,
     }).returning('*');
-    return {material,source,params:result.params,linkKey:link.linkKey};
+    const prepared=source.publishedAt?await recordMaterialPublication(trx,tenantId,partnerId,material.id,new Date(source.publishedAt)):material;
+    return {material:prepared,source,params:result.params,linkKey:link.linkKey};
   });
 }

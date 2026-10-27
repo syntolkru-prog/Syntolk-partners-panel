@@ -10,6 +10,7 @@ import { PartnerAnalyticsPanel, PartnerResults } from '../PartnerAnalytics.js';
 import { usePartnerSelection } from '../../lib/partner-selection.js';
 import { MaterialEditor } from '../MaterialEditor.js';
 import {TremorProgressBar} from '../../components/tremor/HomePrimitives.js';
+import {PartnerWorkCalendar} from './PartnerWorkCalendar.js';
 
 interface WorkResource {id:string;name:string;url:string;note:string;selected:boolean;expectedViews:number;expectedClicks:number}
 interface WorkLink {url:string;linkKey:string;label:string|null;channel:string|null;channelName:string;channelUrl:string;expectedViews:number;expectedClicks:number}
@@ -22,6 +23,7 @@ const addDays=(day:string,offset:number)=>new Date(Date.parse(`${day}T12:00:00Z`
 
 export function CalculatorWork(props:{partnerId:string;prefix?:string;view?:'calendar'|'today'|'results';embedded?:boolean}) {
   if(props.view==='results')return props.embedded?<PartnerAnalyticsPanel partnerId={props.partnerId}/>:<PartnerResults partnerId={props.partnerId}/>;
+  if(!props.embedded&&(!props.view||props.view==='calendar')&&(!props.prefix||props.prefix==='/coach/me'))return <PartnerWorkCalendar partnerId={props.partnerId}/>;
   return <WorkCalendar {...props} view={props.view??'calendar'}/>;
 }
 function WorkCalendar({partnerId,prefix='/coach/me',view='calendar',embedded=false}:{partnerId:string;prefix?:string;view?:'calendar'|'today';embedded?:boolean}) {

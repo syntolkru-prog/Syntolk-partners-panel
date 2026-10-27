@@ -21,14 +21,15 @@ export function usePartnerSelection(partnerId: string, programs: Array<{ id: str
   }, [key]);
   const requestedProgram = params.get('programId');
   const programId = programs.find(p => p.id === requestedProgram)?.id ?? programs.find(p => p.id === stored.programId)?.id ?? programs[0]?.id ?? '';
-  const requestedScenario = params.get('scenarioId');
+  const requestedScenarios = params.getAll('scenarioIds');
+  const requestedScenario = params.get('scenarioId') ?? (requestedScenarios.length === 1 ? requestedScenarios[0] : requestedScenarios.length > 1 ? 'all' : null);
   const scenarioId = requestedScenario ?? (stored.programId === programId ? stored.scenarioId : '');
   const remember = useCallback((value: Selection) => {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Selection still works in this tab. */ }
     setStored(value); window.dispatchEvent(new Event(eventName));
   },[key]);
   useEffect(() => {
-    if (!programId || !requestedScenario || ['all', 'new', '__none__'].includes(requestedScenario)) return;
+    if (!programId || !requestedScenario || requestedScenario === 'new') return;
     const previous = read(key);
     if (previous.programId !== programId || previous.scenarioId !== requestedScenario) {
       const value = { programId, scenarioId: requestedScenario };
@@ -37,10 +38,10 @@ export function usePartnerSelection(partnerId: string, programs: Array<{ id: str
     }
   }, [key, programId, requestedScenario]);
   const selectScenario = (id: string) => {
-    if (id && !['all', 'new', '__none__'].includes(id)) remember({ programId, scenarioId: id });
+    if (id && id !== 'new') remember({ programId, scenarioId: id });
     setParams(previous => {
       const next = new URLSearchParams(previous); next.set('programId', programId); next.set('scenarioId', id || 'all');
-      for (const field of ['platformId', 'formatId', 'materialId', 'groupBy', 'day', 'week', 'month']) next.delete(field);
+      for (const field of ['scenarioIds', 'platformId', 'platformIds', 'formatId', 'formatIds', 'materialId', 'linkId', 'sourceId', 'groupBy', 'day', 'week', 'month']) next.delete(field);
       return next;
     });
   };
@@ -48,12 +49,12 @@ export function usePartnerSelection(partnerId: string, programs: Array<{ id: str
     remember({ programId: id, scenarioId: '' });
     setParams(previous => {
       const next = new URLSearchParams(previous); next.set('programId', id);
-      for (const field of ['scenarioId', 'platformId', 'formatId', 'materialId', 'groupBy', 'day', 'week', 'month']) next.delete(field);
+      for (const field of ['scenarioId', 'scenarioIds', 'platformId', 'platformIds', 'formatId', 'formatIds', 'materialId', 'linkId', 'sourceId', 'groupBy', 'day', 'week', 'month']) next.delete(field);
       return next;
     });
   };
   const rememberScenario = useCallback((id: string) => {
-    if (id && !['all','new','__none__'].includes(id)) {
+    if (id && id !== 'new') {
       const old=read(key);
       if(old.programId!==programId||old.scenarioId!==id)remember({programId,scenarioId:id});
     }

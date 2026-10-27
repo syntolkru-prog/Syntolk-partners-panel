@@ -3,6 +3,8 @@ import {createPortal} from 'react-dom';
 import {useQuery} from '@tanstack/react-query';
 import {api,currentTenantSlug} from '../api.js';
 import type {AnalyticsReport} from './PartnerAnalytics.js';
+import {ResultsDatePicker} from './ResultsDatePicker.js';
+import './results-explorer.css';
 
 export interface CurrentValuesFilter {period:'today'|'7d'|'30d'|'all'|'custom';from:string;to:string;allContent:boolean}
 type ContentCounts={preparedMaterials:number;publishedMaterials:number;publishedPlacements:number};
@@ -87,7 +89,7 @@ export function CalculatorCurrentValues({partnerId,programId,scenarioId,scenario
   },[root,active,filter,report,chartReport,point?.date,error,storageKey,scenarioName,refreshState]);
   const validDraft=validDay(draft.from)&&validDay(draft.to)&&draft.from<=draft.to&&draft.to<=today;
   return root&&datesOpen&&active?createPortal(<dialog open aria-label="Свои даты факта" className="pf-section" style={{position:'fixed',zIndex:1000,top:'25vh',width:'min(420px,90vw)',padding:20,border:'1px solid var(--pf-border)',borderRadius:'var(--pf-radius)',background:'var(--pf-surface)',color:'var(--pf-text)'}}>
-    <div className="pf-fields-grid"><label className="pf-field"><span>С</span><input type="date" aria-label="Начало периода факта" max={today} value={draft.from} onInput={event=>{const value=event.currentTarget.value;setDraft(current=>({...current,from:value}));}} onChange={event=>{const value=event.target.value;setDraft(current=>({...current,from:value}));}}/></label><label className="pf-field"><span>По</span><input type="date" aria-label="Конец периода факта" max={today} value={draft.to} onInput={event=>{const value=event.currentTarget.value;setDraft(current=>({...current,to:value}));}} onChange={event=>{const value=event.target.value;setDraft(current=>({...current,to:value}));}}/></label></div>
+    <div className="pf-fields-grid pf-fact-date-fields">{(['from','to'] as const).map(field=><div className="pf-field" key={field}><span>{field==='from'?'С':'По'}</span><ResultsDatePicker single label={field==='from'?'Начало периода факта':'Конец периода факта'} value={{from:draft[field],to:draft[field]}} caption={draft[field]?draft[field].split('-').reverse().join('.'):'дд.мм.гггг'} onChange={range=>setDraft(current=>({...current,[field]:range.from}))}/></div>)}</div>
     <div className="pf-fields-grid" style={{marginTop:16}}><button type="button" className="pf-text-button" onClick={()=>{setDatesOpen(false);root.querySelector<HTMLSelectElement>('#pf-horizon')!.value=filter.period;}}>Отмена</button><button type="button" disabled={!validDraft} onClick={()=>{onFilter({...filter,period:'custom',...draft});setDatesOpen(false);}}>Применить</button></div>
   </dialog>,root):null;
 }
