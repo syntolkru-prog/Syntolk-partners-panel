@@ -29,7 +29,11 @@ export interface PortalLinkTenant {
 
 export function getPortalBaseUrl(tenant?: PortalLinkTenant | null): string {
   const env = (process.env.PORTAL_URL ?? 'http://localhost:5673').replace(/\/$/, '');
-  if (tenant?.customDomain) return `https://${tenant.customDomain}`;
+  if ((process.env.OPENPARTNER_TENANCY ?? 'single') === 'single' && new URL(env).pathname !== '/') return env;
+  if (tenant?.customDomain) {
+    const domainBase = `https://${tenant.customDomain}`;
+    return new URL(env).origin === domainBase ? env : domainBase;
+  }
   if (tenant?.slug) return `${env}/t/${tenant.slug}`;
   return env;
 }

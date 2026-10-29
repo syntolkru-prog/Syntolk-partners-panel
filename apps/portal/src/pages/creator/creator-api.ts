@@ -1,3 +1,4 @@
+import { appPath } from '../../app-path.js';
 /**
  * Creator-portal API client.
  *
@@ -27,7 +28,7 @@ export async function creatorApi<T = unknown>(
   if (isBinaryBody && !headers.has('content-type')) {
     headers.set('content-type', (init.body as Blob).type || 'application/octet-stream');
   }
-  const res = await fetch(`/api/creator-api${path}`, {
+  const res = await fetch(appPath(`/api/creator-api${path}`), {
     ...init,
     headers,
     credentials: 'include',

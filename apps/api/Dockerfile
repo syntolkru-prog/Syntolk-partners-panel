@@ -68,6 +68,7 @@ WORKDIR /app
 COPY --from=builder --chown=node:node /out/package.json ./package.json
 COPY --from=builder --chown=node:node /out/node_modules ./node_modules
 COPY --from=builder --chown=node:node /out/dist ./dist
+COPY --from=builder --chown=node:node /repo/apps/portal/public/calculator/forecast-model.js /portal/public/calculator/forecast-model.js
 
 # Migrations need the @openpartner/db package + knex bin. We ship it
 # alongside so the entrypoint can run them before API boot.
@@ -77,7 +78,7 @@ COPY --from=builder --chown=node:node /out/packages-db ./packages-db
 # want the node process to be PID 1 so signals (SIGTERM from Fly /
 # Docker) land on the app directly.
 COPY --chown=node:node apps/api/docker-entrypoint.sh /usr/local/bin/openpartner-api
-RUN chmod +x /usr/local/bin/openpartner-api
+RUN sed -i 's/\r$//' /usr/local/bin/openpartner-api && chmod +x /usr/local/bin/openpartner-api
 
 USER node
 

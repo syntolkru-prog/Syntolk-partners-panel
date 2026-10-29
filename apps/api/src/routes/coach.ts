@@ -169,7 +169,7 @@ partnerCoach.post('/calculator-plan/preview',async(req,res)=>{
   res.json({tasks,originals:tasks.length,placements:tasks.reduce((n,t)=>n+t.placements.length,0),views:tasks.reduce((n,t)=>n+t.estimatedViews,0)});
 });
 partnerCoach.post('/calculator-plan', async (req,res) => {
-  const s=owner(req),input=calculatorPeriodSchema.extend({snapshotId:z.string().min(1),scenarioId:z.string().min(1).max(100).optional(),requestId:z.string().min(8).max(100),replacePlanId:z.string().optional(),replaceVersion:z.number().int().positive().optional()}).strict().parse(req.body);
+  const s=owner(req),input=calculatorPeriodSchema.extend({snapshotId:z.string().min(1),expectedSnapshotId:z.string().min(1).optional(),scenarioId:z.string().min(1).max(100).optional(),requestId:z.string().min(8).max(100),replacePlanId:z.string().optional(),replaceVersion:z.number().int().positive().optional()}).strict().parse(req.body);
   await assertProgram(s.db,s.tenantId,s.partnerId,input.programId);
   const plan=await createCalculatorPlan(s.db,s.tenantId,s.partnerId,input);
   await auditCoach(s.db,s.tenantId,s.partnerId,'calculator_plan_created',{planId:plan.id,snapshotId:input.snapshotId});
@@ -308,14 +308,22 @@ partnerCoach.get('/results', async (req,res) => {
 partnerCoach.get('/notifications', async (req,res) => { const s=owner(req); res.json({notifications:await s.db('CoachNotification').where({tenantId:s.tenantId,partnerId:s.partnerId}).orderBy('createdAt','desc').limit(30)}); });
 partnerCoach.post('/notifications/:id/read', async (req,res) => { const s=owner(req); await s.db('CoachNotification').where({id:req.params.id,tenantId:s.tenantId,partnerId:s.partnerId}).update({status:'read',updatedAt:new Date()}); res.json({ok:true}); });
 partnerCoach.post('/forecast-snapshots', async (req,res) => {
-  const s=owner(req), body=z.object({programId:z.string().min(1),confirmed:z.literal(true),settings:z.record(z.unknown()),scenarioId:z.string().min(1).max(100).optional(),scenarioName:z.string().trim().min(1).max(80).optional()}).strict().parse(req.body);
+  const s=owner(req), body=z.object({programId:z.string().min(1),confirmed:z.literal(true),settings:z.record(z.unknown()),scenarioId:z.string().min(1).max(100).optional(),scenarioName:z.string().trim().min(1).max(80).optional(),expectedSnapshotId:z.string().min(1).nullable().optional()}).strict().parse(req.body);
   await assertProgram(s.db,s.tenantId,s.partnerId,body.programId);
   if(JSON.stringify(body.settings).length>50000) throw new CoachError('invalid_body',422,'Сценарий слишком большой.');
   const forecast=await calculateCoachForecast(body.settings);
-  const previous=body.scenarioId?null:await s.db('CoachForecastSnapshot').where({tenantId:s.tenantId,partnerId:s.partnerId,programId:body.programId,status:'confirmed'}).orderBy('createdAt','desc').first();
-  const scenarioId=body.scenarioId??String(previous?.data?.scenarioId??previous?.id??ulid());
-  const scenarioName=body.scenarioName??String(previous?.data?.scenarioName??'Сценарий');
-  const [snapshot]=await s.db('CoachForecastSnapshot').insert({id:ulid(),tenantId:s.tenantId,partnerId:s.partnerId,programId:body.programId,status:'confirmed',data:JSON.stringify({source:'browser_confirmed',scenarioId,scenarioName,...forecast})}).returning('*');res.status(201).json({snapshot});
+  const snapshot=await s.db.transaction(async trx=>{
+    await trx('Partner').where({tenantId:s.tenantId,id:s.partnerId}).forUpdate().first();
+    const previous=await trx('CoachForecastSnapshot').where({tenantId:s.tenantId,partnerId:s.partnerId,programId:body.programId})
+      .modify(q=>{if(body.scenarioId)q.whereRaw("COALESCE(data->>'scenarioId',id)=?",[body.scenarioId]);else q.where({status:'confirmed'});})
+      .orderBy('createdAt','desc').orderBy('id','desc').first();
+    if(body.expectedSnapshotId!==undefined&&((previous?.id??null)!==body.expectedSnapshotId||previous?.status==='archived'))throw new CoachError('snapshot_conflict',409,'Сценарий изменён в другом кабинете. Обновите сохранённую версию перед повторным сохранением.');
+    const scenarioId=body.scenarioId??String(previous?.data?.scenarioId??previous?.id??ulid());
+    const scenarioName=body.scenarioName??String(previous?.data?.scenarioName??'Сценарий');
+    const [created]=await trx('CoachForecastSnapshot').insert({id:ulid(),tenantId:s.tenantId,partnerId:s.partnerId,programId:body.programId,status:'confirmed',createdAt:trx.raw('clock_timestamp()'),data:JSON.stringify({source:'browser_confirmed',scenarioId,scenarioName,...forecast})}).returning('*');
+    return created;
+  });
+  res.status(201).json({snapshot});
 });
 partnerCoach.delete('/forecast-snapshots/:scenarioId', async (req,res) => {
   const s=owner(req),programId=z.string().min(1).parse(req.query.programId),scenarioId=z.string().min(1).max(100).parse(req.params.scenarioId);
@@ -366,7 +374,16 @@ partnerCoach.delete('/forecast-snapshots/:scenarioId', async (req,res) => {
   await auditCoach(s.db,s.tenantId,s.partnerId,'calculator_scenario_deleted',{programId,scenarioId,...deleted});
   res.json({ok:true,scenarioId,deletedPlans:deleted.planIds.length,deletedMaterials:deleted.deletedMaterials});
 });
-partnerCoach.get('/forecast-snapshots', async (req,res) => { const s=owner(req),programId=z.string().min(1).optional().parse(req.query.programId);if(programId)await assertProgram(s.db,s.tenantId,s.partnerId,programId,false);res.json({snapshots:await s.db('CoachForecastSnapshot').where({tenantId:s.tenantId,partnerId:s.partnerId,status:'confirmed'}).modify(q=>{if(programId)q.where({programId});}).orderBy('createdAt','desc').limit(100)}); });
+partnerCoach.get('/forecast-snapshots', async (req,res) => {
+  const s=owner(req),programId=z.string().min(1).optional().parse(req.query.programId);
+  const latest=z.enum(['true','false']).optional().parse(req.query.latestPerScenario)==='true';
+  if(programId)await assertProgram(s.db,s.tenantId,s.partnerId,programId,false);
+  const query=s.db('CoachForecastSnapshot').where({tenantId:s.tenantId,partnerId:s.partnerId}).modify(q=>{if(programId)q.where({programId});});
+  if(!latest){res.json({snapshots:await query.where({status:'confirmed'}).orderBy('createdAt','desc').orderBy('id','desc').limit(100)});return;}
+  const snapshots:Array<{id:string;status:string;createdAt:Date|string}>=await query.select('*',s.db.raw("COALESCE(data->>'scenarioId',id) AS \"scenarioKey\""))
+    .distinctOn('programId','scenarioKey').orderBy('programId').orderBy('scenarioKey').orderBy('createdAt','desc').orderBy('id','desc');
+  res.json({snapshots:snapshots.filter(row=>row.status==='confirmed').sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()||String(b.id).localeCompare(String(a.id)))});
+});
 partnerCoach.use(errors);
 
 export const coachRouter = Router();

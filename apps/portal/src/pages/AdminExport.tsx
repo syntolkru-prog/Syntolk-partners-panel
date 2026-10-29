@@ -1,3 +1,4 @@
+import { appPath } from '../app-path.js';
 import { useState } from 'react';
 import { FileJson, FileSpreadsheet, Archive, Upload, Database } from 'lucide-react';
 import { getApiKey } from '../api.js';
@@ -54,7 +55,7 @@ export function AdminExport() {
   const key = getApiKey() ?? '';
 
   function download(path: string) {
-    fetch(`/api${path}`, { headers: { Authorization: `Bearer ${key}` } })
+    fetch(appPath(`/api${path}`), { headers: { Authorization: `Bearer ${key}` } })
       .then((res) => res.blob())
       .then((blob) => {
         const url = URL.createObjectURL(blob);
@@ -179,7 +180,7 @@ function PartnersCsvImporter() {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/import/partners-csv?dryRun=${dryRun}`, {
+      const res = await fetch(appPath(`/api/import/partners-csv?dryRun=${dryRun}`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'text/csv' },
         body: csv,

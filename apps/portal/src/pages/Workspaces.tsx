@@ -1,3 +1,4 @@
+import { appPath } from '../app-path.js';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { theme } from '../theme.js';
@@ -29,7 +30,7 @@ export function WorkspacesPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/me/workspaces', { credentials: 'include' })
+    fetch(appPath('/api/me/workspaces'), { credentials: 'include' })
       .then(async (r) => {
         if (r.status === 401) {
           if (!cancelled) nav('/signin', { replace: true });
@@ -58,7 +59,7 @@ export function WorkspacesPage() {
     setBusySlug(slug);
     setErr(null);
     try {
-      const r = await fetch('/api/workspaces/enter', {
+      const r = await fetch(appPath('/api/workspaces/enter'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
@@ -124,7 +125,7 @@ export function WorkspacesPage() {
         </div>
         {data?.workspaces.length === 0 && (
           <div style={{ color: theme.textMuted, fontSize: 14 }}>
-            У вас пока нет рабочих пространств компаний. <a href="/brands/new" style={{ color: theme.accent }}>Создать →</a>
+            У вас пока нет рабочих пространств компаний. <a href={appPath('/brands/new')} style={{ color: theme.accent }}>Создать →</a>
           </div>
         )}
       </div>

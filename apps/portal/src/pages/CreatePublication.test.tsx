@@ -37,6 +37,7 @@ describe('standalone publication creator',()=>{
   it('only binds a scenario and publication status when explicitly selected',async()=>{
     show();await fill();fireEvent.change(screen.getByRole('combobox',{name:'Сценарий новой публикации'}),{target:{value:'own'}});
     fireEvent.click(screen.getByRole('checkbox',{name:'Материал уже опубликован'}));
+    await waitFor(()=>expect((screen.getByRole('button',{name:'Создать отслеживаемую ссылку'}) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button',{name:'Создать отслеживаемую ссылку'}));await screen.findByRole('heading',{name:'Ссылка готова'});
     expect(posts()[0]![1]?.body).toMatchObject({scenarioId:'own',published:true});
   });

@@ -1,3 +1,4 @@
+import { appBase, appPath } from '../../app-path.js';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
@@ -349,7 +350,7 @@ function PayloadGuide() {
   // the tenant slug — leaving it out 500s with a generic error and
   // is the single most common configuration mistake. Render the real
   // URL so admins copy-paste it correctly without thinking.
-  const origin = typeof window === 'undefined' ? 'https://your-instance' : window.location.origin;
+  const origin = typeof window === 'undefined' ? 'https://your-instance' : window.location.origin + appBase;
   const slug = currentTenantSlug();
   const { programName } = useBrand();
   const apiBase = slug ? `${origin}/t/${slug}` : origin;
@@ -434,7 +435,7 @@ function PayloadGuide() {
       <p style={{ fontSize: 12, color: theme.textMuted, margin: '12px 0 0' }}>
         Смотрите{' '}
         <a
-          href="/admin/settings"
+          href={appPath('/admin/settings')}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: theme.accent, display: 'inline-flex', alignItems: 'center', gap: 3 }}

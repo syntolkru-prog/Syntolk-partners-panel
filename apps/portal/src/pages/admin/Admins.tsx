@@ -41,7 +41,7 @@ export function AdminAdmins() {
           }}
         />
       )}
-      {admins.isLoading ? (
+      {admins.error ? null : admins.isLoading ? (
         <Card>Загрузка…</Card>
       ) : (admins.data?.admins ?? []).length === 0 ? (
         <EmptyState title="Администраторов пока нет" hint="Пригласите свою команду." icon={<UserCog size={28} strokeWidth={1.25} />} />

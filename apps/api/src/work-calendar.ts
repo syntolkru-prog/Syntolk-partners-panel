@@ -24,7 +24,7 @@ export async function workCalendar(db:Knex,tenantId:string,partnerId:string,prog
   }).select('id','title','formatId','formatName','scenarioId','platforms','revision','preparedAt','updatedAt','scheduledTime',db.raw('to_char("scheduledDay",\'YYYY-MM-DD\') as "scheduledDay"'),db.raw('length(content)>0 as "hasContent"')).orderBy('scheduledDay').orderBy('createdAt');
   const ids=materials.map(m=>m.id);
   const [sources,files,tasks,profile,plans]=await Promise.all([
-    ids.length?db('PartnerLinkSource').where(scope).whereIn('materialId',ids).select('id','materialId','platformId','publishedAt'):[],
+    ids.length?db('PartnerLinkSource').where(scope).whereIn('materialId',ids).select('id','materialId','platformId','platformName','publishedAt'):[],
     ids.length?db('PartnerMaterialFile').where({tenantId,partnerId}).whereIn('materialId',ids).select('materialId').count('* as count').groupBy('materialId'):[],
     ids.length?db('CoachTask').where(scope).whereNot('status','cancelled').whereRaw("COALESCE(data->>'materialId',id) = ANY(?::text[])",[ids]).select('id','status','data'):[],
     db('CoachProfile').where({tenantId,partnerId}).first(),
@@ -33,10 +33,11 @@ export async function workCalendar(db:Knex,tenantId:string,partnerId:string,prog
   const today=localDay(new Date(),profile?.data?.timezone??'Europe/Moscow');
   return {today,plans:plans.map(plan=>({id:plan.id,startDate:plan.data.startDate,days:plan.data.days,scenarioId:plan.data.scenarioId,scenarioName:plan.data.scenarioName})),materials:materials.map(material=>{
     const placements=sources.filter(s=>s.materialId===material.id),completed=tasks.some(t=>(t.data.materialId??t.id)===material.id&&t.status==='completed');
-    const published=placements.filter(s=>s.publishedAt).length,total=placements.length+material.platforms.filter(p=>!placements.some(s=>s.platformId===p.id)).length;
+    const platforms=[...new Map([...placements.map(source=>({id:source.platformId,name:source.platformName})),...material.platforms].map(platform=>[platform.id,platform])).values()];
+    const published=placements.filter(s=>s.publishedAt).length,total=placements.length+platforms.filter(p=>!placements.some(s=>s.platformId===p.id)).length;
     const ready=!!material.preparedAt||completed||published>0;
     const status=total>0&&published>=total?'published':published>0?'partial':material.scheduledDay&&material.scheduledDay<today?'overdue':ready?'waiting':'draft';
-    return {...material,ready,status,publishedPlacements:published,totalPlacements:total,fileCount:Number(files.find(f=>f.materialId===material.id)?.count??0)};
+    return {...material,platforms,ready,status,publishedPlacements:published,totalPlacements:total,fileCount:Number(files.find(f=>f.materialId===material.id)?.count??0)};
   })};
 }
 

@@ -1,3 +1,4 @@
+import { appPath } from '../../app-path.js';
 /**
  * Platform-ops console API layer.
  *
@@ -117,7 +118,7 @@ export async function papi<T = unknown>(
   if (init.body !== undefined && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(appPath(`/api${path}`), {
     ...init,
     headers,
     credentials: 'include',

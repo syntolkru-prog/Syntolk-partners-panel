@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import {useSearchParams} from 'react-router-dom';
+import {useNavigate,useSearchParams} from 'react-router-dom';
+import {useTenantBase} from '../tenant-base.js';
+import {materialReturnPath,invalidateAnalytics} from './results-scope.js';
+import {useUnsavedChanges} from '../lib/useUnsavedChanges.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link2, Plus, ArrowRight, Check, Copy, X } from 'lucide-react';
 import { api, type Principal } from '../api.js';
@@ -77,7 +80,7 @@ export function LinksPage({ principal }: { principal: Principal }) {
   const partnerId = principal.partnerId ?? queryPartnerId;
   const isAdmin = principal.role === 'admin';
 
-  if(!isAdmin&&partnerId)return <PartnerPublicationsPage partnerId={partnerId} permanentLinks={(stats,mode)=><PartnerLinks partnerId={partnerId} readOnly={false} embedded stats={stats} creationOnly={mode?.creationOnly} onCreationClose={mode?.onClose}/>}/>;
+  if(!isAdmin&&partnerId)return <PartnerPublicationsPage partnerId={partnerId} permanentLinks={(stats,mode)=><PartnerLinks partnerId={partnerId} readOnly={false} embedded stats={stats} creationOnly={mode?.creationOnly} onCreationClose={mode?.onClose} onCreationCreated={mode?.onCreated}/>}/>;
 
   if (isAdmin && !partnerId) {
     return <AdminLinksHub />;
@@ -139,12 +142,12 @@ function AdminLinksHub() {
   );
 }
 
-function PartnerLinks({ partnerId, readOnly,embedded=false,stats,creationOnly=false,onCreationClose }: { partnerId: string; readOnly: boolean;embedded?:boolean;stats?:LinkStatistics;creationOnly?:boolean;onCreationClose?:()=>void }) {
-  const qc = useQueryClient();
+function PartnerLinks({ partnerId, readOnly,embedded=false,stats,creationOnly=false,onCreationClose,onCreationCreated }: { partnerId: string; readOnly: boolean;embedded?:boolean;stats?:LinkStatistics;creationOnly?:boolean;onCreationClose?:()=>void;onCreationCreated?:()=>void }) {
+  const qc = useQueryClient(),navigate=useNavigate(),base=useTenantBase();
   const [params,setParams]=useSearchParams();
   const [localCreate, setShowCreate] = useState(false);
   const showCreate=creationOnly||localCreate||!embedded&&params.get('create')==='partner';
-  const closeCreate=()=>{setShowCreate(false);if(creationOnly&&onCreationClose){onCreationClose();return;}setParams(current=>{const next=new URLSearchParams(current);next.delete('create');return next;});};
+  const closeCreate=()=>{const returnTo=materialReturnPath(params.get('returnTo'),base,partnerId);if(returnTo){navigate(returnTo,{replace:true});return;}setShowCreate(false);if(creationOnly&&onCreationClose){onCreationClose();return;}setParams(current=>{const next=new URLSearchParams(current);next.delete('create');return next;});};
   const shareBase = shareUrlBase();
 
   const links = useQuery({
@@ -190,12 +193,13 @@ function PartnerLinks({ partnerId, readOnly,embedded=false,stats,creationOnly=fa
         <CreateLink
           partnerId={partnerId}
           campaigns={campaigns.data?.programs ?? []}
-          initialProgramId={stats?.programId}
+          initialProgramId={stats?.programId??params.get('programId')??undefined}
           standalone={creationOnly}
           onClose={closeCreate}
           onCreated={() => {
-            closeCreate();
+            if(onCreationCreated)onCreationCreated();else closeCreate();
             qc.invalidateQueries({ queryKey: ['links', partnerId] });
+            void invalidateAnalytics(qc);
           }}
         />
       ):null;
@@ -262,13 +266,16 @@ function CreateLink({
           channel: channel || undefined,
         },
       }),
-    onSuccess: onCreated,
+    onSuccess: ()=>{allowNavigation();onCreated();},
   });
 
+  const dirty=!!(linkKey||label||channel||useDeepLink||destinationOverride);
+  const allowNavigation=useUnsavedChanges(dirty,mut.isPending);
+  const closeForm=()=>{if(mut.isPending||dirty&&!window.confirm('Закрыть создание ссылки без сохранения?'))return;allowNavigation();onClose();};
   const Container=standalone?'div':Card;
   return <div className={standalone?'publication-create partner-link-create':undefined}>
     <Container style={{ marginBottom: standalone?0:16 }}>
-      {standalone?<header className="publication-create__header"><div className="publication-create__heading"><span className="publication-create__icon"><Link2 size={20}/></span><div><h2>Партнёрская ссылка</h2><p>Общая ссылка для профиля, закрепа или переписки. Для отдельного материала выберите «Для публикации».</p></div></div><button className="results-icon-button" type="button" aria-label="Закрыть создание партнёрской ссылки" disabled={mut.isPending} onClick={onClose}><X size={17}/></button></header>:<div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>Новая ссылка</div>}
+      {standalone?<header className="publication-create__header"><div className="publication-create__heading"><span className="publication-create__icon"><Link2 size={20}/></span><div><h2>Партнёрская ссылка</h2><p>Общая ссылка для профиля, закрепа или переписки. Для отдельного материала выберите «Для публикации».</p></div></div><button className="results-icon-button" type="button" aria-label="Закрыть создание партнёрской ссылки" disabled={mut.isPending} onClick={closeForm}><X size={17}/></button></header>:<div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>Новая ссылка</div>}
       <ErrorBanner error={mut.error} />
       <form onSubmit={event=>{event.preventDefault();if(programId&&!mut.isPending)mut.mutate();}}>
       <fieldset disabled={mut.isPending} style={{border:0,margin:0,padding:0,minWidth:0}}>
@@ -333,7 +340,7 @@ function CreateLink({
         <Button type="submit" disabled={!programId || mut.isPending}>
           {mut.isPending ? 'Создание…' : 'Создать ссылку'}
         </Button>
-        <Button type="button" variant="secondary" onClick={onClose}>
+        <Button type="button" variant="secondary" onClick={closeForm}>
           Отмена
         </Button>
       </div>

@@ -19,7 +19,7 @@ async function fixture() {
   const prefix = `admin-backend-${ulid()}`;
   const partner = await post('/partners', { name: `${prefix} A`, email: `${ulid()}@example.test`, sendInvite: false });
   expect(partner.status, partner.text).toBe(201);
-  const program = await post('/programs', { name: prefix, destinationUrl: 'https://example.test', commissionRule: { type: 'percent', value: 20, recurring: true } });
+  const program = await post('/programs', { name: prefix, destinationUrl: 'https://example.test', shareOnNetwork:false, commissionRule: { type: 'percent', value: 20, recurring: true } });
   expect(program.status, program.text).toBe(201);
   const link = await post(`/partners/${partner.body.id}/links`, { programId: program.body.id, linkKey: `backend-${ulid()}` });
   expect(link.status, link.text).toBe(201);
@@ -166,7 +166,7 @@ describe('admin analytics backend authorization, pagination, diagnostics and que
       const response = await get(`/admin/analytics?${f.query}`); expect(response.status, response.text).toBe(200);
       expect(response.body.diagnostics).toMatchObject({ flaggedClicks: 1, legacyFinancialEventsWithoutExternalId: 1,
         refundAdjustments: { count: 1, amountMinor: -10000 }, outstandingDebtMinor: 10000 });
-      expect(response.body.dataQuality).toMatchObject({ signupTracking: 'not_verified_end_to_end', paymentTracking: 'not_verified_end_to_end', views: 'unavailable', ctr: 'unavailable' });
+      expect(response.body.dataQuality).toMatchObject({ signupTracking: 'no_events_observed', paymentTracking: 'events_observed', endToEnd:'not_verified', views: 'unavailable', ctr: 'unavailable' });
       expect(response.body.views).toBeNull(); expect(response.body.ctr).toBeNull();
       expect(response.body.commissionByStatus.paid).toBe(100);
       const overview = await get(`/admin/overview?${f.query}`); expect(overview.status, overview.text).toBe(200);

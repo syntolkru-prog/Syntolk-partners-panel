@@ -89,7 +89,7 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
     <Page title="Выплаты" subtitle={subtitle} actions={actions}>
       <ErrorBanner error={runPayouts.error ?? confirmPayout.error ?? cancelPayout.error ?? payouts.error} />
       <Card style={{ marginBottom: 14, fontSize: 13, color: theme.textMuted }}>
-        {isAdmin ? 'Расчёт создаёт ожидающую заявку, а «Подтвердить» фиксирует её завершение. В локальной версии деньги не переводятся. При выборе партнёра расчёт касается только его.' : 'Ожидающая заявка ещё не считается выплаченной. В локальной версии это имитация, без банковского перевода.'}
+        {isAdmin ? 'Расчёт создаёт ожидающую заявку. После перевода средств подтвердите её завершение. При выборе партнёра расчёт касается только его.' : 'Ожидающая заявка ещё не считается выплаченной. Завершённая выплата появится после подтверждения администратором.'}
       </Card>
 
       {runPayouts.data && (
@@ -129,7 +129,7 @@ export function PayoutsPage({ principal }: { principal: Principal }) {
         </Card>
       )}
 
-      {payouts.isLoading ? (
+      {payouts.error ? null : payouts.isLoading ? (
         <Card>Загрузка…</Card>
       ) : (payouts.data?.payouts ?? []).length === 0 ? (
         <EmptyState

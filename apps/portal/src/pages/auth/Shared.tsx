@@ -1,3 +1,4 @@
+import { appPath } from '../../app-path.js';
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { theme } from '../../theme.js';
@@ -61,7 +62,7 @@ export function AuthFrame({
 export function Logo({ size = 26 }: { size?: number } = {}) {
   return (
     <img
-      src="/logo-mark-green.svg"
+      src={appPath('/logo-mark-green.svg')}
       alt="Syntolk"
       width={size}
       height={size}

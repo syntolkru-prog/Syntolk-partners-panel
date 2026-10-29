@@ -1,5 +1,18 @@
-const KEY_STORAGE = 'op:apiKey';
-const LOCAL_KEY_STORAGE = 'op:localApiKey';
+import { appBase, appLocationPath, appPath } from './app-path.js';
+const KEY_STORAGE = appBase ? appBase + ':op:apiKey' : 'op:apiKey';
+const LOCAL_KEY_STORAGE = appBase ? appBase + ':op:localApiKey' : 'op:localApiKey';
+export const AUTH_RECHECK_EVENT = 'openpartner:auth-recheck';
+export const AUTH_CHANGE_STORAGE = appBase + ':op:session-change';
+
+function notifyAuthChanged(broadcast = false): void {
+  window.dispatchEvent(new Event(AUTH_RECHECK_EVENT));
+  if (broadcast) {
+    try {
+      // A notification only: never share credentials through localStorage.
+      localStorage.setItem(AUTH_CHANGE_STORAGE, String(Date.now()) + ':' + Math.random());
+    } catch { /* Focus and access-error checks still work without storage. */ }
+  }
+}
 
 export function isLocalDevelopment(): boolean {
   return import.meta.env.DEV && location.port === '5673'
@@ -26,6 +39,7 @@ export function setApiKey(key: string): void {
   sessionStorage.setItem(KEY_STORAGE, key);
   if (isLocalDevelopment()) localStorage.setItem(LOCAL_KEY_STORAGE, key);
   localStorage.removeItem(KEY_STORAGE);
+  notifyAuthChanged();
 }
 
 export function clearApiKey(): void {
@@ -33,6 +47,7 @@ export function clearApiKey(): void {
   if (isLocalDevelopment() && localStorage.getItem(LOCAL_KEY_STORAGE) === current) localStorage.removeItem(LOCAL_KEY_STORAGE);
   sessionStorage.setItem(KEY_STORAGE, '');
   localStorage.removeItem(KEY_STORAGE);
+  notifyAuthChanged();
 }
 
 /**
@@ -43,7 +58,7 @@ export function clearApiKey(): void {
  */
 export function currentTenantSlug(): string | null {
   if (typeof window === 'undefined') return null;
-  const m = window.location.pathname.match(/^\/t\/([a-z0-9-]+)(?:\/|$)/);
+  const m = appLocationPath().match(/^\/t\/([a-z0-9-]+)(?:\/|$)/);
   return m ? m[1]! : null;
 }
 
@@ -65,7 +80,7 @@ async function apiResponse(
   }
   const slug = currentTenantSlug();
   const tenantPrefix = slug ? `/t/${slug}` : '';
-  const res = await fetch(`/api${tenantPrefix}${path}`, {
+  const res = await fetch(appPath(`/api${tenantPrefix}${path}`), {
     ...init,
     headers,
     credentials: 'include',
@@ -77,11 +92,16 @@ async function apiResponse(
           ? init.body
           : JSON.stringify(init.body),
   });
+  const currentCredential = getApiKey() === key
+    && headers.get('Authorization') === (key ? `Bearer ${key}` : null);
+  if ((res.status === 401 || res.status === 403) && path !== '/auth/whoami' && currentCredential) {
+    notifyAuthChanged();
+  }
   if (res.status === 401) {
     // A rejected candidate at login or a late response from a previous
     // account must not sign out the current account.
     if (key && headers.get('Authorization') === `Bearer ${key}` && getApiKey() === key) clearApiKey();
-    throw new ApiError(res.status, 'unauthorized');
+    throw new ApiError(res.status, 'Сессия завершена. Войдите снова.');
   }
   if (!res.ok) {
     let detail: unknown = null;
@@ -96,6 +116,9 @@ async function apiResponse(
     // 4xx body when proxied). Without this every API failure renders
     // as a bare "500" or "400" — useless when triaging.
     throw new ApiError(res.status, friendlyMessage(res, detail), detail);
+  }
+  if (['/auth/magic/verify', '/auth/signout'].includes(path) && init.method === 'POST') {
+    notifyAuthChanged(true);
   }
   return res;
 }
@@ -115,6 +138,9 @@ function friendlyMessage(res: Response, detail: unknown): string {
   // Prefer the verbose explanation; fall back to the short error code.
   if (typeof d.detail === 'string' && d.detail.length > 0) {
     return typeof d.error === 'string' ? `${d.error}: ${d.detail}` : d.detail;
+  }
+  if (res.status === 403 && d.error === 'forbidden') {
+    return 'Нет доступа к этому разделу для текущего аккаунта.';
   }
   if (typeof d.error === 'string' && d.error.length > 0) return d.error;
   return fallback;

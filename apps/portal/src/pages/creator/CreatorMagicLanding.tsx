@@ -1,3 +1,4 @@
+import { appPath } from '../../app-path.js';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { theme } from '../../theme.js';
@@ -36,7 +37,7 @@ export function CreatorMagicLandingPage() {
         <div style={{ color: theme.danger, fontSize: 14 }}>
           {detail ?? 'Не удалось выполнить проверку.'}
           <div style={{ color: theme.textDim, fontSize: 13, marginTop: 10 }}>
-            Запросите новую ссылку на <a href="/creator/login" style={{ color: theme.accent }}>странице входа</a>.
+            Запросите новую ссылку на <a href={appPath('/creator/login')} style={{ color: theme.accent }}>странице входа</a>.
           </div>
         </div>
       )}

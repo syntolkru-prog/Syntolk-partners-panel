@@ -35,13 +35,32 @@ beforeEach(async()=>{
 });
 afterAll(async()=>{await db.destroy();await appDb.destroy();});
 describe('calculator is the sole work-plan source',()=>{
+ it('rejects a stale saved-scenario revision without overwriting the newer settings',async()=>{
+  const first=await saveNamed('Concurrent');
+  const next=await post('/coach/me/forecast-snapshots',{programId,confirmed:true,settings,scenarioId:first.scenarioId,scenarioName:'Newer',expectedSnapshotId:first.id});
+  expect(next.status,next.text).toBe(201);
+  const stale=await post('/coach/me/forecast-snapshots',{programId,confirmed:true,settings,scenarioId:first.scenarioId,scenarioName:'Stale',expectedSnapshotId:first.id});
+  expect(stale.status,stale.text).toBe(409);expect(stale.body.error).toBe('snapshot_conflict');
+  const latest=await get(`/coach/me/forecast-snapshots?programId=${programId}&latestPerScenario=true`);
+  expect(latest.body.snapshots).toHaveLength(1);expect(latest.body.snapshots[0].id).toBe(next.body.snapshot.id);
+  const calendar=await post('/coach/me/calculator-plan',{programId,scenarioId:first.scenarioId,snapshotId:first.id,expectedSnapshotId:first.id,startDate:day(),days:7,weekdays:[1,2,3,4,5],requestId:ulid()});
+  expect(calendar.status,calendar.text).toBe(409);expect(calendar.body.error).toBe('snapshot_conflict');expect(await db('CoachPlan').where({partnerId})).toHaveLength(0);
+ });
+ it('replays a confirmed calendar request even after another saved revision appears',async()=>{
+  const saved=await saveNamed('Replay');
+  const body={programId,scenarioId:saved.scenarioId,snapshotId:saved.id,expectedSnapshotId:saved.id,startDate:day(),days:7,weekdays:[1,2,3,4,5],requestId:ulid()};
+  const first=await post('/coach/me/calculator-plan',body);expect(first.status,first.text).toBe(201);
+  const newer=await post('/coach/me/forecast-snapshots',{programId,confirmed:true,settings,scenarioId:saved.scenarioId,scenarioName:'Newer',expectedSnapshotId:saved.id});expect(newer.status,newer.text).toBe(201);
+  const replay=await post('/coach/me/calculator-plan',body);expect(replay.status,replay.text).toBe(201);expect(replay.body.plan.id).toBe(first.body.plan.id);
+  expect(await db('CoachPlan').where({partnerId})).toHaveLength(1);
+ });
  it('rejects a snapshot from a different scenario without creating work',async()=>{
   const first=await saveNamed('First'),second=await saveNamed('Second');
   const result=await post('/coach/me/calculator-plan',{programId,snapshotId:second.id,scenarioId:first.scenarioId,startDate:day(),days:7,weekdays:[0,1,2,3,4,5,6],requestId:ulid()});
   expect(result.status,result.text).toBe(409);expect(result.body.error).toBe('scenario_mismatch');
   expect(await db('CoachPlan').where({partnerId})).toHaveLength(0);expect(await db('PartnerMaterial').where({partnerId})).toHaveLength(0);
  });
- it('keeps prepared text and attachments visible when their scenario is archived',async()=>{
+ it('deletes the explicitly selected scenario materials and attachments after permanent deletion',async()=>{
   const saved=await saveNamed('Prepared');
   const built=await post('/coach/me/calculator-plan',{programId,snapshotId:saved.id,scenarioId:saved.scenarioId,startDate:day(),days:14,weekdays:[0,1,2,3,4,5,6],requestId:ulid()});expect(built.status,built.text).toBe(201);
   const materials=await db('PartnerMaterial').where({partnerId}).orderBy('id');expect(materials.length).toBeGreaterThanOrEqual(3);
@@ -49,7 +68,8 @@ describe('calculator is the sole work-plan source',()=>{
   await db('PartnerMaterial').where({id:materials[1].id}).update({preparedAt:new Date()});
   await db('PartnerMaterialFile').insert({id:ulid(),tenantId,partnerId,materialId:materials[2].id,name:'draft.txt',contentType:'text/plain',size:4,data:Buffer.from('test').toString('base64')});
   const removed=await request(app).delete(`/coach/me/forecast-snapshots/${saved.scenarioId}?programId=${programId}`).set('Authorization',`Bearer ${key}`);expect(removed.status,removed.text).toBe(200);
-  const visible=await db('PartnerMaterial').where({partnerId}).whereNull('archivedAt');expect(visible.map(row=>row.id)).toEqual(expect.arrayContaining(materials.slice(0,3).map(row=>row.id)));
+  expect(await db('PartnerMaterial').where({partnerId})).toHaveLength(0);
+  expect(await db('PartnerMaterialFile').where({partnerId})).toHaveLength(0);
  });
  it('saves ten posts per week on all matching platforms as one calendar with forty materials',async()=>{
   const context={SyntolkForecast:undefined as unknown as {selectMatchingChannels:(input:Record<string,unknown>)=>Record<string,unknown>}};
@@ -73,7 +93,8 @@ describe('calculator is the sole work-plan source',()=>{
   expect(result.tasks.every(task=>!('minutes' in task))).toBe(true);
   expect(result.tasks.reduce((sum,t)=>sum+t.estimatedViews,0)).toBe(2400);
   channels.ytshorts!.enabled=false;
-  await expect(calculatorSchedule(configured,day(),7,[1,2,3,4,5])).rejects.toMatchObject({code:'calculator_unplaced'});
+  const unplaced=await calculatorSchedule(configured,day(),7,[1,2,3,4,5]);
+  expect(unplaced.tasks).toHaveLength(2);expect(unplaced.tasks.every(t=>t.placements.length===0&&t.estimatedViews===0&&t.estimatedClicks===0)).toBe(true);
  });
  it('previews and saves the same custom-format monthly work without extra links or AI calls',async()=>{
   settings={...settings,customFormats:[{id:'format-live',name:'Прямой эфир',base:'long',minutes:30}],removedFormats:['short'],removedChannels:['ytshorts'],channelOverrides:{youtube:{name:'Мой YouTube',url:'https://youtube.com/'}},frequency:{post:0,long:0,article:0,circle:0,'format-live':1},channels:{...(settings.channels as object),youtube:{formats:['format-live'],views:900,ctr:2}}};
@@ -138,7 +159,7 @@ describe('calculator is the sole work-plan source',()=>{
   expect(two.body.plan.data.scenarioName).toBe('Сценарий два');expect(two.body.plan.data.days).toBe(14);
   expect(one.body.tasks).not.toEqual(two.body.tasks);
  });
-	it('archives one deleted scenario without deleting completed history',async()=>{
+	it('permanently removes the selected scenario calendar and its tasks',async()=>{
   const saved=await saveNamed('Удаляемый сценарий');
   const built=await post('/coach/me/calculator-plan',{programId,snapshotId:saved.id,scenarioId:saved.scenarioId,startDate:day(),days:7,weekdays:[0,1,2,3,4,5,6],requestId:ulid()});
   const tasks=await db('CoachTask').where({planId:built.body.plan.id}).orderBy('createdAt');
@@ -147,9 +168,9 @@ describe('calculator is the sole work-plan source',()=>{
   expect(removed.status,removed.text).toBe(200);
   expect((await get(`/coach/me/forecast-snapshots?programId=${programId}`)).body.snapshots.some((row:{data:{scenarioId?:string}})=>row.data.scenarioId===saved.scenarioId)).toBe(false);
   const view=await get(`/coach/me/calculator-plan?programId=${programId}&scenarioId=${saved.scenarioId}`);expect(view.body.plan).toBeNull();expect(view.body.tasks).toHaveLength(0);
-  expect((await db('CoachPlan').where({id:built.body.plan.id}).first()).status).toBe('archived');
-  expect((await db('CoachTask').where({id:tasks[0]!.id}).first()).status).toBe('completed');
-  expect((await db('CoachTask').where({planId:built.body.plan.id}).where('status','cancelled'))).toHaveLength(tasks.length-1);
+  expect(await db('CoachPlan').where({id:built.body.plan.id}).first()).toBeUndefined();
+  expect(await db('CoachTask').where({id:tasks[0]!.id}).first()).toBeUndefined();
+  expect(await db('CoachTask').where({planId:built.body.plan.id})).toHaveLength(0);
  });
  it('replays the same request without duplicate tasks or links',async()=>{
   const body={programId,snapshotId:await save(),startDate:day(),days:7,weekdays:[0,1,2,3,4,5,6],requestId:ulid()};
@@ -200,7 +221,7 @@ describe('calculator is the sole work-plan source',()=>{
   expect(removed.status,removed.text).toBe(200);
   const listed=await request(app).get(`${prefix}/forecast-snapshots?programId=${programId}`).set('Authorization',`Bearer ${credential}`);
   expect(listed.body.snapshots).toHaveLength(0);
-  expect((await db('CoachPlan').where({id:built.body.plan.id}).first()).status).toBe('archived');
+  expect(await db('CoachPlan').where({id:built.body.plan.id}).first()).toBeUndefined();
   expect(await db('CoachRun').where({tenantId,partnerId})).toHaveLength(0);
   expect((await send('/messages',{programId,clientMessageId:ulid(),message:'Тест'})).body.error).toBe('coach_disabled');
  });

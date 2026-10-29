@@ -1,3 +1,4 @@
+import { appPath } from '../app-path.js';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { theme } from '../theme.js';
@@ -58,7 +59,7 @@ export function AddBrandPage() {
     setErr(null);
     try {
       // Platform-level endpoints — no tenant prefix, cookie-authenticated.
-      const res = await fetch('/api/me/brands', {
+      const res = await fetch(appPath('/api/me/brands'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
@@ -73,7 +74,7 @@ export function AddBrandPage() {
       // Enter the new workspace with the existing platform session, then
       // land on the local settings page; platform billing is not part of
       // the Syntolk self-hosted build.
-      const enter = await fetch('/api/workspaces/enter', {
+      const enter = await fetch(appPath('/api/workspaces/enter'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',

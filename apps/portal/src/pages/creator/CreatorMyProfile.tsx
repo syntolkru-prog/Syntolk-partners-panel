@@ -1,3 +1,4 @@
+import { appPath } from '../../app-path.js';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, X } from 'lucide-react';
@@ -217,7 +218,7 @@ export function CreatorMyProfilePage() {
               </Button>
               {data.handle && (
                 <a
-                  href={`/creators/${data.handle}`}
+                  href={appPath(`/creators/${data.handle}`)}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{ color: theme.accent, fontSize: 13, marginLeft: 4 }}
@@ -587,7 +588,7 @@ function CreatorDangerZone({ email, pendingDeletionAt }: { email: string; pendin
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <a
-              href="/api/creator-api/creators/me/export"
+              href={appPath('/api/creator-api/creators/me/export')}
               style={{
                 background: 'transparent',
                 color: theme.text,

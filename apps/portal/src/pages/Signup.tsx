@@ -1,3 +1,4 @@
+import { appPath } from '../app-path.js';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api.js';
@@ -42,7 +43,7 @@ export function SignupPage() {
       // prefix from currentTenantSlug() if the user navigated here from
       // somewhere weird. /signup is mounted before tenantMiddleware on
       // the API side anyway.
-      const res = await fetch('/api/signup', {
+      const res = await fetch(appPath('/api/signup'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

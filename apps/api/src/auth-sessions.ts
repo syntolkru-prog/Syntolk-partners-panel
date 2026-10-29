@@ -27,7 +27,7 @@ import {
   type SessionRow,
 } from '@openpartner/db';
 
-export const SESSION_COOKIE_NAME = 'op_session';
+export const SESSION_COOKIE_NAME = (process.env.OPENPARTNER_COOKIE_PREFIX ?? '') + 'op_session';
 const TOKEN_PREFIX_LEN = 8;
 const MAGIC_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -217,7 +217,7 @@ export function sessionCookieOptions(): CookieOptions {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    path: '/',
+    path: process.env.OPENPARTNER_COOKIE_PATH || '/',
     maxAge: SESSION_TTL_MS,
   };
 }

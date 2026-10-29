@@ -18,7 +18,7 @@ export function WorkdayRegistrationsDialog({partnerId,query,range,onClose}:{part
   const rows=result.data?.pages.flatMap(page=>page.registrations)??[],first=result.data?.pages[0];
   return createPortal(<dialog ref={root} className="partner-workday wd-registration-dialog" aria-label="Регистрации за период" onCancel={event=>{event.preventDefault();onClose();}}>
     <header className="wd-card-heading"><div><h2>Регистрации за период{first?` · ${first.total}`:''}</h2><p>{rangeCaption(range)}</p></div><button className="wd-link-button" type="button" aria-label="Закрыть регистрации" onClick={onClose}><X size={18}/></button></header>
-    <div className="wd-registration-dialog-body" role="region" aria-label="Список регистраций" tabIndex={0}><ErrorBanner error={result.error}/><WorkdayRegistrationTable rows={rows} loading={result.isLoading} error={!rows.length?result.error:undefined} timezone={first?.timezone??'Europe/Moscow'}/>
+    <div className="wd-registration-dialog-body" role="region" aria-label="Список регистраций" tabIndex={0}><ErrorBanner error={result.error}/><WorkdayRegistrationTable rows={rows} loading={result.isLoading} error={!rows.length?result.error:undefined} timezone={first?.timezone??'Europe/Moscow'} query={query}/>
       <footer><span>{first?`Показано ${rows.length} из ${first.total}`:''}</span>{result.hasNextPage&&<Button variant="secondary" disabled={result.isFetchingNextPage} onClick={()=>{void result.fetchNextPage();}}>{result.isFetchingNextPage?'Загрузка…':'Показать ещё'}</Button>}</footer>
     </div>
   </dialog>,document.body);

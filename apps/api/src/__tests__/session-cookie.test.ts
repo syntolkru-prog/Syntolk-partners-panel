@@ -36,3 +36,15 @@ describe('sessionCookieOptions', () => {
     expect(sessionCookieOptions().secure).toBe(true);
   });
 });
+
+it('supports a deployment-specific cookie path without changing root defaults', () => {
+  const previous = process.env.OPENPARTNER_COOKIE_PATH;
+  try {
+    process.env.OPENPARTNER_COOKIE_PATH = '/vtestpartners';
+    expect(sessionCookieOptions().path).toBe('/vtestpartners');
+    expect('domain' in sessionCookieOptions()).toBe(false);
+  } finally {
+    if (previous === undefined) delete process.env.OPENPARTNER_COOKIE_PATH;
+    else process.env.OPENPARTNER_COOKIE_PATH = previous;
+  }
+});

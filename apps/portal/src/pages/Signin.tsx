@@ -1,3 +1,4 @@
+import { appPath } from '../app-path.js';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { theme } from '../theme.js';
@@ -24,7 +25,7 @@ export function SigninPage() {
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch('/api/signin', {
+      const res = await fetch(appPath('/api/signin'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         // add=true rides through to the magic link's purpose so the

@@ -1,12 +1,13 @@
 import type {ChartMetric} from '../../pages/ResultsChart.js';
 import {AvailableChartColors,type AvailableChartColorsKeys} from './raw/utils/chartColors.js';
 
-// Tremor's named chart palette, also used by the existing external legends.
-const paletteEntry=(color:AvailableChartColorsKeys)=>[color,`var(--color-${color}-500)`] as const;
+// Shared semantic colors for chart marks and external legends.
+// CSS keeps them separate from the neutral partner controls.
+const paletteEntry=(color:AvailableChartColorsKeys)=>[color,`var(--op-chart-${color})`] as const;
 export const chartPalette = AvailableChartColors.map(paletteEntry);
 export const metricPalette:Record<ChartMetric,typeof chartPalette[number]> = {
-  clicks:paletteEntry('blue'),identities:paletteEntry('gray'),registrations:paletteEntry('violet'),
-  payingCustomers:paletteEntry('emerald'),payments:paletteEntry('amber'),
+  clicks:paletteEntry('cyan'),identities:paletteEntry('lime'),registrations:paletteEntry('violet'),
+  payingCustomers:paletteEntry('fuchsia'),payments:paletteEntry('amber'),
   customerPaymentsMinor:paletteEntry('emerald'),earningsMinor:paletteEntry('blue'),
 };
 export function sourcePalette(id:string) {

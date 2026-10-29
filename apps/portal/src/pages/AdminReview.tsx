@@ -51,7 +51,7 @@ export function AdminReview() {
       subtitle={`${rows.length} ${rows.length === 1 ? 'комиссия ожидает' : 'комиссий ожидают'} вашего решения.`}
     >
       <ErrorBanner error={pending.error ?? approve.error ?? reverse.error} />
-      {pending.isLoading ? (
+      {pending.error ? null : pending.isLoading ? (
         <Card>Загрузка…</Card>
       ) : rows.length === 0 ? (
         <EmptyState title="Очередь пуста" hint="Новые комиссии появятся здесь после атрибуции событий." icon={<ShieldCheck size={28} strokeWidth={1.25} />} />

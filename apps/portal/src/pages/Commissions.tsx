@@ -87,7 +87,7 @@ export function CommissionsPage({ principal }: { principal: Principal }) {
           <ErrorBanner error={adjust.error} />
         </Card>
       )}
-      {isLoading ? (
+      {error ? null : isLoading ? (
         <Card>Загрузка…</Card>
       ) : rows.length === 0 ? (
         <EmptyState

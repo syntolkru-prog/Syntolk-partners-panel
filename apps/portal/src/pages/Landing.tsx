@@ -1,3 +1,4 @@
+import { appPath } from '../app-path.js';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { theme } from '../theme.js';
@@ -24,10 +25,10 @@ export function LandingPage() {
       if (!cancelled) nav(home, { replace: true });
     }
     Promise.all([
-      fetch('/api/session/home', { credentials: 'include' })
+      fetch(appPath('/api/session/home'), { credentials: 'include' })
         .then((r) => (r.ok ? r.json() : { home: null }))
         .catch(() => ({ home: null })),
-      fetch('/api/creator-api/creators/whoami', { credentials: 'include' })
+      fetch(appPath('/api/creator-api/creators/whoami'), { credentials: 'include' })
         .then((r) => (r.ok ? r.json() : { creator: null }))
         .catch(() => ({ creator: null })),
     ]).then(([brand, creator]: [{ home?: string | null }, { creator: unknown }]) => {
@@ -63,8 +64,8 @@ export function LandingPage() {
           <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em' }}>Syntolk</div>
         </div>
         <div style={{ display: 'flex', gap: 18, alignItems: 'center', fontSize: 13 }}>
-          <a href="/" style={{ color: theme.textMuted }}>О Syntolk</a>
-          <a href="/signin" style={{ color: theme.textMuted }}>Войти</a>
+          <a href={appPath('/')} style={{ color: theme.textMuted }}>О Syntolk</a>
+          <a href={appPath('/signin')} style={{ color: theme.textMuted }}>Войти</a>
           <Link to="/signin" style={{ color: theme.textMuted }}>Войти</Link>
         </div>
       </header>
@@ -116,7 +117,7 @@ export function LandingPage() {
       </main>
 
       <footer style={{ padding: '20px 32px', borderTop: `1px solid ${theme.borderSubtle}`, color: theme.textDim, fontSize: 12, textAlign: 'center' }}>
-        Syntolk — партнёрская программа для вашего бизнеса. <a href="/signin" style={{ color: theme.textMuted }}>Войти в кабинет</a>
+        Syntolk — партнёрская программа для вашего бизнеса. <a href={appPath('/signin')} style={{ color: theme.textMuted }}>Войти в кабинет</a>
       </footer>
     </div>
   );

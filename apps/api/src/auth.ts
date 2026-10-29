@@ -18,6 +18,7 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
+import { SESSION_COOKIE_NAME } from './auth-sessions.js';
 import type { NextFunction, Request, Response } from 'express';
 import type { Knex } from 'knex';
 import { ulid } from 'ulid';
@@ -116,7 +117,7 @@ async function resolvePrincipal(req: Request): Promise<ApiKeyPrincipal | null> {
 
   const header = req.header('authorization');
   if (!header) {
-    const cookie = (req as unknown as { cookies?: Record<string, string> }).cookies?.op_session;
+    const cookie = (req as unknown as { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE_NAME];
     if (!cookie) return null;
     const { resolveSession } = await import('./auth-sessions.js');
     const session = await resolveSession(db, cookie, tenantId);

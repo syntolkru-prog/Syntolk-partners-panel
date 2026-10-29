@@ -46,8 +46,9 @@ function AdminAnalyticsOverview() {
   const closeExplorer=useCallback(()=>setExplorer(null),[]),closeInspection=useCallback(()=>setInspection(null),[]);
   const [search,setSearch]=useState(params.get('search')??'');
   const localTimezone=Intl.DateTimeFormat().resolvedOptions().timeZone;
-  let timezone=params.get('timezone')??localTimezone;
-  try{new Intl.DateTimeFormat('en',{timeZone:timezone});}catch{timezone=localTimezone;}
+  const [resolvedTimezone,setResolvedTimezone]=useState('Europe/Moscow');
+  let timezone=params.get('timezone')??resolvedTimezone;
+  try{new Intl.DateTimeFormat('en',{timeZone:timezone});}catch{timezone='Europe/Moscow';}
   const currency=/^[A-Z]{3}$/.test(params.get('currency')??'')?params.get('currency')!:'RUB';
   const period:ResultsPeriod=['today','7d','30d','all','custom'].includes(params.get('period')??'')?params.get('period') as ResultsPeriod:'30d';
   const partners=selected(params,'partnerIds').slice(0,50),page=integer(params.get('page'),1,100000),pageSize=integer(params.get('pageSize'),20,50);
@@ -58,9 +59,9 @@ function AdminAnalyticsOverview() {
   const from=params.get('from')??'',to=params.get('to')??'',customReady=period!=='custom'||validDateRange({from,to});
   const compareFrom=params.get('compareFrom')??'',compareTo=params.get('compareTo')??'';
   const compare=params.get('compare')==='true'&&validDateRange({from:compareFrom,to:compareTo});
-  const scope=new URLSearchParams({period,currency,timezone});
+  const scope=new URLSearchParams({period,currency});if(params.has('timezone'))scope.set('timezone',timezone);
   for(const key of ['programId','materialId','sourceId','linkId','from','to'])if(params.get(key))scope.set(key,params.get(key)!);
-  for(const key of ['partnerIds','platformIds','formatIds'])for(const value of selected(params,key))scope.append(key,value);
+  for(const key of ['partnerIds','scenarioIds','platformIds','formatIds'])for(const value of selected(params,key))scope.append(key,value);
   const query=new URLSearchParams(scope);query.set('view','summary');query.set('includeSeries','true');
   if(chartBy!=='total')query.set('seriesBy',chartBy);
   if(compare){query.set('includeComparison','true');query.set('compareFrom',compareFrom);query.set('compareTo',compareTo);}
@@ -73,6 +74,7 @@ function AdminAnalyticsOverview() {
     placeholderData:(previous,previousQuery)=>previousQuery?.queryKey[1]===currentTenantSlug()?previous:undefined});
   const programs=useQuery({queryKey:['admin-analytics-programs',currentTenantSlug()],queryFn:()=>api<{programs:Array<{id:string;name:string}>}>('/programs')});
   const data=report.data,rows=table.data?.items??[],pagination=table.data?.pagination;
+  useEffect(()=>{if(data?.timezone&&!report.isPlaceholderData)setResolvedTimezone(data.timezone);},[data?.timezone,report.isPlaceholderData]);
   const catalogScope=JSON.stringify([currentTenantSlug(),params.get('programId')??'',[...partners].sort()]);
   const [previousOptions,setPreviousOptions]=useState<{scope:string;options:AnalyticsReport['options']}|null>(null);
   useEffect(()=>{if(data&&!report.isPlaceholderData)setPreviousOptions({scope:catalogScope,options:data.options});},[data,catalogScope,report.isPlaceholderData]);
@@ -83,8 +85,8 @@ function AdminAnalyticsOverview() {
   const applyPeriods=(primary:DateChoice,comparison:DateChoice|null)=>setParams(previous=>{const next=applyResultsPeriods(previous,primary,comparison);next.delete('page');return next;});
   const clearComparison=()=>setParams(previous=>clearResultsComparison(previous));
   const resetReport=()=>{const next=resetResultsFilters(urlParams);setSearch('');setExplorer(null);setInspection(null);setParams(next);if(next.toString()===urlQuery){void report.refetch();void table.refetch();}};
-  const update=(key:string,value:string)=>setParams(previous=>{const next=new URLSearchParams(previous);if(value)next.set(key,value);else next.delete(key);if(key!=='page')next.delete('page');if(key==='programId')for(const field of ['platformId','platformIds','formatId','formatIds','materialId','sourceId','linkId'])next.delete(field);return next;});
-  const many=(key:string,values:string[])=>setParams(previous=>{const next=new URLSearchParams(previous);next.delete(key);next.delete(key.replace(/Ids$/,'Id'));next.delete('page');for(const value of values)next.append(key,value);return next;});
+  const update=(key:string,value:string)=>setParams(previous=>{const next=new URLSearchParams(previous);if(value)next.set(key,value);else next.delete(key);if(key!=='page')next.delete('page');if(key==='programId')for(const field of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','sourceId','linkId'])next.delete(field);return next;});
+  const many=(key:string,values:string[])=>setParams(previous=>{const next=new URLSearchParams(previous);next.delete(key);next.delete(key.replace(/Ids$/,'Id'));next.delete('page');if(key==='partnerIds'){next.delete('scenarioId');next.delete('scenarioIds');}for(const value of values)next.append(key,value);return next;});
   useEffect(()=>{if(normalizedQuery!==urlQuery)setParams(previous=>adminOverviewParams(previous),{replace:true});},[normalizedQuery,urlQuery,setParams]);
   useEffect(()=>{setExplorer(null);setInspection(null);},[sourceScope.toString(),chartBy]);
   useEffect(()=>{setInspection(null);},[scope.toString(),compare,compareFrom,compareTo]);
@@ -106,6 +108,7 @@ function AdminAnalyticsOverview() {
     </div></header>
     <div className="admin-analytics__filters results-surface">
       <PartnerPicker scope={scope.toString()} value={partners} caption={caption} onChange={value=>many('partnerIds',value)}/>
+      {partners.length===1&&<ResultsMultiSelect label="Сценарии" ariaLabel="Сценарии аналитики" allLabel="Все сценарии" options={[...options.scenarios,{id:'__none__',name:'Без сценария'}]} value={selected(params,'scenarioIds')} onChange={value=>many('scenarioIds',value)}/>}
       <ResultsMultiSelect label="Площадки" ariaLabel="Площадка аналитики" allLabel="Все площадки" options={[...options.platforms,{id:'__none__',name:'Площадка не указана'}]} value={selected(params,'platformIds')} onChange={value=>many('platformIds',value)}/>
       <ResultsMultiSelect label="Тип контента" ariaLabel="Формат аналитики" allLabel="Все типы контента" options={[...options.formats,{id:'__none__',name:'Формат не указан'}]} value={selected(params,'formatIds')} onChange={value=>many('formatIds',value)}/>
       {(['materialId','sourceId','linkId'] as const).map((key,i)=>params.has(key)&&<button type="button" className="results-button" key={key} onClick={()=>update(key,'')}>{['Материал','Размещение','Ссылка'][i]}: выбран · Сбросить</button>)}
@@ -131,7 +134,7 @@ function AdminAnalyticsOverview() {
         <div className="admin-analytics__table-scroll" data-pending={table.isPlaceholderData} role="region" tabIndex={0} aria-label="Результаты партнёров">
           {table.isPlaceholderData&&<span className="admin-analytics__table-pending" role="status">Обновляем результаты…</span>}
           <table className="results-table admin-analytics__table"><thead><tr>{['Партнёр','Переходы','Регистрации','Платящие клиенты','Оплаты','Оплачено клиентами','Начислено партнёрам'].map(label=><th key={label}>{label}</th>)}</tr></thead><tbody aria-hidden={table.isPlaceholderData||undefined} {...{inert:table.isPlaceholderData?'':undefined}}>{rows.map(row=><tr key={row.id}><td><TenantLink className="results-row-name" to={detailLink(row)}>{row.name}<ChevronRight size={14}/></TenantLink><span className="admin-analytics__partner-meta">{row.email}</span></td>{[row.counts.clicks,row.counts.registrations,row.counts.payingCustomers,row.counts.paymentCount].map((value,i)=><td key={i}>{number(value)}</td>)}<td>{money(row.amountsMinor.observedPayments/100,currency)}</td><td>{money(row.amountsMinor.netAccrued/100,currency)}</td></tr>)}</tbody></table>
-          {!rows.length&&<div className="results-empty" role="status">{table.isLoading?'Загружаем результаты…':search?'Партнёры не найдены.':partners.length?'У выбранных партнёров нет действий за этот период.':'За выбранный период действий нет. Можно показать партнёров без результатов.'}</div>}
+          {!table.error&&!rows.length&&<div className="results-empty" role="status">{table.isLoading?'Загружаем результаты…':search?'Партнёры не найдены.':partners.length?'У выбранных партнёров нет действий за этот период.':'За выбранный период действий нет. Можно показать партнёров без результатов.'}</div>}
         </div>
         {pagination&&<div className="admin-analytics__pagination"><span>Найдено: {pagination.total} · Страница {page} из {Math.max(1,pagination.totalPages)}</span><select aria-label="Партнёров на странице" value={pageSize} onChange={e=>update('pageSize',e.target.value)}>{[20,50].map(size=><option key={size}>{size}</option>)}</select><button type="button" className="results-button" aria-label="Предыдущая страница партнёров" disabled={page<=1||table.isFetching} onClick={()=>update('page',String(page-1))}><ChevronLeft size={16}/></button><button type="button" className="results-button" aria-label="Следующая страница партнёров" disabled={page>=pagination.totalPages||table.isFetching} onClick={()=>update('page',String(page+1))}><ChevronRight size={16}/></button></div>}
       </section>

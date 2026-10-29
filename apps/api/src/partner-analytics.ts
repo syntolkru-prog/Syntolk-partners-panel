@@ -46,13 +46,13 @@ type BreakdownGroup = AnalyticsGroup | 'platformFormat';
 type Group = BreakdownGroup | TimeGroup;
 type Scope = { db: Knex; tenantId: string; partnerIds?: string[]; filters: AnalyticsFilters; since: Date; until: Date; asOf: Date };
 export type AnalyticsTrackingStatus = 'not_verified_end_to_end' | 'unavailable';
-export type AnalyticsWarning = 'signup_tracking_unverified' | 'payment_tracking_unverified' | 'views_unavailable' | 'ctr_unavailable';
+export type AnalyticsWarning = 'signup_tracking_unverified' | 'payment_tracking_unverified' | 'signup_events_not_observed' | 'payment_events_not_observed' | 'views_unavailable' | 'ctr_unavailable';
 const GROUPS: Record<BreakdownGroup, string> = { scenario: 'src.scenarioId', platform: 'src.platformId', format: 'src.formatId', material: 'src.materialId', source: 'src.id', link: 'cl.linkId', partner: 'cl.partnerId', platformFormat:'src.platformId' };
 const isTimeBucket = (group?: Group): group is TimeGroup => typeof group === 'object' || group === 'day' || group === 'week' || group === 'month';
 const groupExpression = (group: BreakdownGroup) => group === 'platformFormat' ? `jsonb_build_array(??, src."formatId")::text` : group === 'link' ? `COALESCE(??, src."linkId", '__none__')` : `COALESCE(??, '__none__')`;
 const selectedIds = (filters: AnalyticsFilters, field: 'scenarioId' | 'platformId' | 'formatId' | 'materialId') => {
   const multiple = field === 'materialId' ? [] : filters[`${field}s`] ?? [];
-  return [...new Set([...(filters[field] ? [filters[field]!] : []), ...multiple])];
+  return [...new Set([...(filters[field] ? [filters[field]!] : []), ...multiple])].filter(value=>value&&!['all','new'].includes(value));
 };
 const matchesSelection = (value: string | null, selected: string[]) => !selected.length || selected.includes(value ?? '__none__');
 export function analyticsPartnerIds(filters: Pick<AnalyticsFilters, 'partnerId' | 'partnerIds'>): string[] | undefined {
@@ -365,11 +365,33 @@ async function availableCurrencies(s:Scope) {
   ]);
   return [...new Set([...commissions,...events].map(row=>String(row.currency)))].sort();
 }
-function trackingMetadata() {return {views:null,ctr:null,dataQuality:{signupTracking:'not_verified_end_to_end',paymentTracking:'not_verified_end_to_end',views:'unavailable',ctr:'unavailable'},warnings:['signup_tracking_unverified','payment_tracking_unverified','views_unavailable','ctr_unavailable']};}
+async function trackingMetadata(s:Scope) {
+  // Evidence is actual attributed ingestion, across dates in the selected scope.
+  // It does not claim that every browser/signup path has passed an end-to-end test.
+  const observed=await attributions(s).select(s.db.raw(`BOOL_OR(e.type='signup') AS signup, BOOL_OR(${paidExpression()}) AS payment`,bindings(s))).first();
+  const signup=observed?.signup===true,payment=observed?.payment===true;
+  const warnings:AnalyticsWarning[]=['views_unavailable','ctr_unavailable'];
+  if(!signup)warnings.push('signup_events_not_observed');
+  if(!payment)warnings.push('payment_events_not_observed');
+  return {views:null,ctr:null,dataQuality:{signupTracking:signup?'events_observed':'no_events_observed',paymentTracking:payment?'events_observed':'no_events_observed',trackingBasis:'attributed_events_in_selected_scope_all_time',endToEnd:'not_verified',views:'unavailable',ctr:'unavailable'},warnings};
+}
+
+async function overviewScenarios(s:Scope) {
+  if(s.partnerIds?.length!==1)return [];
+  const scoped=(table:string)=>scopePartners(s.db(table).where({tenantId:s.tenantId}),s).modify(q=>{if(s.filters.programId)q.where({programId:s.filters.programId});});
+  const [snapshots,sources]=await Promise.all([
+    scoped('CoachForecastSnapshot').whereIn('status',['confirmed','archived']).select('id','status','data').orderBy('createdAt','desc').orderBy('id','desc'),
+    scoped('PartnerLinkSource').whereNotNull('scenarioId').distinct('scenarioId','scenarioName'),
+  ]);
+  const selected=selectedIds(s.filters,'scenarioId'),options=new Map<string,{id:string;name:string;archived:boolean}>();
+  for(const snapshot of snapshots){const id=String(snapshot.data?.scenarioId??snapshot.id);if(!options.has(id))options.set(id,{id,name:snapshot.data?.scenarioName||'Сценарий',archived:snapshot.status==='archived'});}
+  for(const source of sources)if(!options.has(source.scenarioId))options.set(source.scenarioId,{id:source.scenarioId,name:source.scenarioName||'Сценарий',archived:true});
+  return [...options.values()].filter(item=>!item.archived||selected.includes(item.id)||sources.some(source=>source.scenarioId===item.id));
+}
 export async function partnerAnalyticsDiagnostics(db:Knex,tenantId:string,filters:AnalyticsFilters) {
   const s=reportScope(db,tenantId,undefined,filters),owners=await partners(s).select('partner.id');
   const cash=await manualPayoutBalances(db,owners.map((owner:{id:string})=>({tenantId,partnerId:String(owner.id),currency:filters.currency??'RUB'})));
-  return {...trackingMetadata(),diagnostics:await adminDiagnostics(s,[...cash.values()].reduce((total,item)=>total+item.debt,0))};
+  return {...await trackingMetadata(s),diagnostics:await adminDiagnostics(s,[...cash.values()].reduce((total,item)=>total+item.debt,0))};
 }
 export async function partnerAnalyticsOverview(db:Knex,tenantId:string,partnerId:string|undefined,filters:AnalyticsFilters,withOptions=true) {
   const s=reportScope(db,tenantId,partnerId,filters);
@@ -382,7 +404,7 @@ export async function partnerAnalyticsOverview(db:Knex,tenantId:string,partnerId
   const names=dimension==='partner'?selectedPartners:dimension==='platform'?options.platforms:dimension==='format'?options.formats:dimension?await scopePartners(db('PartnerLinkSource').where({tenantId}),s).whereIn(`${dimension}Id`,series?.groups?.map(g=>g.id)??[]).distinct(`${dimension}Id as id`,`${dimension}Name as name`):[];
   const currencies=withOptions?await availableCurrencies(s):[];
   return {...totals[0]!,groupBy:'partner',rows:[],period:{since:s.since,until:s.until},currency:s.filters.currency,timezone:s.filters.timezone??'Europe/Moscow',generatedAt:s.asOf,availableCurrencies:currencies,
-    options:{scenarios:[],...options,partners:selectedPartners},selectedPartners,
+    ...await trackingMetadata(s),options:{scenarios:withOptions?await overviewScenarios(s):[],...options,partners:selectedPartners},selectedPartners,
     ...(series?{series:{...series,...(dimension?{groups:series.groups?.map(g=>({...g,name:names.find(n=>n.id===g.id)?.name??'Не указан'}))}:{})}}:{}),...(comparison?{comparison}:{})};
 }
 
@@ -510,11 +532,18 @@ async function registrationPage(s:Scope,limit:number,rawCursor?:string){
   const paid:Array<{userId:string;amountMinor:string|number;paymentCount:number}>=latest.length?await attributions(s).whereIn('e.userId',latest.map(row=>row.userId))
     .where('e.ts','>=',since).where('e.ts','<',until).whereRaw(paidExpression(),bindings(s))
     .groupBy('e.userId').select('e.userId').select(db.raw('ROUND(SUM(e.value*a.weight)*100) AS "amountMinor", COUNT(DISTINCT e.id)::int AS "paymentCount"')):[];
-  const sources:Array<{id:string;referer:string|null}>=latest.length?await attributions(s).whereIn('e.id',latest.map(row=>row.id)).distinct('e.id','cl.referer'):[];
+  const sources:Array<{id:string;referer:string|null;programId:string;linkId:string|null;sourceId:string|null;scenarioId:string|null;platformId:string|null;materialId:string|null;materialTitle:string|null;platformName:string|null;channelName:string|null}>=latest.length?await attributions(s)
+    .leftJoin('PartnerMaterial as registration_material',function(){this.on('registration_material.id','=','src.materialId').andOn('registration_material.tenantId','=','src.tenantId').andOn('registration_material.partnerId','=','src.partnerId');})
+    .whereIn('e.id',latest.map(row=>row.id)).distinct('e.id','cl.referer','cl.programId','cl.linkId','src.id as sourceId','src.scenarioId','src.platformId','src.materialId','src.platformName','src.channelName',db.raw('COALESCE(registration_material.title,src."materialTitle") AS "materialTitle"')):[];
   const registrations=latest.map(row=>{
-    const origins=[...new Set(sources.filter(item=>item.id===row.id).map(item=>referrerName(item.referer)))].sort();
+    const sourceDetails=[...new Map(sources.filter(item=>item.id===row.id).map(item=>{
+      const name=item.sourceId?[item.materialTitle,item.platformName,item.channelName].filter(Boolean).join(' · ')||referrerName(item.referer):referrerName(item.referer);
+      const {programId,linkId,sourceId,scenarioId,platformId,materialId}=item;
+      const detail={name,programId,linkId,sourceId,scenarioId,platformId,materialId};return [JSON.stringify(detail),detail] as const;
+    })).values()];
+    const origins=[...new Set(sourceDetails.map(item=>item.name))].sort();
     const payment=paid.find(item=>item.userId===row.userId);
-    return {id:String(row.id),userId:String(row.userId),registeredAt:new Date(row.ts).toISOString(),source:origins.join(', ')||'Источник не передан',paidMinor:payment?Number(payment.amountMinor):null,paymentCount:Number(payment?.paymentCount??0),currency:s.filters.currency!};
+    return {id:String(row.id),userId:String(row.userId),registeredAt:new Date(row.ts).toISOString(),source:origins.join(', ')||'Источник не передан',sourceDetails,paidMinor:payment?Number(payment.amountMinor):null,paymentCount:Number(payment?.paymentCount??0),currency:s.filters.currency!};
   });
   const last=registrations.at(-1);
   return {registrations,total:Number(totalRow?.total??0),nextCursor:page.length>limit&&last?JSON.stringify({ts:last.registeredAt,id:last.id}):null};
@@ -618,6 +647,9 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     const id = String(snapshot.data.scenarioId ?? snapshot.id);
     if (!scenarios.has(id)) scenarios.set(id, { id, name: snapshot.data.scenarioName || 'Сценарий', archived: snapshot.status === 'archived' });
   }
+  for(const source of sources)if(source.scenarioId&&!scenarios.has(source.scenarioId)){
+    scenarios.set(source.scenarioId,{id:source.scenarioId,name:source.scenarioName||'Сценарий',archived:true});
+  }
   const scopedSources = sources.filter(source => matchesSelection(source.scenarioId,scenarioSelection)&&matchesSelection(source.platformId,platformSelection)&&matchesSelection(source.formatId,formatSelection)&&matchesSelection(source.materialId,selectedIds(filters,'materialId'))&&(!filters.linkId||source.linkId===filters.linkId)&&(!filters.sourceId||source.id===filters.sourceId));
   const emptyRow=(id:string)=>({id,counts:{clicks:0,identities:0,attributedEvents:0,registrations:0,paymentCount:0,payingCustomers:0,firstPaymentCount:0,repeatPaymentCount:0},amountsMinor:{observedPayments:0,refunds:0,netPayments:0,netAccrued:0},conversions:{clickToRegistration:null,registrationToPayment:null,clickToPayment:null,cohortRegistrations:0,cohortPayingCustomers:0,cohortPaidRegistrations:0}});
   // Only measured activity is a result. Empty rows are an explicit view of existing links, never calendar placeholders.
@@ -683,8 +715,7 @@ export async function partnerAnalytics(db: Knex, tenantId: string, partnerId?: s
     ...(tableOptions && table ? { partnerTable: { rows: table.rows, pagination: table.pagination }, pagination: table.pagination,
       summary: table.summary, activePartners: table.summary.activePartners, diagnostics } : {}),
     options: reportOptions,availableCurrencies:await availableCurrencies(s),
-    ...publicLedger,...trackingMetadata(),
+    ...publicLedger,...await trackingMetadata(s),
     exclusions: ['local_simulator', 'flagged_clicks'],
-    // No persisted production verification evidence exists. Test success cannot verify tracking in production.
   };
 }

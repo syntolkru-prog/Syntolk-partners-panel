@@ -46,18 +46,22 @@ export async function analyticsSourceOptions(db:Knex,tenantId:string,partnerIds?
       option.formats=[...new Set([...(option.formats??[]),...config.formats.filter((id:string)=>item.formats.includes(id))])] as string[];
     }
   }
-  // Unassigned content and historical events remain available in the all-content
-  // view; they must not reintroduce another scenario's deleted formats.
-  if(!scenarioIds.length||scenarioIds.includes('__none__')||!definitions.length){
-    if(!scenarioIds.length||scenarioIds.includes('__none__')){
-      const model=await calculateCoachForecast({});
-      for(const item of model.channels){add(platforms,item.id,item.name);const option=platforms.get(item.id)!;option.formats??=item.formats;if(item.url&&!option.url)option.url=item.url;}
-      for(const item of model.formats)add(formats,item.id,item.name);
-    }
-    for(const source of sources){add(platforms,source.platformId,source.platformName);add(formats,source.formatId,source.formatName);}
-    for(const material of materials){
-      add(formats,material.formatId,material.formatName);
-      for(const platform of Array.isArray(material.platforms)?material.platforms:[])if(platform){add(platforms,platform.id,platform.name);const option=platforms.get(platform.id);if(option&&!option.url&&typeof platform.url==='string')option.url=platform.url;}
+  if(!scenarioIds.length||scenarioIds.includes('__none__')){
+    const model=await calculateCoachForecast({});
+    for(const item of model.channels){add(platforms,item.id,item.name);const option=platforms.get(item.id)!;option.formats??=item.formats;if(item.url&&!option.url)option.url=item.url;}
+    for(const item of model.formats)add(formats,item.id,item.name);
+  }
+  // Actual materials/links remain selectable even when their platform was added
+  // outside the calculator or removed from a later version of its settings.
+  for(const source of sources){
+    add(platforms,source.platformId,source.platformName);add(formats,source.formatId,source.formatName);
+    const option=platforms.get(source.platformId);if(option)option.formats=[...new Set([...(option.formats??[]),source.formatId])];
+  }
+  for(const material of materials){
+    add(formats,material.formatId,material.formatName);
+    for(const platform of Array.isArray(material.platforms)?material.platforms:[])if(platform){
+      add(platforms,platform.id,platform.name);const option=platforms.get(platform.id);
+      if(option){option.formats=[...new Set([...(option.formats??[]),material.formatId])];if(!option.url&&typeof platform.url==='string')option.url=platform.url;}
     }
   }
   const sorted=<T extends Option>(items:Map<string,T>)=>[...items.values()].sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true})||a.id.localeCompare(b.id));

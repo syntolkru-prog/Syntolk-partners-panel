@@ -117,11 +117,16 @@ materialsRouter.post('/partners/:id/materials/:materialId/placements',...write,a
 });
 materialsRouter.patch('/partners/:id/link-sources/:sourceId',...write,async(req,res)=>{
   const {db,tenantId}=tenantOf(req),partnerId=req.params.id!;
-  const input=z.object({publicationUrl:z.string().trim().max(2048).optional(),channelName:z.string().trim().max(120).optional(),published:z.boolean().optional()}).strict().parse(req.body);
+  const input=z.object({publicationUrl:z.string().trim().max(2048).optional(),channelName:z.string().trim().max(120).optional(),published:z.boolean().optional(),expected:z.object({publicationUrl:z.string().max(2048).optional(),channelName:z.string().max(120).optional(),published:z.boolean().optional()}).strict().optional()}).strict().parse(req.body);
   await db('Partner').where({tenantId,id:partnerId}).forUpdate().first();
   const source=await db('PartnerLinkSource').where({tenantId,partnerId,id:req.params.sourceId!}).first();
   if(!source?.materialId)throw new LinkError('source_not_found',404,'Размещение не найдено.');
   await assertPartner(db,tenantId,partnerId);await assertProgram(db,tenantId,partnerId,source.programId,false);
+  if(input.expected&&(
+    input.expected.publicationUrl!==undefined&&input.expected.publicationUrl!==(source.publicationUrl??'')||
+    input.expected.channelName!==undefined&&input.expected.channelName!==(source.channelName??'')||
+    input.expected.published!==undefined&&input.expected.published!==!!source.publishedAt
+  ))throw new LinkError('source_conflict',409,'Размещение изменено в другом кабинете. Обновите данные перед сохранением.');
   const patch:Record<string,unknown>={};
   if(input.publicationUrl!==undefined)patch.publicationUrl=input.publicationUrl?safePublicationUrl(input.publicationUrl):null;
   if(input.channelName!==undefined)patch.channelName=input.channelName||null;

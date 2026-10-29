@@ -2,6 +2,12 @@ import type { AnalyticsReport } from './PartnerAnalytics.js';
 import type { ChartInspection, ChartMetric } from './ResultsChart.js';
 import type { QueryClient } from '@tanstack/react-query';
 
+export function materialReturnPath(raw:string|null,base:string,partnerId:string) {
+  if(!raw?.startsWith('/')||raw.startsWith('//'))return null;
+  const path=raw.split(/[?#]/)[0];
+  return [`${base}/plan`,`${base}/links`,`${base}/admin/coach`,`${base}/admin/calculator`,`${base}/admin/analytics`,`${base}/admin/partners/${encodeURIComponent(partnerId)}`].includes(path!)?raw:null;
+}
+
 /** Reset report controls, not the login, tenant or partner-detail navigation. */
 export function resetResultsFilters(params:URLSearchParams,keepProgram=false) {
   const next=new URLSearchParams(params);
@@ -10,11 +16,12 @@ export function resetResultsFilters(params:URLSearchParams,keepProgram=false) {
   return next;
 }
 
-// Calculator scenarios are local to a partner, never an overview-wide scope.
-// Normalize old bookmarks before requests or drill-down links are constructed.
+// Scenario identifiers belong to one partner. Keep that scope when exactly one
+// partner is selected; cross-partner comparisons use the other shared filters.
 export function adminOverviewParams(params:URLSearchParams) {
   const next=new URLSearchParams(params);
-  for(const key of ['scenarioId','scenarioIds'])next.delete(key);
+  const partners=new Set([...next.getAll('partnerId'),...next.getAll('partnerIds')].filter(Boolean));
+  if(partners.size!==1)for(const key of ['scenarioId','scenarioIds'])next.delete(key);
   if(next.get('chartBy')==='scenario')next.delete('chartBy');
   if(next.get('groupBy')==='scenario')next.delete('groupBy');
   return next;

@@ -60,6 +60,25 @@ afterEach(() => {
 });
 
 describe('calculator portal integration', () => {
+  it('adopts a newer saved revision when the calculator draft is clean',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} scope={{key:'revision-clean',settings:{frequency:{short:2}},revision:'one'}}/>);
+    initialize(false,false);
+    const root=document.getElementById('partner-forecast')!;
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{storageKey:'revision-clean',settings:{frequency:{short:5}},revision:'two'}}));
+    expect(JSON.parse(root.dataset.currentSettings!).frequency.short).toBe(5);
+    expect(root.dataset.baseSnapshotId).toBe('two');expect(root.dataset.snapshotConflict).toBe('false');
+  });
+  it('preserves a dirty calculator draft when another cabinet saves a newer revision',()=>{
+    render(<CalculatorPage principal={{role:'partner'}} scope={{key:'revision-dirty',settings:{frequency:{short:2}},revision:'one'}}/>);
+    initialize(false,false);
+    const root=document.getElementById('partner-forecast')!;
+    fireEvent.input(document.getElementById('pf-frequency-short')!,{target:{value:'3'}});
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{storageKey:'revision-dirty',settings:{frequency:{short:5}},revision:'two'}}));
+    expect(JSON.parse(root.dataset.currentSettings!).frequency.short).toBe(3);
+    expect(root.dataset.baseSnapshotId).toBe('one');expect(root.dataset.serverRevision).toBe('two');expect(root.dataset.snapshotConflict).toBe('true');
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{storageKey:'revision-dirty',settings:{frequency:{short:5}},revision:'two',force:true}}));
+    expect(JSON.parse(root.dataset.currentSettings!).frequency.short).toBe(5);expect(root.dataset.snapshotConflict).toBe('false');
+  });
   it('keeps twelve monthly columns in the partner workspace even if an older draft stored a shorter horizon',()=>{
     const key='fixed-twelve-months';
     localStorage.setItem(key,JSON.stringify({version:1,settings:{forecastMonths:1}}));

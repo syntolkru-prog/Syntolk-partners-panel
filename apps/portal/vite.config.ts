@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { localBrowserLogin } from '../../scripts/local-launcher/browser-login.mjs';
 
 export default defineConfig({
+  base: process.env.VITE_APP_BASE || '/',
   plugins: [tailwindcss(), react(), localBrowserLogin(fileURLToPath(new URL('../..', import.meta.url)))],
   server: {
     // 5673: stays out of the brightyard-platform 5173/5175 range.

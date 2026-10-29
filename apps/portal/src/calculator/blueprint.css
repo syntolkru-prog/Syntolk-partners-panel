@@ -124,19 +124,19 @@ html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-
 .calculator-blueprint .pf-section .pf-scenarios .pf-refresh { width:28px; height:28px; min-height:28px; padding:0; border-radius:5px !important; }
 .calculator-blueprint .pf-section .pf-scenarios .pf-refresh svg { width:15px; height:15px; }
 .calculator-blueprint .pf-section .pf-scenario-note { margin:10px 0 16px; font-size:11px; line-height:17px; min-height:17px; }
-.calculator-blueprint .pf-result-metrics { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) minmax(0,1.6fr); gap:12px 18px; align-items:start; margin-top:16px; }
+.calculator-blueprint .pf-result-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 18px; align-items:start; margin-top:16px; }
 .calculator-blueprint .pf-section :is(.pf-income-top,.pf-year-totals) { display:contents; }
-.calculator-blueprint .pf-income-top > div { grid-column:1; grid-row:1; min-width:0; }
+.calculator-blueprint .pf-income-top > div { grid-column:1/-1; grid-row:1; min-width:0; }
 .calculator-blueprint .pf-section .pf-income-top p { margin:0 0 6px; font-size:11px; line-height:17px; }
-html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-income-top output { font-size:32px !important; line-height:40px; letter-spacing:-.035em; white-space:nowrap; }
-.calculator-blueprint .pf-year-totals > div:first-child { grid-column:2; grid-row:1; }
-.calculator-blueprint .pf-year-totals > div:last-child { grid-column:3; grid-row:1; }
-.calculator-blueprint .pf-year-totals > div { gap:0; }
+html[data-portal-visual="tremor-partner"] .calculator-blueprint .pf-section .pf-income-top output { font-size:32px !important; line-height:40px; letter-spacing:-.035em; white-space:normal; overflow-wrap:anywhere; }
+.calculator-blueprint .pf-year-totals > div:first-child { grid-column:1; grid-row:2; }
+.calculator-blueprint .pf-year-totals > div:last-child { grid-column:2; grid-row:2; }
+.calculator-blueprint .pf-section .pf-year-totals > div { flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:0; min-width:0; }
 .calculator-blueprint .pf-section .pf-year-totals span { display:block; font-size:11px; line-height:17px; margin-bottom:8px; }
-.calculator-blueprint .pf-section .pf-year-totals strong { font-size:17px; line-height:24px; white-space:nowrap; }
-.calculator-blueprint .pf-section .pf-income-range { grid-column:1; grid-row:2; margin:0; font-size:11px; line-height:17px; align-self:center; }
-.calculator-blueprint .pf-section .pf-horizon { grid-column:2; grid-row:2; margin:0; flex-direction:column; align-items:stretch; gap:5px; font-size:11px; }
-.calculator-blueprint .pf-section .pf-month-select { grid-column:3; grid-row:2; margin:0; max-width:none !important; font-size:11px; gap:5px; }
+.calculator-blueprint .pf-section .pf-year-totals strong { font-size:17px; line-height:24px; white-space:normal; overflow-wrap:anywhere; }
+.calculator-blueprint .pf-section .pf-income-range { grid-column:1; grid-row:3; margin:0; font-size:11px; line-height:17px; align-self:center; }
+.calculator-blueprint .pf-section .pf-horizon { grid-column:1; grid-row:3; margin:0; flex-direction:column; align-items:stretch; gap:5px; font-size:11px; }
+.calculator-blueprint .pf-section .pf-month-select { grid-column:2; grid-row:3; margin:0; max-width:none !important; font-size:11px; gap:5px; }
 .calculator-blueprint #partner-forecast[data-fixed-horizon="12"]:not([data-values-mode="current"]) .pf-horizon { display:none!important; }
 .calculator-blueprint .pf-section :is(.pf-horizon,.pf-month-select) select { width:100%; height:34px; min-height:34px !important; font-size:12px !important; }
 .calculator-blueprint #partner-forecast:not([data-values-mode="current"]) .pf-month-select { width:112px; max-width:100% !important; justify-self:end; }

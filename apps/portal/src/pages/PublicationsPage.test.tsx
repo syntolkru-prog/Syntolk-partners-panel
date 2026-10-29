@@ -50,7 +50,8 @@ describe('publication inventory and canonical statistics',()=>{
     expect(screen.queryByRole('table')).toBeNull();
     fireEvent.click(screen.getByRole('tab',{name:'Аналитика'}));
     await screen.findByRole('button',{name:'Короткое видео о сервисе'});
-    expect((screen.getByLabelText('Формат публикаций') as HTMLSelectElement).value).toBe('short');
+    expect(screen.getByLabelText('Формат публикаций').textContent).toBe('Короткое видео');
+    expect(vi.mocked(api).mock.calls.some(([path])=>path.includes('/analytics?')&&new URL(path,'http://local').searchParams.get('formatId')==='short')).toBe(true);
     expect(screen.getByText(/Сравниваем/).textContent).toContain('2025-04-01');
     expect(screen.getByRole('button',{name:'Сбросить сравнение'})).toBeTruthy();
   });
@@ -128,7 +129,7 @@ describe('publication inventory and canonical statistics',()=>{
   });
   it('filters by platform, format, search and publication status without inventing publications',async()=>{
     show();await screen.findByRole('button',{name:'Короткое видео о сервисе'});
-    fireEvent.change(screen.getByLabelText('Площадка публикаций'),{target:{value:'ytshorts'}});expect(screen.queryByRole('button',{name:'Видео о сервисе'})).toBeNull();expect(screen.getByRole('button',{name:'Короткое видео о сервисе'})).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Площадка публикаций'));const menu=screen.getByRole('dialog',{name:'Площадки'});fireEvent.click(within(menu).getByRole('checkbox',{name:'YouTube Shorts'}));fireEvent.click(within(menu).getByRole('button',{name:'Применить'}));expect(screen.queryByRole('button',{name:'Видео о сервисе'})).toBeNull();expect(screen.getByRole('button',{name:'Короткое видео о сервисе'})).toBeTruthy();
     fireEvent.click(screen.getByRole('button',{name:'Сбросить отбор'}));fireEvent.change(screen.getByLabelText('Статус публикаций'),{target:{value:'draft'}});expect(screen.getByRole('button',{name:'Неопубликованный материал'})).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Поиск публикаций'),{target:{value:'нет такого'}});expect(screen.getByText('По выбранному отбору публикаций нет')).toBeTruthy();
   });

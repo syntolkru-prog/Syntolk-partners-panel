@@ -1,3 +1,4 @@
+import {ResultsMultiSelect} from './ResultsMultiSelect.js';
 import {VisualButton,VisualSelect} from '../components/tremor/VisualControls.js';
 import { VisualTable, VisualTableHead, VisualTableHeader, VisualTableBody, VisualTableRow, VisualTableCell } from '../components/tremor/VisualTable.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -87,7 +88,7 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
   const programId=adminContext?params.get('programId')??'':selection.programId;
   const requestedCurrency=params.get('currency')??'RUB';
   const currency=/^[A-Z]{3}$/.test(requestedCurrency)?requestedCurrency:'RUB';
-  const scenarioIds=params.has('scenarioId')||params.has('scenarioIds')?selectedValues(params,'scenarioId'):!adminContext&&selection.scenarioId&&!['all','new'].includes(selection.scenarioId)?[selection.scenarioId]:[];
+  const scenarioIds=adminContext?selectedValues(params,'scenarioId'):selection.scenarioIds;
   const platformIds=selectedValues(params,'platformId'),formatIds=selectedValues(params,'formatId');
   const period:ResultsPeriod=['today','7d','30d','all','custom'].includes(params.get('period')??'')?params.get('period') as ResultsPeriod:'30d';
   const bucket=['day','week','month'].includes(params.get('bucket')??'')?params.get('bucket') as 'day'|'week'|'month':undefined;
@@ -107,7 +108,7 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
   for(const field of ['materialId','linkId','sourceId','from','to','timezone'])if(params.get(field))query.set(field,params.get(field)!);
   const from=params.get('from')??'',to=params.get('to')??'';
   const customReady=period!=='custom'||validDateRange({from,to});
-  const report=useQuery({queryKey:['partner-analytics',currentTenantSlug(),partnerId,query.toString()],queryFn:()=>api<AnalyticsReport>(`/partners/${partnerId}/analytics?${query}`),enabled:customReady&&!programs.isLoading,refetchInterval:adminContext?false:30000,refetchOnWindowFocus:true,
+  const report=useQuery({queryKey:['partner-analytics',currentTenantSlug(),partnerId,query.toString()],queryFn:()=>api<AnalyticsReport>(`/partners/${partnerId}/analytics?${query}`),enabled:customReady&&!programs.isLoading,refetchInterval:30000,refetchOnWindowFocus:true,
     placeholderData:(previous,previousQuery)=>previousQuery?.queryKey[1]===currentTenantSlug()&&previousQuery.queryKey[2]===partnerId&&new URLSearchParams(String(previousQuery.queryKey[3]??'')).get('programId')===query.get('programId')&&new URLSearchParams(String(previousQuery.queryKey[3]??'')).get('currency')===currency&&sourceScope(new URLSearchParams(String(previousQuery.queryKey[3]??'')))===sourceScope(query)?previous:undefined});
   const data=report.data;
   const primaryRange:DateChoice=(period==='custom'&&from&&to?{from,to}:reportRange(data?.period,data?.timezone))??{from:calendarDay(new Date().toISOString()),to:calendarDay(new Date().toISOString())};
@@ -121,19 +122,19 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
   const options=data?.options??(previousOptions?.owner===owner&&previousOptions.scope===catalogScope?previousOptions.options:{scenarios:previousOptions?.owner===owner&&previousOptions.programId===programId?previousOptions.options.scenarios:[],platforms:[],formats:[]});
   const update=(field:string,value:string)=>setParams(previous=>{const next=new URLSearchParams(previous);if(value)next.set(field,value);else next.delete(field);return next;});
   const chooseValues=(field:'scenarioId'|'platformId'|'formatId',values:string[])=>{
-    if(!adminContext&&field==='scenarioId')selection.rememberScenario(values[0]??'all');
+    if(!adminContext&&field==='scenarioId'){selection.selectScenarios(values);return;}
     setParams(previous=>{
       const next=new URLSearchParams(previous);next.delete(field);next.delete(`${field}s`);
       if(field==='scenarioId'){
-        for(const key of ['platformId','platformIds','formatId','formatIds','materialId','sourceId','linkId'])next.delete(key);
+        for(const key of ['materialId','sourceId','linkId'])next.delete(key);
         if(!values.length)next.set('scenarioId','all');
       }
       for(const value of values)next.append(`${field}s`,value);
       return next;
     });
   };
-  const reset=()=>{if(!adminContext)selection.rememberScenario('all');setSearch('');setExpanded(null);setParams(previous=>{const next=new URLSearchParams(previous);for(const field of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','linkId','sourceId','groupBy','chartBy','activity','includeEmpty','sort'])next.delete(field);next.set('scenarioId','all');return next;});};
-  const resetReport=()=>{const next=resetResultsFilters(params,!adminContext);if(!adminContext)selection.rememberScenario('all');next.set('scenarioId','all');setSearch('');setExpanded(null);setInspection(null);setExplorer(null);setDownloadError(null);if(payments.current)payments.current.open=false;setParams(next);if(next.toString()===params.toString())void report.refetch();};
+  const reset=()=>{setSearch('');setExpanded(null);setParams(previous=>{const next=new URLSearchParams(previous);for(const field of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','linkId','sourceId','groupBy','chartBy','activity','includeEmpty','sort'])next.delete(field);next.set('scenarioId','all');return next;});};
+  const resetReport=()=>{const next=resetResultsFilters(params,!adminContext);next.set('scenarioId','all');setSearch('');setExpanded(null);setInspection(null);setExplorer(null);setDownloadError(null);if(payments.current)payments.current.open=false;setParams(next);if(next.toString()===params.toString())void report.refetch();};
   const scopeLink=(id:string)=>{setExpanded(null);update('linkId',id);};
   const inspect=(selected:ChartInspection)=>{
     if(!data)return;
@@ -159,10 +160,10 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
       <VisualButton type="button" className="results-button" title="Сбросить фильтры, даты и сравнение" onClick={resetReport}><RefreshCw size={14}/>Обновить</VisualButton>
     </div></header>
     <div className="results-filterbar results-surface" aria-label="Отбор результатов">
-      {(adminContext||(programs.data?.programs?.length??0)>1)&&<label className="coach-field"><span>Программа</span><VisualSelect aria-label="Программа аналитики" value={programId} onChange={e=>{if(!adminContext)selection.selectProgram(e.target.value);setSearch('');setParams(previous=>{const next=new URLSearchParams(previous);next.set('programId',e.target.value);for(const key of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','linkId','sourceId'])next.delete(key);return next;});}}>{adminContext&&<option value="">Все программы</option>}{programs.data?.programs.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</VisualSelect></label>}
-      <label className="coach-field"><span>Сценарии</span><VisualSelect aria-label="Сценарий аналитики" value={scenarioIds[0]??''} onChange={event=>chooseValues('scenarioId',event.target.value?[event.target.value]:[])}><option value="">Все сценарии</option>{options.scenarios.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}<option value="__none__">Без сценария</option></VisualSelect></label>
-      <label className="coach-field"><span>Площадки</span><VisualSelect aria-label="Площадка аналитики" value={platformIds[0]??''} onChange={event=>chooseValues('platformId',event.target.value?[event.target.value]:[])}><option value="">Все площадки</option>{options.platforms.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}<option value="__none__">Площадка не указана</option></VisualSelect></label>
-      <label className="coach-field"><span>Контент</span><VisualSelect aria-label="Тип контента" value={formatIds[0]??''} onChange={event=>chooseValues('formatId',event.target.value?[event.target.value]:[])}><option value="">Тип контента</option>{options.formats.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}<option value="__none__">Тип контента не указан</option></VisualSelect></label>
+      {(adminContext||(programs.data?.programs?.length??0)>1)&&<label className="coach-field"><span>Программа</span><VisualSelect aria-label="Программа аналитики" value={programId} onChange={e=>{if(!adminContext){selection.selectProgram(e.target.value);setSearch('');return;}setSearch('');setParams(previous=>{const next=new URLSearchParams(previous);next.set('programId',e.target.value);for(const key of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','linkId','sourceId'])next.delete(key);return next;});}}>{adminContext&&<option value="">Все программы</option>}{programs.data?.programs.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</VisualSelect></label>}
+      <ResultsMultiSelect label="Сценарии" ariaLabel="Сценарий аналитики" allLabel="Все сценарии" options={[...options.scenarios,{id:'__none__',name:'Без сценария'}]} value={scenarioIds} onChange={values=>chooseValues('scenarioId',values)}/>
+      <ResultsMultiSelect label="Площадки" ariaLabel="Площадка аналитики" allLabel="Все площадки" options={[...options.platforms,{id:'__none__',name:'Площадка не указана'}]} value={platformIds} onChange={values=>chooseValues('platformId',values)}/>
+      <ResultsMultiSelect label="Форматы" ariaLabel="Формат аналитики" allLabel="Все форматы" options={[...options.formats,{id:'__none__',name:'Тип контента не указан'}]} value={formatIds} onChange={values=>chooseValues('formatId',values)}/>
     </div>
     <ErrorBanner error={report.error??programs.error??downloadError}/>
     {!customReady&&!data?<div className="results-empty results-surface" role="status">{from&&to?'Конец периода не может быть раньше начала.':'Выберите начало и конец периода.'}</div>:report.isLoading||programs.isLoading?<ResultsChartSkeleton/>:data?<div className="results-report" data-pending={report.isPlaceholderData||!customReady} aria-busy={report.isFetching}>
@@ -193,6 +194,8 @@ export function PartnerAnalyticsPanel({partnerId,adminContext=false}:{partnerId:
 
 const hasActivity=(row:MetricRow)=>row.counts.clicks>0||row.counts.registrations>0||row.counts.paymentCount>0||Object.values(row.amountsMinor).some(value=>value!==0);
 export function AnalyticsTrackingNotice({report}:{report:Pick<AnalyticsReport,'dataQuality'|'warnings'>}) {
+  const missing=[report.dataQuality?.signupTracking==='no_events_observed'?'регистраций':null,report.dataQuality?.paymentTracking==='no_events_observed'?'оплат':null].filter(Boolean);
+  if(missing.length)return <p className="results-note" role="note">Для выбранных источников пока нет полученных событий {missing.join(' и ')}. Отсутствие событий не означает ошибку подключения.</p>;
   if(![report.dataQuality?.signupTracking,report.dataQuality?.paymentTracking].some(status=>status==='not_verified_end_to_end')&&!report.warnings?.some(code=>/^(signup|payment)_tracking_unverified$/.test(code)))return null;
   return <p className="results-note" role="note">Передача регистраций и оплат ещё не подтверждена сквозной проверкой. В отчёте показаны полученные события; часть действий клиентов может отсутствовать.</p>;
 }

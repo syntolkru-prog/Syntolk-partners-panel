@@ -7,7 +7,7 @@ import '../calculator/portal-theme.css';
 import '../calculator/blueprint.css';
 import { CalculatorCharts } from '../components/tremor/CalculatorCharts.js';
 
-const CALCULATOR_VERSION = 'calculator-chart-colors-v13-2026-10-26';
+const CALCULATOR_VERSION = 'calculator-shared-snapshot-v15-2026-10-29';
 let calculatorInstance = 0;
 
 // Share the portal's tokens, including tenant-specific accent colors.
@@ -93,7 +93,7 @@ function loadScript(src: string): Promise<HTMLScriptElement> {
   });
 }
 
-export function CalculatorPage({principal,scope,connection,actions,intro,scenarioPicker,scenarioCreation,editable=true,onEdit,planning,onCreateScenario,currentValues,onCurrentValuesChange}: { principal: Principal; scope?: {key:string;settings?:Record<string,unknown>}; connection?:ReactNode;actions?:ReactNode;intro?:ReactNode;scenarioPicker?:ReactNode;scenarioCreation?:ReactNode;editable?:boolean;onEdit?:()=>void;planning?:ReactNode;onCreateScenario?: (root: HTMLElement) => void;currentValues?:ReactNode|((root:HTMLElement|null)=>ReactNode);onCurrentValuesChange?:(active:boolean)=>void }) {
+export function CalculatorPage({principal,scope,connection,actions,intro,scenarioPicker,scenarioCreation,editable=true,onEdit,planning,onCreateScenario,currentValues,onCurrentValuesChange}: { principal: Principal; scope?: {key:string;settings?:Record<string,unknown>;revision?:string;holdRemote?:boolean}; connection?:ReactNode;actions?:ReactNode;intro?:ReactNode;scenarioPicker?:ReactNode;scenarioCreation?:ReactNode;editable?:boolean;onEdit?:()=>void;planning?:ReactNode;onCreateScenario?: (root: HTMLElement) => void;currentValues?:ReactNode|((root:HTMLElement|null)=>ReactNode);onCurrentValuesChange?:(active:boolean)=>void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const createScenarioRef = useRef(onCreateScenario);
   const [error, setError] = useState<Error | null>(null);
@@ -114,7 +114,7 @@ export function CalculatorPage({principal,scope,connection,actions,intro,scenari
     root.dataset.calculatorInstance=String(instance);
     root.dataset.storageKey = scope?.key??'syntolk-partner-forecast-v1';
     setCalculatorRoot(root);
-    if(scope?.settings)root.dataset.initialState=JSON.stringify({version:1,settings:scope.settings});
+    if(scope?.settings)root.dataset.initialState=JSON.stringify({version:1,settings:scope.settings,revision:scope.revision});
     else delete root.dataset.initialState;
     const handleCreateScenario = (event: Event) => {
       if(!createScenarioRef.current)return;
@@ -149,12 +149,12 @@ export function CalculatorPage({principal,scope,connection,actions,intro,scenari
     const root=rootRef.current?.querySelector<HTMLElement>('#partner-forecast');
     if(!root)return;
     root.dataset.storageKey=scope?.key??'syntolk-partner-forecast-v1';
-    if(scope?.settings)root.dataset.initialState=JSON.stringify({version:1,settings:scope.settings});
+    if(scope?.settings)root.dataset.initialState=JSON.stringify({version:1,settings:scope.settings,revision:scope.revision});
     else delete root.dataset.initialState;
-    root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{storageKey:root.dataset.storageKey,settings:scope?.settings}}));
-  // Saved settings seed a different scenario; refetch must not erase edits.
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{storageKey:root.dataset.storageKey,settings:scope?.settings,revision:scope?.revision,holdRemote:scope?.holdRemote}}));
+  // The existing calculator reconciles server revisions with its own draft.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[scope?.key]);
+  },[scope?.key,scope?.revision,scope?.settings,scope?.holdRemote]);
 
   return (
     <div className={`calculator-page${principal.role==='partner'?' calculator-blueprint':''}${!editable?' calculator-page--inactive':''}`} style={calculatorTheme}>

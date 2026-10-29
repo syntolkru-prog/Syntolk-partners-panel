@@ -99,7 +99,7 @@ export function WebhooksPage() {
         />
       )}
 
-      {endpoints.isLoading ? (
+      {endpoints.error ? null : endpoints.isLoading ? (
         <Card>Загрузка…</Card>
       ) : (endpoints.data?.endpoints ?? []).length === 0 ? (
         <EmptyState

@@ -10,6 +10,7 @@ import { CalculatorPage } from './Calculator.js';
 import './coach/coach.css';
 import { usePartnerSelection } from '../lib/partner-selection.js';
 import { invalidateAnalytics } from './results-scope.js';
+import {useUnsavedChanges} from '../lib/useUnsavedChanges.js';
 import {CalculatorCurrentValues,type CurrentValuesFilter} from './CalculatorCurrentValues.js';
 import {DateInput} from './DateInput.js';
 import {ResultsDatePicker} from './ResultsDatePicker.js';
@@ -39,7 +40,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
   const key=['coach',tenant,partnerId,prefix];
   const me=useQuery({queryKey:[...key,'me'],queryFn:()=>api<{programs:Array<{id:string;name:string}>}>(prefix),enabled:!!partnerId});
   const selection=usePartnerSelection(partnerId,me.data?.programs??[]),programId=selection.programId;
-  const snapshots=useQuery({queryKey:[...key,'snapshots',programId],queryFn:()=>api<{snapshots:Snapshot[]}>(`${prefix}/forecast-snapshots?programId=${encodeURIComponent(programId)}`),enabled:!!programId});
+  const snapshots=useQuery({queryKey:[...key,'snapshots',programId,'latest'],queryFn:()=>api<{snapshots:Snapshot[]}>(`${prefix}/forecast-snapshots?programId=${encodeURIComponent(programId)}&latestPerScenario=true`),enabled:!!programId,refetchInterval:30000,refetchOnWindowFocus:true});
   const scenarios=useMemo(()=>{
     const grouped=new Map<string,{id:string;name:string;snapshot:Snapshot}>();
     for(const snapshot of snapshots.data?.snapshots??[]){
@@ -48,12 +49,14 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
     }
     return [...grouped.values()];
   },[snapshots.data]);
-  const scenarioId=params.get('scenarioId')??(selection.scenarioId&&selection.scenarioId!=='all'?selection.scenarioId:scenarios[0]?.id??'new');
+  const requestedScenario=params.get('scenarioId');
+  const scenarioId=requestedScenario&&!['all','__none__'].includes(requestedScenario)?requestedScenario:selection.scenarioIds[0]??scenarios[0]?.id??'new';
   const selectedScenario=scenarios.find(s=>s.id===scenarioId);
-  const isNewScenario=scenarioId==='new'||!selectedScenario;
+  const isNewScenario=scenarioId==='new';
+  const missingScenario=!snapshots.isPending&&!isNewScenario&&!selectedScenario;
   const [newScenarioId,setNewScenarioId]=useState(()=>`new-${Date.now()}-${Math.random().toString(36).slice(2,10)}`);
   const planQueryId=isNewScenario?'new':scenarioId;
-  const plan=useQuery({queryKey:[...key,'calculator-plan',programId,planQueryId],queryFn:()=>api<{plan:{id:string;version:number;data?:{startDate:string;days:number;weekdays:number[];scenarioId?:string;scenarioName?:string}}|null}>(`${prefix}/calculator-plan?programId=${encodeURIComponent(programId)}&scenarioId=${encodeURIComponent(planQueryId)}`),enabled:!!programId});
+  const plan=useQuery({queryKey:[...key,'calculator-plan',programId,planQueryId],queryFn:()=>api<{plan:{id:string;version:number;data?:{startDate:string;days:number;weekdays:number[];scenarioId?:string;scenarioName?:string}}|null}>(`${prefix}/calculator-plan?programId=${encodeURIComponent(programId)}&scenarioId=${encodeURIComponent(planQueryId)}`),enabled:!!programId,refetchInterval:30000,refetchOnWindowFocus:true});
   const latest=selectedScenario?.snapshot;
   const storageScenarioKey=isNewScenario?newScenarioId:scenarioId;
   useEffect(()=>{setCurrentValuesFilter(previous=>({...previous,allContent:false}));},[partnerId,programId,storageScenarioKey]);
@@ -65,6 +68,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
   const [savedSettings,setSavedSettings]=useState<string|null>(null);
   const [scenarioName,setScenarioName]=useState('');
   const [savedNotice,setSavedNotice]=useState<string|null>(null);
+  const [snapshotConflict,setSnapshotConflict]=useState(false),[calendarConflict,setCalendarConflict]=useState(false);
   const [newScenarioSettings,setNewScenarioSettings]=useState<Record<string,unknown>|undefined>();
   const [createDialogOpen,setCreateDialogOpen]=useState(false),[createName,setCreateName]=useState(''),[createDialogError,setCreateDialogError]=useState('');
   const [createMode,setCreateMode]=useState<'new'|'save'>('new');
@@ -74,6 +78,9 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
   const deleting=useRef(false);
   useEffect(()=>{setDeleteTarget(null);},[partnerId,programId,scenarioId]);
   const saving=useRef(false);
+  const scheduleChanged=!!savedSchedule&&(startDate!==savedSchedule.startDate||days!==savedSchedule.days||weekdays.length!==savedSchedule.weekdays.length||weekdays.some(day=>!savedSchedule.weekdays.includes(day)));
+  const settingsChanged=!!draft&&savedSettings!==null&&JSON.stringify(draft)!==savedSettings;
+
   useEffect(()=>{
     setScenarioName('');setNewScenarioSettings(undefined);setSavedNotice(null);
     setCreateDialogOpen(false);createRootRef.current=null;
@@ -82,27 +89,29 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
   const pendingCalendar=useRef<{signature:string;body:Record<string,unknown>;snapshot:Snapshot}|null>(null);
   const hydratedCalendar=useRef('');
   useEffect(()=>{
-    setDraft(null);setSavedSettings(null);setError(null);setPreviewWeek(0);setSavedSchedule(null);pendingCalendar.current=null;hydratedCalendar.current='';
+    setCreateDialogOpen(false);createRootRef.current=null;setDraft(null);setSavedSettings(null);setSnapshotConflict(false);setCalendarConflict(false);setError(null);setPreviewWeek(0);setSavedSchedule(null);pendingCalendar.current=null;hydratedCalendar.current='';
     setStartDate(new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
     setDays(30);setCustomPeriod(false);setWeekdays([1,2,3,4,5]);
     let timer:ReturnType<typeof setTimeout>;
     const changed=(event:Event)=>{
       const root=event.target as HTMLElement;if(root?.dataset?.storageKey!==storageKey)return;
-      clearTimeout(timer);timer=setTimeout(()=>{const raw=root.dataset.currentSettings??'null';setDraft(JSON.parse(raw) as Record<string,unknown>|null);if(raw!=='null')setSavedSettings(previous=>previous??raw);setError(null);},300);
+      clearTimeout(timer);timer=setTimeout(()=>{const raw=root.dataset.currentSettings??'null';setDraft(JSON.parse(raw) as Record<string,unknown>|null);if(raw!=='null')setSavedSettings(previous=>root.dataset.savedSettings||previous||raw);setSnapshotConflict(root.dataset.snapshotConflict==='true');},300);
     };
     document.addEventListener('syntolk-calculator-change',changed);
-    const read=()=>{const root=document.getElementById('partner-forecast');if(root?.dataset.storageKey===storageKey&&root.dataset.currentSettings){setDraft(JSON.parse(root.dataset.currentSettings) as Record<string,unknown>);setSavedSettings(root.dataset.currentSettings);}};
+    const read=()=>{const root=document.getElementById('partner-forecast');if(root?.dataset.storageKey===storageKey&&root.dataset.currentSettings){setDraft(JSON.parse(root.dataset.currentSettings) as Record<string,unknown>);setSavedSettings(root.dataset.savedSettings||root.dataset.currentSettings);setSnapshotConflict(root.dataset.snapshotConflict==='true');}};
     read();
     return()=>{clearTimeout(timer);document.removeEventListener('syntolk-calculator-change',changed);};
   },[storageKey]);
   const activeScenarioName=isNewScenario?scenarioName:selectedScenario?.name??'';
   const editorEnabled=admin||!!selectedScenario||!!scenarioName.trim();
   const hasContent=Object.values((draft?.frequency??{}) as Record<string,unknown>).some(value=>Number(value)>0);
+  const allowNavigation=useUnsavedChanges(settingsChanged||scheduleChanged||isNewScenario&&!!scenarioName.trim()&&hasContent,busy);
   const preview=useQuery({queryKey:[...key,'calculator-preview',programId,draft,startDate,days,weekdays],queryFn:()=>api<Preview>(`${prefix}/calculator-plan/preview`,{method:'POST',body:{programId,settings:draft,startDate,days,weekdays}}),enabled:editorEnabled&&!!programId&&hasContent&&!!startDate&&days>=1&&days<=365&&!!weekdays.length,retry:false,staleTime:30000});
   useEffect(()=>{
-    const scope=`${partnerId}:${programId}:${scenarioId}`;
-    if(!plan.data||hydratedCalendar.current===scope)return;
-    hydratedCalendar.current=scope;
+    const scope=`${partnerId}:${programId}:${scenarioId}:${plan.data?.plan?.id??'none'}:${plan.data?.plan?.version??0}`;
+    if(!plan.data||hydratedCalendar.current===scope||busy)return;
+    if(hydratedCalendar.current&&scheduleChanged){setCalendarConflict(true);return;}
+    hydratedCalendar.current=scope;setCalendarConflict(false);
     const previous=plan.data.plan?.data;
     const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     if(previous){
@@ -111,7 +120,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
     }else{
       setDays(30);setCustomPeriod(false);setWeekdays([1,2,3,4,5]);setSavedSchedule({startDate:today,days:30,weekdays:[1,2,3,4,5]});
     }
-  },[partnerId,programId,plan.data]);
+  },[partnerId,programId,scenarioId,plan.data,busy,scheduleChanged,savedSchedule]);
   const save=async(name=activeScenarioName)=>{
     if(saving.current)return;
     saving.current=true;
@@ -120,28 +129,33 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
       const raw=document.getElementById('partner-forecast')?.dataset.currentSettings;
       if(!raw)throw new Error('Дождитесь загрузки калькулятора.');
       const settings=JSON.parse(raw) as Record<string,unknown>;
+      const root=document.getElementById('partner-forecast')!;
+      const conflict=root.dataset.snapshotConflict==='true'||calendarConflict;
+      if(conflict&&!window.confirm('Сценарий изменён в другом кабинете. Сохранить ваш вариант поверх актуальной версии и перестроить календарь?'))return;
+      const expectedSnapshotId=(conflict?root.dataset.serverRevision:root.dataset.baseSnapshotId)||null;
       if(!Object.values((settings.frequency??{}) as Record<string,unknown>).some(value=>Number(value)>0))throw new Error('Укажите количество материалов и выберите площадки для нового сценария.');
       const cleanName=name.trim();
       const signature=JSON.stringify({partnerId,programId,scenarioId:storageScenarioKey,scenarioName:cleanName,settings,startDate,days,weekdays});
       if(pendingCalendar.current?.signature!==signature){
         await api(`${prefix}/calculator-plan/preview`,{method:'POST',body:{programId,settings,startDate,days,weekdays}});
         if(!cleanName){if(admin){setCreateMode('save');setCreateName(`Сценарий ${scenarios.length+1}`);setCreateDialogError('');setCreateDialogOpen(true);return;}throw new Error('Сначала создайте черновик сценария.');}
-        if(plan.data?.plan&&!window.confirm(`Сохранить изменения сценария «${cleanName}» и перестроить календарь? Незавершённые задачи будут заменены. Выполненная история и подготовленные материалы сохранятся.`))return;
-        const {snapshot}=await api<{snapshot:Snapshot}>(`${prefix}/forecast-snapshots`,{method:'POST',body:{programId,confirmed:true,settings,scenarioId:storageScenarioKey,scenarioName:cleanName}});
+        if(plan.data?.plan&&!conflict&&!window.confirm(`Сохранить изменения сценария «${cleanName}» и перестроить календарь? Незавершённые задачи будут заменены. Выполненная история и подготовленные материалы сохранятся.`))return;
+        const {snapshot}=await api<{snapshot:Snapshot}>(`${prefix}/forecast-snapshots`,{method:'POST',body:{programId,confirmed:true,settings,scenarioId:storageScenarioKey,scenarioName:cleanName,expectedSnapshotId}});
         await invalidateAnalytics(cache);
         const savedScenarioId=snapshot.data?.scenarioId??storageScenarioKey;
-        pendingCalendar.current={signature,snapshot:{...snapshot,programId:snapshot.programId??programId,data:{...snapshot.data,settings:snapshot.data?.settings??settings,scenarioId:savedScenarioId,scenarioName:cleanName}},body:{programId,snapshotId:snapshot.id,scenarioId:savedScenarioId,startDate,days,weekdays,requestId:crypto.randomUUID(),...(plan.data?.plan?{replacePlanId:plan.data.plan.id,replaceVersion:plan.data.plan.version}:{})}};
+        pendingCalendar.current={signature,snapshot:{...snapshot,programId:snapshot.programId??programId,data:{...snapshot.data,settings:snapshot.data?.settings??settings,scenarioId:savedScenarioId,scenarioName:cleanName}},body:{programId,snapshotId:snapshot.id,expectedSnapshotId:snapshot.id,scenarioId:savedScenarioId,startDate,days,weekdays,requestId:crypto.randomUUID(),...(plan.data?.plan?{replacePlanId:plan.data.plan.id,replaceVersion:plan.data.plan.version}:{})}};
       }
       await api(`${prefix}/calculator-plan`,{method:'POST',body:pendingCalendar.current!.body});
       setSavedSchedule({startDate,days,weekdays});
       setSavedSettings(JSON.stringify(settings));
       const savedScenarioId=String(pendingCalendar.current!.body.scenarioId??scenarioId);
       const committed=pendingCalendar.current!.snapshot;
-      pendingCalendar.current=null;
+      pendingCalendar.current=null;setSnapshotConflict(false);setCalendarConflict(false);
+      root.dispatchEvent(new CustomEvent('syntolk-calculator-saved',{detail:{settings:committed.data.settings,revision:committed.id}}));
       if(!admin){
-        cache.setQueryData<{snapshots:Snapshot[]}>([...key,'snapshots',programId],previous=>({snapshots:[committed,...(previous?.snapshots??[]).filter(s=>s.id!==committed.id)]}));
+        cache.setQueryData<{snapshots:Snapshot[]}>([...key,'snapshots',programId,'latest'],previous=>({snapshots:[committed,...(previous?.snapshots??[]).filter(s=>s.id!==committed.id)].sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt)||b.id.localeCompare(a.id))}));
         selection.rememberScenario(savedScenarioId);
-        setParams(previous=>{const next=new URLSearchParams(previous);next.set('programId',programId);next.set('scenarioId',savedScenarioId);return next;});
+        allowNavigation();setParams(previous=>{const next=new URLSearchParams(previous);next.set('programId',programId);next.set('scenarioId',savedScenarioId);return next;});
         setSavedNotice(`Сценарий «${committed.data.scenarioName}» сохранён`);
       }
       await cache.invalidateQueries({queryKey:admin?key:[...key,'calculator-plan']});
@@ -150,12 +164,15 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
       await cache.invalidateQueries({queryKey:['work-calendar',tenant,partnerId]});
       await cache.invalidateQueries({queryKey:['material-catalog',tenant,partnerId]});
       await invalidateAnalytics(cache);
-      if(admin)nav(`${base}/admin/coach?tab=partners&partnerId=${partnerId}&programId=${programId}&scenarioId=${encodeURIComponent(savedScenarioId)}`);
-    }catch(e){setError(e as Error);}finally{saving.current=false;setBusy(false);}
+      if(admin){allowNavigation();nav(`${base}/admin/coach?tab=partners&partnerId=${partnerId}&programId=${programId}&scenarioId=${encodeURIComponent(savedScenarioId)}`);}
+    }catch(e){
+      const code=(e as {detail?:{error?:string}})?.detail?.error;
+      if(code==='snapshot_conflict'||code==='calendar_exists')pendingCalendar.current=null;
+      setError(e as Error);await cache.invalidateQueries({queryKey:key});
+    }finally{saving.current=false;setBusy(false);}
   };
   const switchScenario=(value:string)=>{
     setSavedNotice(null);
-    closeScenarioDialog();
     selection.selectScenario(value);
   };
   const createScenario=(root:HTMLElement)=>{
@@ -172,6 +189,8 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
     if(!cleanName){setCreateDialogError('Введите название сценария.');return;}
     if(createMode==='save'){setScenarioName(cleanName);setCreateDialogOpen(false);void save(cleanName);return;}
     if(!root){setCreateDialogError('Не удалось открыть калькулятор. Обновите страницу и попробуйте ещё раз.');return;}
+    if((settingsChanged||scheduleChanged)&&!window.confirm('Начать новый сценарий? Несохранённый черновик текущего сценария останется в этом браузере.'))return;
+    allowNavigation();
     // Naming the initial draft must not erase inputs entered before naming it.
     if(!isNewScenario||scenarioName.trim())root.dispatchEvent(new CustomEvent('syntolk-calculator-reset',{bubbles:true,detail:{persist:false,fresh:true}}));
     try {
@@ -197,7 +216,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
     try{
       await api(`${prefix}/forecast-snapshots/${encodeURIComponent(deleteTarget.id)}?programId=${encodeURIComponent(deleteTarget.programId)}`,{method:'DELETE'});
       try{localStorage.removeItem(storageKey);}catch{/* Optional browser draft storage. */}
-      await cache.invalidateQueries({queryKey:[...key,'snapshots',programId]});
+      await cache.invalidateQueries({queryKey:[...key,'snapshots',programId,'latest']});
       await cache.invalidateQueries({queryKey:[...key,'calculator-plan',programId]});
       selection.rememberScenario('all');
       await Promise.all([invalidateAnalytics(cache),cache.invalidateQueries({queryKey:['material-catalog',tenant,partnerId]}),cache.invalidateQueries({queryKey:['work-calendar',tenant,partnerId]}),cache.invalidateQueries({queryKey:['coach',tenant,partnerId]}),cache.invalidateQueries({queryKey:['partner-material',tenant,partnerId]}),cache.invalidateQueries({queryKey:['link-sources',partnerId]})]);
@@ -205,14 +224,20 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
       setNewScenarioSettings(undefined);
       setNewScenarioId(`new-${Date.now()}-${Math.random().toString(36).slice(2,10)}`);
       setDeleteTarget(null);
-      setParams(previous=>{const next=new URLSearchParams(previous);next.set('scenarioId','new');return next;});
+      allowNavigation();setParams(previous=>{const next=new URLSearchParams(previous);next.set('scenarioId','new');return next;});
     }catch(e){setError(e as Error);}finally{deleting.current=false;setBusy(false);}
   };
-  const disabled=busy||createDialogOpen||!programId||!draft||plan.isLoading||!!plan.error||(!admin&&(!activeScenarioName.trim()||!hasContent||!weekdays.length||!startDate||days<1||days>365));
-  const scheduleChanged=!!savedSchedule&&(startDate!==savedSchedule.startDate||days!==savedSchedule.days||weekdays.length!==savedSchedule.weekdays.length||weekdays.some(day=>!savedSchedule.weekdays.includes(day)));
-  const settingsChanged=!!draft&&savedSettings!==null&&JSON.stringify(draft)!==savedSettings;
+  const disabled=missingScenario||busy||createDialogOpen||!programId||!draft||plan.isLoading||!!plan.error||(!admin&&(!activeScenarioName.trim()||!hasContent||!weekdays.length||!startDate||days<1||days>365));
   useEffect(()=>{if((scheduleChanged||settingsChanged)&&savedNotice)setSavedNotice(null);},[scheduleChanged,settingsChanged,savedNotice]);
-  const saveLabel=busy?'Сохраняем…':isNewScenario?'Сохранить сценарий':'Сохранить изменения';
+  const reloadSaved=()=>{
+    if(busy||!latest)return;
+    if((settingsChanged||scheduleChanged)&&!window.confirm('Загрузить сохранённую версию? Несохранённые изменения этого сценария будут заменены.'))return;
+    pendingCalendar.current=null;hydratedCalendar.current='';setSavedSchedule(null);setCalendarConflict(false);setSnapshotConflict(false);
+    document.getElementById('partner-forecast')?.dispatchEvent(new CustomEvent('syntolk-calculator-load',{detail:{storageKey,settings:latest.data.settings,revision:latest.id,force:true}}));
+    void plan.refetch();
+  };
+  const syncNotice=(snapshotConflict||calendarConflict)?<div className="coach-connection-info" role="status">Сценарий изменён в другом кабинете. Ваш черновик сохранён. <Button variant="secondary" size="sm" disabled={busy||!latest} onClick={reloadSaved}>Загрузить сохранённую версию</Button></div>:null;
+  const saveLabel=busy?'Сохраняем…' :isNewScenario?'Сохранить сценарий':'Сохранить изменения';
   const saveAction=<div className="coach-actions calculator-save-actions">{admin?<Button disabled={disabled} onClick={()=>{void save();}}>{saveLabel}</Button>:<TremorButton data-op-variant="primary" disabled={disabled} onClick={()=>{void save();}} aria-label={saveLabel} title={!activeScenarioName.trim()?'Сначала создайте сценарий':!hasContent?'Добавьте контент и выберите площадки':saveLabel}><Save size={14}/>{saveLabel}</TremorButton>}</div>;
   const scenarioPicker=!admin?<div className="calculator-library-controls">
     <VisualSelect aria-label="Сохранённый сценарий" title={selectedScenario?.name} value={isNewScenario?'':scenarioId} disabled={busy||!scenarios.length} onChange={e=>{if(e.target.value)switchScenario(e.target.value);}}>
@@ -229,7 +254,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
     </DropdownMenu>
   </div>:undefined;
   const scopePicker=<div className="coach calculator-intro">
-    <ErrorBanner error={calculatorError(partners.error??me.error??snapshots.error??plan.error)}/>
+    <ErrorBanner error={missingScenario?new Error('Сохранённый сценарий удалён или недоступен. Выберите другой сценарий или создайте новый; локальный черновик сохранён.'):calculatorError(partners.error??me.error??snapshots.error??plan.error)}/>{syncNotice}
     {admin&&<label className="coach-field"><span>Калькулятор партнёра</span><VisualSelect aria-label="Калькулятор партнёра" value={partnerId} onChange={e=>{setParams(previous=>{const next=new URLSearchParams(previous);next.set('partnerId',e.target.value);next.delete('programId');next.delete('scenarioId');return next;});}}><option value="">Предпросмотр без сохранения</option>{partners.data?.partners.map(p=><option key={p.id} value={p.id}>{p.name} — {p.email}</option>)}</VisualSelect></label>}
     {!!partnerId&&me.data?.programs.length!==1&&<label className="coach-field"><span>Партнёрская программа</span><VisualSelect aria-label="Партнёрская программа" value={programId} onChange={e=>setParams(previous=>{const next=new URLSearchParams(previous);next.set('programId',e.target.value);next.delete('scenarioId');return next;})}>{me.data?.programs.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</VisualSelect></label>}
     {admin&&!!programId&&scenarios.length>0&&<div className="calculator-scenario-picker"><label className="coach-field"><span>Сохранённые сценарии</span><VisualSelect aria-label="Сохранённый сценарий" value={isNewScenario?'':scenarioId} onChange={e=>{if(e.target.value)switchScenario(e.target.value);}}><option value="" hidden disabled/>{scenarios.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</VisualSelect></label>{!isNewScenario&&<div className="coach-actions"><Button variant="ghost" onClick={requestDeleteScenario} disabled={busy}>Удалить сценарий</Button></div>}</div>}
@@ -252,7 +277,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
     {createDialogError&&<p className="coach-warning" role="alert">{createDialogError}</p>}
   </form>:undefined;
   const planning=programId?<section className="coach calculator-planning" aria-label="Период рабочего сценария"><Card><fieldset disabled={!editorEnabled||busy} onChange={()=>setSavedNotice(null)}>
-      <div className="coach-grid calculator-schedule-grid"><div className="coach-field"><span>Начало работы</span><DateInput label="Начало календаря" value={startDate} onChange={value=>{setSavedNotice(null);setStartDate(value);setPreviewWeek(0);}}/></div><div className="coach-field"><span>План работ на</span><div className="calculator-period-options" role="group" aria-label="Период календаря">{periodOptions.map(([n,label])=><Button key={n} variant={!customPeriod&&days===n?'primary':'secondary'} aria-pressed={!customPeriod&&days===n} onClick={()=>{setSavedNotice(null);setCustomPeriod(false);setDays(n);setPreviewWeek(0);}}>{label}</Button>)}<ResultsDatePicker label="Свой срок" caption="Свой срок" triggerClassName={customPeriod?'is-active':''} value={{from:startDate,to:endOfPeriod(startDate,days)}} allowFuture maxRangeDays={365} onChange={range=>{setSavedNotice(null);setStartDate(range.from);setDays(Math.round((Date.parse(range.to)-Date.parse(range.from))/86400000)+1);setCustomPeriod(true);setPreviewWeek(0);}}/></div></div><div className="coach-row calculator-schedule-weekdays"><span className="coach-muted">Рабочие дни</span><div className="coach-actions" role="group" aria-label="Рабочие дни">{[[1,'Пн'],[2,'Вт'],[3,'Ср'],[4,'Чт'],[5,'Пт'],[6,'Сб'],[0,'Вс']].map(([day,label])=><Button key={day} variant={weekdays.includes(Number(day))?'primary':'secondary'} aria-pressed={weekdays.includes(Number(day))} onClick={()=>{setSavedNotice(null);setWeekdays(current=>current.includes(Number(day))?current.filter(d=>d!==day):[...current,Number(day)]);}}>{label}</Button>)}</div></div>{startDate&&endOfPeriod(startDate,days)&&<div className="calculator-period-range">с {startDate.split('-').reverse().join('.')} по {endOfPeriod(startDate,days).split('-').reverse().join('.')}</div>}</div>
+      <div className="coach-grid calculator-schedule-grid"><div className="coach-field"><span>Начало работы</span><DateInput label="Начало календаря" disabled={busy} value={startDate} onChange={value=>{setSavedNotice(null);setStartDate(value);setPreviewWeek(0);}}/></div><div className="coach-field"><span>План работ на</span><div className="calculator-period-options" role="group" aria-label="Период календаря">{periodOptions.map(([n,label])=><Button key={n} disabled={busy} variant={!customPeriod&&days===n?'primary':'secondary'} aria-pressed={!customPeriod&&days===n} onClick={()=>{setSavedNotice(null);setCustomPeriod(false);setDays(n);setPreviewWeek(0);}}>{label}</Button>)}<ResultsDatePicker label="Свой срок" disabled={busy} caption="Свой срок" triggerClassName={customPeriod?'is-active':''} value={{from:startDate,to:endOfPeriod(startDate,days)}} allowFuture maxRangeDays={365} onChange={range=>{setSavedNotice(null);setStartDate(range.from);setDays(Math.round((Date.parse(range.to)-Date.parse(range.from))/86400000)+1);setCustomPeriod(true);setPreviewWeek(0);}}/></div></div><div className="coach-row calculator-schedule-weekdays"><span className="coach-muted">Рабочие дни</span><div className="coach-actions" role="group" aria-label="Рабочие дни">{[[1,'Пн'],[2,'Вт'],[3,'Ср'],[4,'Чт'],[5,'Пт'],[6,'Сб'],[0,'Вс']].map(([day,label])=><Button key={day} disabled={busy} variant={weekdays.includes(Number(day))?'primary':'secondary'} aria-pressed={weekdays.includes(Number(day))} onClick={()=>{setSavedNotice(null);setWeekdays(current=>current.includes(Number(day))?current.filter(d=>d!==day):[...current,Number(day)]);}}>{label}</Button>)}</div></div>{startDate&&endOfPeriod(startDate,days)&&<div className="calculator-period-range">с {startDate.split('-').reverse().join('.')} по {endOfPeriod(startDate,days).split('-').reverse().join('.')}</div>}</div>
   </fieldset></Card></section>:null;
   const connection=<section className="coach calculator-connection" aria-label="Сохранение сценария и календарь"><Card>
     {programId?<><h2>Работы по этому сценарию</h2>
@@ -266,7 +291,7 @@ export function CalculatorWorkspace({principal}:{principal:Principal}) {
   </Card></section>;
   if(partnerId&&(me.isLoading||(programId&&snapshots.isLoading)))return <Page title="Калькулятор"><Card>Загружаем сохранённый сценарий…</Card></Page>;
   return <>
-    <CalculatorPage principal={principal} scope={{key:storageKey,settings:isNewScenario?newScenarioSettings:latest?.data.settings}} onCreateScenario={createScenario} intro={scopePicker} scenarioPicker={scenarioPicker} scenarioCreation={scenarioCreation} editable={editorEnabled&&!busy&&!createDialogOpen} onEdit={()=>setSavedNotice(null)} planning={planning} connection={connection}
+    <CalculatorPage principal={principal} scope={{key:storageKey,settings:isNewScenario?newScenarioSettings:latest?.data.settings,revision:latest?.id,holdRemote:busy||scheduleChanged||!!pendingCalendar.current}} onCreateScenario={createScenario} intro={scopePicker} scenarioPicker={scenarioPicker} scenarioCreation={scenarioCreation} editable={editorEnabled&&!busy&&!createDialogOpen} onEdit={()=>setSavedNotice(null)} planning={planning} connection={connection}
       onCurrentValuesChange={setCurrentValuesActive}
       currentValues={!admin?(root)=><CalculatorCurrentValues partnerId={partnerId} programId={programId} scenarioId={storageScenarioKey} scenarioName={activeScenarioName||'Текущий сценарий'} active={currentValuesActive} filter={currentValuesFilter} onFilter={setCurrentValuesFilter} root={root}/>:undefined}/>
     {deleteTarget&&<CalendarDialog title={`Удалить «${deleteTarget.name}»?`} close={()=>{if(!busy)setDeleteTarget(null);}}>

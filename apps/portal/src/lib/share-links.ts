@@ -1,8 +1,9 @@
+import { appBase } from '../app-path.js';
 import { currentTenantSlug } from '../api.js';
 
 export function shareUrlBase(): string {
   const slug = currentTenantSlug();
-  const origin = (import.meta.env.VITE_ROUTER_URL as string | undefined)?.replace(/\/$/, '') ?? window.location.origin;
+  const origin = (import.meta.env.VITE_ROUTER_URL as string | undefined)?.replace(/\/$/, '') ?? (window.location.origin + appBase);
   return `${origin}/r${slug ? `/${encodeURIComponent(slug)}` : ''}`;
 }
 

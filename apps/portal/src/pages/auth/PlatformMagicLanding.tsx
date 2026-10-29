@@ -1,3 +1,4 @@
+import { appPath } from '../../app-path.js';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { theme } from '../../theme.js';
@@ -22,7 +23,7 @@ export function PlatformMagicLandingPage() {
       setDetail('В URL нет токена.');
       return;
     }
-    fetch('/api/auth/platform-verify', {
+    fetch(appPath('/api/auth/platform-verify'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'include',
@@ -50,7 +51,7 @@ export function PlatformMagicLandingPage() {
         <div style={{ color: theme.danger, fontSize: 14 }}>
           {detail ?? 'Не удалось выполнить проверку.'}
           <div style={{ color: theme.textDim, fontSize: 13, marginTop: 10 }}>
-            Запросите новую ссылку на <a href="/signin" style={{ color: theme.accent }}>странице входа</a>.
+            Запросите новую ссылку на <a href={appPath('/signin')} style={{ color: theme.accent }}>странице входа</a>.
           </div>
         </div>
       )}

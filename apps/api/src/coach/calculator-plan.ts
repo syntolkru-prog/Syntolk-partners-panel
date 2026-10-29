@@ -20,7 +20,7 @@ export function scenarioNameForSnapshot(snapshot: SnapshotRow, fallback = 'Сц�
 async function latestScenarioSnapshot(db: Knex, tenantId: string, partnerId: string, programId: string, scenarioId?: string) {
   return db('CoachForecastSnapshot').where({ tenantId, partnerId, programId, status: 'confirmed' }).modify(q => {
     if (scenarioId) q.andWhereRaw("(data->>'scenarioId' = ? OR (data->>'scenarioId' IS NULL AND id = ?))", [scenarioId, scenarioId]);
-  }).orderBy('createdAt', 'desc').first() as Promise<SnapshotRow | undefined>;
+  }).orderBy('createdAt', 'desc').orderBy('id','desc').first() as Promise<SnapshotRow | undefined>;
 }
 /** Old clients cannot bring the discarded AI-generated planner back. */
 export async function assertLegacyPlannerAvailable(db:Knex,tenantId:string,partnerId:string) {
@@ -109,7 +109,7 @@ export async function activeCalculatorPlan(db: Knex, tenantId: string, partnerId
 }
 
 export async function createCalculatorPlan(db: Knex, tenantId: string, partnerId: string, input: {
-  programId: string; snapshotId: string; scenarioId?: string; startDate: string; days: number; weekdays: number[]; requestId: string; replacePlanId?: string; replaceVersion?: number;
+  programId: string; snapshotId: string; expectedSnapshotId?:string; scenarioId?: string; startDate: string; days: number; weekdays: number[]; requestId: string; replacePlanId?: string; replaceVersion?: number;
 }) {
   await db('Partner').where({ id: partnerId, tenantId }).forUpdate().first();
   const replay = await db('CoachPlan').where({ tenantId, partnerId, programId: input.programId }).whereRaw("data->>'requestId' = ?", [input.requestId]).first();
@@ -120,6 +120,10 @@ export async function createCalculatorPlan(db: Knex, tenantId: string, partnerId
   const snapshot = await db('CoachForecastSnapshot').where({ tenantId, partnerId, programId: input.programId, id: input.snapshotId, status: 'confirmed' }).first();
   if (!snapshot) throw new CoachError('calculator_not_saved', 409, 'Сначала сохраните свой сценарий в калькуляторе.');
   const scenarioId = scenarioIdForSnapshot(snapshot);
+  if(input.expectedSnapshotId!==undefined){
+    const latest=await latestScenarioSnapshot(db,tenantId,partnerId,input.programId,scenarioId);
+    if(latest?.id!==input.expectedSnapshotId||input.snapshotId!==input.expectedSnapshotId)throw new CoachError('snapshot_conflict',409,'Сохранённый сценарий изменился. Обновите его перед созданием календаря.');
+  }
   if (input.scenarioId && input.scenarioId !== scenarioId) throw new CoachError('scenario_mismatch', 409, 'Сценарий не совпадает с сохранённым расчётом.');
   const scenarioName = scenarioNameForSnapshot(snapshot, 'Сценарий');
   const profileTimezone=(await db('CoachProfile').where({tenantId,partnerId}).first())?.data?.timezone??'Europe/Moscow';

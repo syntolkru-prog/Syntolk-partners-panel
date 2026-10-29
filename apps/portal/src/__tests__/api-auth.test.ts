@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, clearApiKey, getApiKey, setApiKey } from '../api.js';
+import { api, AUTH_CHANGE_STORAGE, clearApiKey, getApiKey, setApiKey } from '../api.js';
 
 function tabStorage() {
   const values = new Map<string, string>();
@@ -18,6 +18,15 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('independent cabinet credentials', () => {
+  it('broadcasts a successful cookie login without storing the login token', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"ok":true}')));
+    await api('/auth/magic/verify', { method: 'POST', body: { token: 'test-login-token' } });
+    const notification = localStorage.getItem(AUTH_CHANGE_STORAGE);
+    expect(notification).toBeTruthy();
+    expect(notification).not.toContain('test-login-token');
+    expect(localStorage.getItem('op:apiKey')).toBeNull();
+  });
+
   it('keeps the admin credential when another tab signs in and signs out as partner', async () => {
     const adminTab = tabStorage();
     const partnerTab = tabStorage();

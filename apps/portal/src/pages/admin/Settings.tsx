@@ -1,3 +1,5 @@
+import { appPath } from '../../app-path.js';
+import { appBase, appLocationPath } from '../../app-path.js';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Settings as SettingsIcon, Mail, Wallet, Palette, Image as ImageIcon, Trash2, UserPlus } from 'lucide-react';
@@ -99,7 +101,7 @@ function PartnerSignupSection() {
   // The join page lives at the tenant root: on a custom domain that's
   // https://<domain>/join; path-based it's /t/<slug>/join. Deriving from
   // the current URL keeps it correct in both cases.
-  const joinUrl = `${window.location.origin}${window.location.pathname.match(/^\/t\/[^/]+/)?.[0] ?? ''}/join`;
+  const joinUrl = `${window.location.origin}${appBase}${appLocationPath().match(/^\/t\/[^/]+/)?.[0] ?? ''}/join`;
 
   if (isLoading) return <Card>Загрузка…</Card>;
   const settings = data ?? { policy: 'auto_approve' as const, disabled: false };
@@ -1139,7 +1141,7 @@ function DangerZone() {
           </Hint>
           <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
             <a
-              href="/api/export.json"
+              href={appPath('/api/export.json')}
               style={{
                 background: 'transparent',
                 color: theme.text,

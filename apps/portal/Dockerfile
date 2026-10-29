@@ -28,6 +28,11 @@ COPY --from=deps /repo ./
 COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
+COPY scripts ./scripts
+ARG VITE_APP_BASE=/
+ARG VITE_ROUTER_URL
+ENV VITE_APP_BASE=${VITE_APP_BASE} VITE_ROUTER_URL=${VITE_ROUTER_URL}
+
 # Portal's types depend on @openpartner/db types being compiled first.
 RUN pnpm --filter @openpartner/db build \
  && pnpm --filter @openpartner/portal build

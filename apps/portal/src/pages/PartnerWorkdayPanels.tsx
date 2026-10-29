@@ -9,6 +9,7 @@ import { DonutChart } from '../components/tremor/raw/components/DonutChart/Donut
 import { Tooltip } from '../components/tremor/raw/components/Tooltip/Tooltip.js';
 import { VisualTable, VisualTableHead, VisualTableHeader, VisualTableBody, VisualTableRow, VisualTableCell } from '../components/tremor/VisualTable.js';
 import { money } from '../ui.js';
+import {useTenantBase} from '../tenant-base.js';
 import type { AnalyticsReport } from './PartnerAnalytics.js';
 import { homeDelta, homeTraffic, homeTrafficRows,type HomeDetails,type HomeRegistration } from './partner-workday-data.js';
 
@@ -43,11 +44,21 @@ export function WorkdayTraffic({details,sourcesReport,resultsHref='',loading,err
   </section></Card>;
 }
 
-export function WorkdayRegistrations({details,loading,error,timezone,onOpen}:{details?:HomeDetails;loading:boolean;error:unknown;timezone:string;onOpen:()=>void}) {
+export function WorkdayRegistrations({details,loading,error,timezone,onOpen,query}:{details?:HomeDetails;loading:boolean;error:unknown;timezone:string;onOpen:()=>void;query?:string}) {
   const rows=details?.registrations??[];
-  return <Card asChild className="wd-card wd-registrations p-0"><section aria-label="Последние регистрации" aria-busy={loading}><div className="wd-card-heading"><h2><span className="wd-icon"><Users size={18}/></span>Последние регистрации</h2><span className="wd-registration-caption">Регистрации по вашим ссылкам за выбранный период</span><button type="button" className="wd-link-button" onClick={onOpen}>Все регистрации{details?.registrationsTotal!==undefined?` · ${details.registrationsTotal}`:''} <ChevronRight size={13}/></button></div><WorkdayRegistrationTable rows={rows} loading={loading} error={error} timezone={timezone}/></section></Card>;
+  return <Card asChild className="wd-card wd-registrations p-0"><section aria-label="Последние регистрации" aria-busy={loading}><div className="wd-card-heading"><h2><span className="wd-icon"><Users size={18}/></span>Последние регистрации</h2><span className="wd-registration-caption">Регистрации по вашим ссылкам за выбранный период</span><button type="button" className="wd-link-button" onClick={onOpen}>Все регистрации{details?.registrationsTotal!==undefined?` · ${details.registrationsTotal}`:''} <ChevronRight size={13}/></button></div><WorkdayRegistrationTable rows={rows} loading={loading} error={error} timezone={timezone} query={query}/></section></Card>;
 }
 
-export function WorkdayRegistrationTable({rows,loading,error,timezone}:{rows:HomeRegistration[];loading:boolean;error:unknown;timezone:string}){
-  return <div className="wd-table-scroll"><VisualTable><VisualTableHead><VisualTableRow>{['ID пользователя','Дата регистрации','Источник перехода','Оплата за период','Сумма оплат'].map(label=><VisualTableHeader key={label}>{label}</VisualTableHeader>)}</VisualTableRow></VisualTableHead><VisualTableBody>{loading||error||!rows.length?<VisualTableRow><VisualTableCell colSpan={5}><span role="status">{loading?'Загрузка регистраций…':error?'Не удалось загрузить регистрации':'За этот период регистраций нет'}</span></VisualTableCell></VisualTableRow>:rows.map(row=><VisualTableRow key={row.id}><VisualTableCell><span className="wd-user"><span className="wd-avatar" aria-hidden="true">{row.userId.slice(0,2).toLocaleUpperCase('ru-RU')}</span><span title={row.userId}>{row.userId}</span></span></VisualTableCell><VisualTableCell>{new Date(row.registeredAt).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:timezone})}</VisualTableCell><VisualTableCell><span className="wd-source" title={row.source}>{row.source}</span></VisualTableCell><VisualTableCell><span className={`wd-customer-status${row.paidMinor!==null?' is-paid':''}`}><i/>{row.paidMinor!==null?'Есть оплата':'Без оплат'}</span></VisualTableCell><VisualTableCell title="Оплаты, отнесённые к вашим ссылкам за выбранный период. Не комиссия партнёра.">{row.paidMinor===null?'—':money(row.paidMinor/100,row.currency)}</VisualTableCell></VisualTableRow>)}</VisualTableBody></VisualTable></div>;
+export function WorkdayRegistrationTable({rows,loading,error,timezone,query}:{rows:HomeRegistration[];loading:boolean;error:unknown;timezone:string;query?:string}){
+  const base=useTenantBase();
+  const registrationSource=(row:HomeRegistration)=>row.sourceDetails?.length?row.sourceDetails.map((source,index)=>{
+    if(!source.sourceId&&!source.linkId)return <span className="wd-source" key={index}>{source.name}</span>;
+    const scope=new URLSearchParams(query);
+    for(const field of ['scenarioId','scenarioIds','platformId','platformIds','formatId','formatIds','materialId','sourceId','linkId'])scope.delete(field);
+    scope.set('programId',source.programId);scope.set('groupBy',source.sourceId?'source':'link');
+    if(source.sourceId){scope.set('sourceId',source.sourceId);scope.set('scenarioId',source.scenarioId??'__none__');}
+    else {scope.set('linkId',source.linkId!);scope.set('sourceId','__none__');scope.set('scenarioId','all');}
+    return <Link className="wd-source" key={`${source.sourceId??source.linkId}:${index}`} title={source.name} to={`${base}/results?${scope}`}>{source.name}</Link>;
+  }):<span className="wd-source" title={row.source}>{row.source}</span>;
+  return <div className="wd-table-scroll"><VisualTable><VisualTableHead><VisualTableRow>{['ID клиента','Дата регистрации','Источник перехода','Оплата за период','Сумма оплат'].map(label=><VisualTableHeader key={label}>{label}</VisualTableHeader>)}</VisualTableRow></VisualTableHead><VisualTableBody>{loading||error||!rows.length?<VisualTableRow><VisualTableCell colSpan={5}><span role="status">{loading?'Загрузка регистраций…':error?'Не удалось загрузить регистрации':'За этот период регистраций нет'}</span></VisualTableCell></VisualTableRow>:rows.map(row=><VisualTableRow key={row.id}><VisualTableCell><span className="wd-user"><span className="wd-avatar" aria-hidden="true">{row.userId.slice(0,2).toLocaleUpperCase('ru-RU')}</span><span title={row.userId}>{row.userId}</span></span></VisualTableCell><VisualTableCell>{new Date(row.registeredAt).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:timezone})}</VisualTableCell><VisualTableCell>{registrationSource(row)}</VisualTableCell><VisualTableCell><span className={`wd-customer-status${row.paidMinor!==null?' is-paid':''}`}><i/>{row.paidMinor!==null?'Есть оплата':'Без оплат'}</span></VisualTableCell><VisualTableCell title="Оплаты, отнесённые к вашим ссылкам за выбранный период. Не комиссия партнёра.">{row.paidMinor===null?'—':money(row.paidMinor/100,row.currency)}</VisualTableCell></VisualTableRow>)}</VisualTableBody></VisualTable></div>;
 }

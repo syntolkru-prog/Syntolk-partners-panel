@@ -76,7 +76,7 @@ describe('standalone publication links share canonical attribution',()=>{
     const created=await post({...input(),scenarioId:'own',formatId:'format-live',platform:{id:'custom-channel',name:'Моя площадка'},published:true});
     expect(created.status,created.text).toBe(201);expect(created.body.source).toMatchObject({scenarioId:'own',scenarioName:'Мой сценарий',formatId:'format-live',formatName:'Прямой эфир'});
     const catalog=await request(app).get(`/partners/${partnerId}/material-catalog?programId=${programId}`).set('Authorization',`Bearer ${key}`);
-    expect(catalog.body.platforms).toContainEqual({id:'custom-channel',name:'Моя площадка'});
+    expect(catalog.body.platforms).toContainEqual(expect.objectContaining({id:'custom-channel',name:'Моя площадка',formats:expect.arrayContaining(['format-live'])}));
     expect(catalog.body.formats).toContainEqual({id:'format-live',name:'Прямой эфир'});
     expect(catalog.body.scenarios).toContainEqual({id:'own',name:'Мой сценарий',programId});
   });

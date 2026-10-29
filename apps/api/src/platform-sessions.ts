@@ -19,8 +19,8 @@ import type { CookieOptions } from 'express';
 import type { Knex } from 'knex';
 import { TABLES, type PlatformSessionBundleRow, type PlatformSessionRow } from '@openpartner/db';
 
-export const PLATFORM_SESSION_COOKIE = 'op_platform_session';
-export const PLATFORM_BUNDLE_COOKIE = 'op_bundle_id';
+export const PLATFORM_SESSION_COOKIE = (process.env.OPENPARTNER_COOKIE_PREFIX ?? '') + 'op_platform_session';
+export const PLATFORM_BUNDLE_COOKIE = (process.env.OPENPARTNER_COOKIE_PREFIX ?? '') + 'op_bundle_id';
 /** Max alive sessions in a bundle. Beyond this, oldest is evicted on
  *  attach. Most users run 1-3 identities; 5 is a soft humane cap. */
 export const PLATFORM_BUNDLE_MAX_SESSIONS = 5;
@@ -98,7 +98,7 @@ export function platformSessionCookieOptions(): CookieOptions {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    path: '/',
+    path: process.env.OPENPARTNER_COOKIE_PATH || '/',
     maxAge: SESSION_TTL_MS,
   };
 }

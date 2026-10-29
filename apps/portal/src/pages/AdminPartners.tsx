@@ -55,7 +55,7 @@ export function AdminPartners() {
         />
       )}
 
-      {partners.isLoading ? (
+      {partners.error ? null : partners.isLoading ? (
         <Card>Загрузка…</Card>
       ) : (partners.data?.partners ?? []).length === 0 ? (
         <EmptyState title="Партнёров пока нет" hint="Пригласите первого, чтобы начать отслеживать атрибуцированную выручку." icon={<Users size={28} strokeWidth={1.25} />} />

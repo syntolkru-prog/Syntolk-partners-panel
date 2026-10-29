@@ -1,3 +1,4 @@
+import { appBase, appLocationPath, appPath } from './app-path.js';
 import { useEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -34,7 +35,7 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { clearApiKey, api, type Principal } from './api.js';
-import { applyCabinetDataRevision } from './lib/cabinet-data-revision.js';
+import { useCabinetAuth } from './lib/useCabinetAuth.js';
 import { useTenantBase } from './tenant-base.js';
 import { theme } from './theme.js';
 import { useIsMobile } from './lib/useMediaQuery.js';
@@ -96,11 +97,6 @@ import { CreatorPublicProfilePage } from './pages/creator/CreatorPublicProfile.j
 import { FraudReviewPage } from './pages/FraudReview.js';
 import { CalculatorWorkspace as CalculatorPage } from './pages/CalculatorWorkspace.js';
 
-interface AuthState {
-  loading: boolean;
-  principal: Principal | null;
-}
-
 interface InstallStatus {
   needsSetup: boolean;
   reason?: 'multi_tenant';
@@ -117,7 +113,7 @@ export function App() {
   const install = useQuery({
     queryKey: ['install-status'],
     queryFn: async () => {
-      const r = await fetch('/api/install/status');
+      const r = await fetch(appPath('/api/install/status'));
       return (await r.json()) as InstallStatus;
     },
     staleTime: Infinity,
@@ -135,7 +131,7 @@ export function App() {
     queryKey: ['host-tenant-probe'],
     enabled: isMultiTenant,
     queryFn: async () => {
-      const r = await fetch('/api/branding', { credentials: 'include' });
+      const r = await fetch(appPath('/api/branding'), { credentials: 'include' });
       if (!r.ok) return { tenantSlug: null };
       return (await r.json()) as { tenantSlug: string | null };
     },
@@ -148,7 +144,7 @@ export function App() {
   const hostTenantSlug = isMultiTenant ? (hostBrand.data?.tenantSlug ?? null) : null;
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={appBase || '/'}>
       <BrandDocument />
       <Routes>
         {isMultiTenant && hostTenantSlug ? (
@@ -206,7 +202,7 @@ export function App() {
 }
 
 function Shell() {
-  const [auth, setAuth] = useState<AuthState>({ loading: true, principal: null });
+  const auth = useCabinetAuth();
   const location = useLocation();
   const tenantBase = useTenantBase();
   const isMobile = useIsMobile();
@@ -222,12 +218,6 @@ function Shell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [reviewBannerDismissed, setReviewBannerDismissed] = useState(false);
 
-  useEffect(() => {
-    api<Principal>('/auth/whoami')
-      .then((p) => { applyCabinetDataRevision(p.dataRevision); setAuth({ loading: false, principal: p }); })
-      .catch(() => setAuth({ loading: false, principal: null }));
-  }, []);
-
   // Close the drawer whenever the route changes — a NavItem tap navigates,
   // which should dismiss the overlay. Also covers backdrop/programmatic nav.
   useEffect(() => {
@@ -238,7 +228,7 @@ function Shell() {
   if (!auth.principal) return <Navigate to={`${tenantBase}/login`} state={{ from: location }} replace />;
 
   return (
-    <PartnerVisualProvider active={auth.principal.role === 'partner'}><div className={auth.principal.role === 'partner' ? 'tremor-partner' : undefined} style={{ display: 'flex', minHeight: '100vh', background: theme.bg }}>
+    <PartnerVisualProvider key={auth.generation} active={auth.principal.role === 'partner'}><div className={auth.principal.role === 'partner' ? 'tremor-partner' : undefined} style={{ display: 'flex', minHeight: '100vh', background: theme.bg }}>
       {isMobile ? (
         <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
           <Sidebar principal={auth.principal} variant="drawer" />
@@ -512,7 +502,7 @@ export function Sidebar({ principal, variant = 'sidebar' }: { principal: Princip
           try {
             await Promise.all([
               api('/auth/signout', { method: 'POST' }).catch(() => {}),
-              fetch('/api/auth/platform-signout', { method: 'POST', credentials: 'include' }).catch(() => {}),
+              fetch(appPath('/api/auth/platform-signout'), { method: 'POST', credentials: 'include' }).catch(() => {}),
             ]);
           } catch {
             /* ignore */
@@ -631,7 +621,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
   const workspaces = useQuery({
     queryKey: ['platform-workspaces'],
     queryFn: async () => {
-      const res = await fetch('/api/me/workspaces', { credentials: 'include' });
+      const res = await fetch(appPath('/api/me/workspaces'), { credentials: 'include' });
       if (res.status === 401) return { email: null, workspaces: [] as WorkspaceRow[] };
       if (!res.ok) throw new Error(`workspaces: ${res.status}`);
       return (await res.json()) as PlatformMe;
@@ -643,7 +633,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
   const identities = useQuery({
     queryKey: ['platform-identities'],
     queryFn: async () => {
-      const res = await fetch('/api/me/identities', { credentials: 'include' });
+      const res = await fetch(appPath('/api/me/identities'), { credentials: 'include' });
       if (res.status === 401) return { bundleId: null, identities: [] as IdentityRow[] };
       if (!res.ok) throw new Error(`identities: ${res.status}`);
       return (await res.json()) as IdentityList;
@@ -656,7 +646,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
   // /t/<slug>/...). Doing it from URL avoids passing slug through every
   // layer of the admin tree.
   const currentSlug = (() => {
-    const m = window.location.pathname.match(/^\/t\/([^/]+)/);
+    const m = appLocationPath().match(/^\/t\/([^/]+)/);
     return m?.[1] ?? null;
   })();
 
@@ -667,7 +657,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
     }
     setBusyAction(`enter:${slug}`);
     try {
-      const res = await fetch('/api/workspaces/enter', {
+      const res = await fetch(appPath('/api/workspaces/enter'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
@@ -681,7 +671,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
       // caches are scoped per-tenant in subtle ways (links, partner ids,
       // etc.); reload keeps state honest instead of trying to invalidate
       // every cache.
-      window.location.assign(body.home);
+      window.location.assign(appPath(body.home));
     } catch {
       setBusyAction(null);
     }
@@ -690,7 +680,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
   async function switchIdentity(sessionId: string): Promise<void> {
     setBusyAction(`switch:${sessionId}`);
     try {
-      const res = await fetch('/api/identities/switch', {
+      const res = await fetch(appPath('/api/identities/switch'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
@@ -699,7 +689,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
       if (!res.ok) throw new Error(`switch: ${res.status}`);
       // Backend cleared the tenant cookie — land on the workspace picker
       // so the user chooses which brand to enter as this identity.
-      window.location.assign('/workspaces');
+      window.location.assign(appPath('/workspaces'));
     } catch {
       setBusyAction(null);
     }
@@ -708,7 +698,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
   async function removeIdentity(sessionId: string): Promise<void> {
     setBusyAction(`remove:${sessionId}`);
     try {
-      const res = await fetch(`/api/identities/${sessionId}`, {
+      const res = await fetch(appPath(`/api/identities/${sessionId}`), {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -716,7 +706,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
       if (!res.ok || !body.ok) throw new Error(`remove: ${res.status}`);
       if (body.fellThroughTo) {
         // Server promoted a sibling; land on workspaces for that identity.
-        window.location.assign('/workspaces');
+        window.location.assign(appPath('/workspaces'));
       } else {
         // Was the only identity, or removed a non-active one — refresh
         // the popover data either way.
@@ -731,7 +721,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
   async function signOut(all: boolean): Promise<void> {
     setBusyAction(all ? 'signout-all' : 'signout');
     try {
-      const res = await fetch('/api/auth/platform-signout', {
+      const res = await fetch(appPath('/api/auth/platform-signout'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         credentials: 'include',
@@ -741,10 +731,10 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
       if (res.ok && body.fellThroughTo) {
         // Auto-fall-through to the next bundled identity — land on the
         // picker so user enters a workspace as that identity.
-        window.location.assign('/workspaces');
+        window.location.assign(appPath('/workspaces'));
       } else {
         clearApiKey();
-        window.location.assign('/signin');
+        window.location.assign(appPath('/signin'));
       }
     } catch {
       setBusyAction(null);
@@ -929,7 +919,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
               {!whiteLabel && (
                 <>
                   <a
-                    href="/signin?add=1"
+                    href={appPath('/signin?add=1')}
                     style={switcherActionStyle}
                     onMouseEnter={switcherActionHoverOn}
                     onMouseLeave={switcherActionHoverOff}
@@ -943,7 +933,7 @@ function IdentitySwitcher({ principal }: { principal: Principal }) {
                       reuses the platform email so the brand can never be
                       orphaned from this switcher. */}
                   <a
-                    href="/brands/new"
+                    href={appPath('/brands/new')}
                     style={switcherActionStyle}
                     onMouseEnter={switcherActionHoverOn}
                     onMouseLeave={switcherActionHoverOff}
@@ -1342,7 +1332,7 @@ function NavItem({
 function Logo({ size = 26, alt = 'Syntolk' }: { size?: number; alt?: string } = {}) {
   return (
     <img
-      src="/logo-mark-green.svg"
+      src={appPath('/logo-mark-green.svg')}
       alt={alt}
       width={size}
       height={size}

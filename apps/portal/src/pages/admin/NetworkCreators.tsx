@@ -1,3 +1,4 @@
+import { appPath } from '../../app-path.js';
 /**
  * Brand-side creator discovery directory.
  *
@@ -243,7 +244,7 @@ function CreatorCard({ creator }: { creator: DirectoryRow }) {
       )}
       <div style={{ display: 'flex', gap: 6 }}>
         <a
-          href={`/creators/${creator.handle}`}
+          href={appPath(`/creators/${creator.handle}`)}
           target="_blank"
           rel="noopener noreferrer"
           style={{ textDecoration: 'none', flex: 1 }}
@@ -398,7 +399,7 @@ function InviteDialog({ creator, onClose }: { creator: DirectoryRow; onClose: ()
                 <p style={{ fontSize: 13, color: theme.textMuted, margin: '6px 0 0' }}>Loading…</p>
               ) : published.length === 0 ? (
                 <p style={{ fontSize: 13, color: theme.textMuted, margin: '6px 0 0' }}>
-                  No published offerings yet. <a href="/admin/network/offerings" style={{ color: theme.accent }}>Create one</a>.
+                  No published offerings yet. <a href={appPath('/admin/network/offerings')} style={{ color: theme.accent }}>Create one</a>.
                 </p>
               ) : (
                 <Select value={offeringId} onChange={(e) => setOfferingId(e.target.value)}>

@@ -1,6 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {QueryClient} from '@tanstack/react-query';
-import {adminOverviewParams,analyticsChartTotals,analyticsChartChanges,comparisonLabel,invalidateAnalytics,resetResultsFilters} from './results-scope.js';
+import {adminOverviewParams,analyticsChartTotals,analyticsChartChanges,comparisonLabel,invalidateAnalytics,resetResultsFilters,materialReturnPath} from './results-scope.js';
 
 describe('report reset',()=>{
   it('removes report settings without losing tenant or selected-partner navigation',()=>{
@@ -28,12 +28,19 @@ describe('shared metric comparison',()=>{
 });
 
 describe('administrator overview scope',()=>{
-  it('removes only scenario selections and keeps content filters intact',()=>{
-    const input=new URLSearchParams('scenarioId=draft-a&scenarioIds=draft-b&scenarioIds=draft-c&formatId=post&formatIds=article&chartBy=scenario&groupBy=scenario&period=custom&from=2026-10-01&to=2026-10-19&partnerIds=partner-a&platformIds=vk&programId=program-a&metrics=clicks');
+  it('removes cross-partner scenario selections and keeps content filters intact',()=>{
+    const input=new URLSearchParams('scenarioId=draft-a&scenarioIds=draft-b&scenarioIds=draft-c&formatId=post&formatIds=article&chartBy=scenario&groupBy=scenario&period=custom&from=2026-10-01&to=2026-10-19&partnerIds=partner-a&partnerIds=partner-b&platformIds=vk&programId=program-a&metrics=clicks');
     const cleaned=adminOverviewParams(input);
-    expect(cleaned.toString()).toBe('formatId=post&formatIds=article&period=custom&from=2026-10-01&to=2026-10-19&partnerIds=partner-a&platformIds=vk&programId=program-a&metrics=clicks');
+    expect(cleaned.toString()).toBe('formatId=post&formatIds=article&period=custom&from=2026-10-01&to=2026-10-19&partnerIds=partner-a&partnerIds=partner-b&platformIds=vk&programId=program-a&metrics=clicks');
     expect(input.get('scenarioId')).toBe('draft-a');
     expect(adminOverviewParams(cleaned).toString()).toBe(cleaned.toString());
+  });
+  it('retains a single partner scenario and validates material return destinations',()=>{
+    const query=adminOverviewParams(new URLSearchParams('partnerIds=partner-a&scenarioIds=scenario-a'));
+    expect(query.getAll('scenarioIds')).toEqual(['scenario-a']);
+    expect(materialReturnPath('/t/brand/plan?materialId=m&materialTab=publish','/t/brand','partner-a')).toBe('/t/brand/plan?materialId=m&materialTab=publish');
+    expect(materialReturnPath('//outside.example/plan','','partner-a')).toBeNull();
+    expect(materialReturnPath('/admin/partners/another','','partner-a')).toBeNull();
   });
   it('retains supported partner, platform and content breakdowns',()=>{
     for(const by of ['partner','platform','format']){

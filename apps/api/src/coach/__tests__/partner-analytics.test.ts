@@ -516,7 +516,7 @@ describe('scenario tracking and shared partner analytics',()=>{
     await db('PartnerMaterial').where({partnerId}).del();
     await importBundle(db,tenantId,{CoachPlan:plans,CoachTask:legacy});
     const view=await get(`/partners/${partnerId}/materials/${tasks[0].id}`);
-    expect(view.status,view.text).toBe(200);expect(view.body.material.title).toContain('Короткое видео ·');
+    expect(view.status,view.text).toBe(200);expect(view.body.material.title).toContain('Короткие видео ·');
     expect(view.body.material.platforms.length).toBeGreaterThan(0);
   });
 });
@@ -558,7 +558,8 @@ describe('homepage registration rows',()=>{
     expect(old.status,old.text).toBe(200);expect(old.body.registrations).toBeUndefined();
     const result=await get(`/partners/${partnerId}/analytics/details?${query}&includeRegistrations=true`);
     expect(result.status,result.text).toBe(200);expect(result.body.registrations).toHaveLength(1);
-    expect(result.body.registrations[0]).toMatchObject({userId:valid.userId,paidMinor:10000,currency:'RUB',source:'Источник не передан'});
+    expect(result.body.registrations[0]).toMatchObject({userId:valid.userId,paidMinor:10000,currency:'RUB',sourceDetails:expect.arrayContaining([expect.objectContaining({sourceId:tracked.id,platformId:tracked.platformId})])});
+    expect(result.body.registrations[0].source).toContain(tracked.platformName);
     expect(Number.isFinite(Date.parse(result.body.registrations[0].registeredAt))).toBe(true);
     expect(result.body.traffic).toEqual(old.body.traffic);
     const after=await report();expect(after.counts).toEqual(before.counts);expect(after.amountsMinor).toEqual(before.amountsMinor);

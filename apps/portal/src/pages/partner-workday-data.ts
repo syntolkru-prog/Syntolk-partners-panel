@@ -2,7 +2,8 @@ import { calendarDay,type DateChoice } from './ResultsDatePicker.js';
 import type { AnalyticsReport } from './PartnerAnalytics.js';
 
 export type WorkdayPeriod = 'today' | '7d' | '30d' | 'all' | 'custom';
-export interface HomeRegistration {id:string;userId:string;registeredAt:string;source:string;paidMinor:number|null;paymentCount?:number;currency:string}
+export interface RegistrationSource {name:string;programId:string;linkId:string|null;sourceId:string|null;scenarioId:string|null;platformId:string|null;materialId:string|null}
+export interface HomeRegistration {id:string;userId:string;registeredAt:string;source:string;sourceDetails?:RegistrationSource[];paidMinor:number|null;paymentCount?:number;currency:string}
 export interface HomeDetails {
   traffic: { referrers: Array<{name:string;count:number}> };
   registrations?: HomeRegistration[];

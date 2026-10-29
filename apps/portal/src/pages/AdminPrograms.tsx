@@ -124,7 +124,7 @@ export function AdminPrograms() {
       {/* Hide the program list while the edit or create form is open —
           duplicating the row being edited is just visual noise, and on a
           single-program tenant it pushes the form off-screen. */}
-      {editing || showCreate ? null : campaigns.isLoading ? (
+      {editing || showCreate || campaigns.error ? null : campaigns.isLoading ? (
          <Card>Загрузка…</Card>
       ) : (campaigns.data?.programs ?? []).length === 0 ? (
          <EmptyState title="Программ пока нет" hint="Программа содержит правила комиссии и настройки атрибуции." icon={<Tag size={28} strokeWidth={1.25} />} />

@@ -21,7 +21,7 @@ import type { CookieOptions } from 'express';
 import type { Knex } from 'knex';
 import { TABLES, type PlatformAdminRow, type PlatformAdminSessionRow } from '@openpartner/db';
 
-export const PLATFORM_ADMIN_SESSION_COOKIE = 'op_platform_admin_session';
+export const PLATFORM_ADMIN_SESSION_COOKIE = (process.env.OPENPARTNER_COOKIE_PREFIX ?? '') + 'op_platform_admin_session';
 const TOKEN_PREFIX_LEN = 8;
 /** Shorter than customer sessions on purpose — an operator session grants
  *  cross-tenant reach, so we re-auth weekly rather than monthly. */
@@ -108,7 +108,7 @@ export function platformAdminSessionCookieOptions(): CookieOptions {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    path: '/',
+    path: process.env.OPENPARTNER_COOKIE_PATH || '/',
     maxAge: SESSION_TTL_MS,
   };
 }

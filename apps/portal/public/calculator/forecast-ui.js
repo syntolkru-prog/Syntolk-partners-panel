@@ -10,18 +10,38 @@
   let canSave=true, statusTimer, mobileExpanded=false, formatMenuOpen=false, platformMenuOpen=false, channelFormatMenu=null, suppressPersist=false;
   let facts=null, factViews={}, factStorageKey='', factCatalog='';
   const mobileQuery=globalThis.matchMedia?.('(max-width:760px)');
-  let stored;
-  try {
-    const localSerialized=localStorage.getItem(KEY);
-    const serialized=localSerialized||root.dataset.initialState;
-    // A damaged draft does not mean the browser has disabled storage.
-    try { stored=JSON.parse(serialized||'null'); } catch { stored=null; }
-  } catch { canSave=false; }
-  if(stored?.version===1){
-    settings=M.normalize(stored.settings);
-    if(Object.hasOwn(M.SCENARIOS,stored.scenario))scenario=stored.scenario;
-    month=Math.max(1,Math.min(12,Math.floor(Number(stored.month)||3)));
+  let serverSettings=null,serverRevision=null,baseSnapshotId=null,remoteConflict=false;
+  const serialized=value=>JSON.stringify(value);
+  function hydrate(detail,newScope=false){
+    const incoming=detail.settings?M.normalize(detail.settings):null,incomingRevision=detail.revision??null;
+    if(!newScope&&!detail.force&&incomingRevision===serverRevision&&serialized(incoming)===serialized(serverSettings))return null;
+    if(newScope){
+      KEY=detail.storageKey||KEY;
+      let stored;
+      try {const raw=localStorage.getItem(KEY);try{stored=JSON.parse(raw||'null');}catch{stored=null;}}catch{canSave=false;}
+      const local=stored?.version===1?M.normalize(stored.settings):null;
+      const keepLocal=local&&(stored.baseSnapshotId===incomingRevision||stored.dirty!==false);
+      const nextSettings=detail.force?incoming:keepLocal?local:incoming;
+      settings=nextSettings?M.normalize(nextSettings):M.newScenario();
+      scenario=Object.hasOwn(M.SCENARIOS,stored?.scenario)?stored.scenario:'base';
+      month=Math.max(1,Math.min(12,Math.floor(Number(stored?.month)||3)));
+      remoteConflict=!!incoming&&serialized(settings)!==serialized(incoming)&&stored?.baseSnapshotId!==incomingRevision;
+      baseSnapshotId=remoteConflict?stored?.baseSnapshotId??null:incomingRevision;
+      serverSettings=incoming;serverRevision=incomingRevision;
+      return true;
+    }
+    const dirty=detail.holdRemote||!serverSettings||serialized(settings)!==serialized(serverSettings);
+    serverSettings=incoming;serverRevision=incomingRevision;
+    if(detail.force||!dirty||serialized(settings)===serialized(incoming)){
+      if(incoming)settings=M.normalize(incoming);
+      baseSnapshotId=incomingRevision;remoteConflict=false;return true;
+    }
+    remoteConflict=baseSnapshotId!==incomingRevision;
+    return false;
   }
+  let initial;
+  try{initial=JSON.parse(root.dataset.initialState||'null');}catch{}
+  hydrate({storageKey:KEY,settings:initial?.settings,revision:initial?.revision},true);
   const $=selector=>root.querySelector(selector);
   const $$=selector=>[...root.querySelectorAll(selector)];
   const number=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});
@@ -210,9 +230,14 @@
     if(heading)heading.textContent=mobileQuery?.matches?(mobileExpanded?'Полный калькулятор':'Быстрый расчёт'):'Соберите свой сценарий';
   }
   function save() {
-    root.dataset.currentSettings=JSON.stringify(settings);
-    if(!suppressPersist&&canSave){try{localStorage.setItem(KEY,JSON.stringify({version:1,settings,scenario,month}));}catch{canSave=false;}}
-    root.dispatchEvent(new CustomEvent('syntolk-calculator-change',{bubbles:true,detail:{settings}}));
+    const raw=serialized(settings),dirty=!serverSettings||raw!==serialized(serverSettings);
+    if(!dirty){baseSnapshotId=serverRevision;remoteConflict=false;}
+    root.dataset.currentSettings=raw;
+    root.dataset.savedSettings=serverSettings?serialized(serverSettings):'';
+    root.dataset.baseSnapshotId=baseSnapshotId??'';root.dataset.serverRevision=serverRevision??'';
+    root.dataset.snapshotConflict=String(remoteConflict);
+    if(!suppressPersist&&canSave){try{localStorage.setItem(KEY,JSON.stringify({version:1,settings,scenario,month,baseSnapshotId,dirty}));}catch{canSave=false;}}
+    root.dispatchEvent(new CustomEvent('syntolk-calculator-change',{bubbles:true,detail:{settings,dirty,conflict:remoteConflict}}));
   }
   function resetScenario(persist=true,fresh=false) {
     settings=M.newScenario(fresh?undefined:settings);formatMenuOpen=false;platformMenuOpen=false;channelFormatMenu=null;
@@ -223,18 +248,18 @@
   root.addEventListener('syntolk-calculator-load',event=>{
     const detail=event.detail;
     if(!detail?.settings&&!detail?.storageKey)return;
-    if(detail.storageKey){
-      KEY=detail.storageKey;
-      let stored;
-      try{stored=JSON.parse(localStorage.getItem(KEY)||'null');}catch{}
-      settings=stored?.version===1?M.normalize(stored.settings):detail.settings?M.normalize(detail.settings):M.newScenario();
-      scenario=Object.hasOwn(M.SCENARIOS,stored?.scenario)?stored.scenario:'base';
+    const render=hydrate(detail,!!detail.storageKey&&detail.storageKey!==KEY);
+    if(render===null)return;
+    if(render){
       if($('[data-current-values]'))scenario='base';
-      month=Math.max(1,Math.min(12,Math.floor(Number(stored?.month)||3)));
       factCatalog='';formatMenuOpen=false;platformMenuOpen=false;channelFormatMenu=null;
-    }else settings=M.normalize(detail.settings);
-    renderControls();setTab(tab);renderResults();
-    if(isFact())root.dispatchEvent(new CustomEvent('syntolk-calculator-change',{bubbles:true,detail:{settings}}));
+      renderControls();setTab(tab);renderResults();
+    }
+    save();
+  });
+  root.addEventListener('syntolk-calculator-saved',event=>{
+    serverSettings=M.normalize(event.detail.settings);serverRevision=event.detail.revision;
+    baseSnapshotId=serverRevision;remoteConflict=false;save();
   });
   root.addEventListener('syntolk-calculator-reset',event=>resetScenario(event.detail?.persist!==false,event.detail?.fresh===true));
   function renderResults() {

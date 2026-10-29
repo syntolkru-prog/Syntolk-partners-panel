@@ -23,7 +23,7 @@ const addDays=(day:string,offset:number)=>new Date(Date.parse(`${day}T12:00:00Z`
 
 export function CalculatorWork(props:{partnerId:string;prefix?:string;view?:'calendar'|'today'|'results';embedded?:boolean}) {
   if(props.view==='results')return props.embedded?<PartnerAnalyticsPanel partnerId={props.partnerId}/>:<PartnerResults partnerId={props.partnerId}/>;
-  if(!props.embedded&&(!props.view||props.view==='calendar')&&(!props.prefix||props.prefix==='/coach/me'))return <PartnerWorkCalendar partnerId={props.partnerId}/>;
+  if(!props.view||props.view==='calendar')return <PartnerWorkCalendar partnerId={props.partnerId} prefix={props.prefix}/>;
   return <WorkCalendar {...props} view={props.view??'calendar'}/>;
 }
 function WorkCalendar({partnerId,prefix='/coach/me',view='calendar',embedded=false}:{partnerId:string;prefix?:string;view?:'calendar'|'today';embedded?:boolean}) {
@@ -71,7 +71,7 @@ function WorkCalendar({partnerId,prefix='/coach/me',view='calendar',embedded=fal
         {!tasks.length&&<Card>На этот день публикации по сценарию не запланированы. Весь объём виден в календаре.</Card>}
         {days.filter(day=>tasks.some(t=>t.data.scheduledDay===day)).map(day=><section key={day} className="calculator-work-day">{view==='calendar'&&<h3>{dateLabel(day)}</h3>}{tasks.filter(task=>task.data.scheduledDay===day).map(task=>{const selectedPlacements=(task.data.placements??[]).filter(resource=>resource.selected);return <div key={task.id} className="calculator-work-task calculator-work-task--guided"><div className="coach-row"><label className="calculator-work-check"><input type="checkbox" aria-label={`Материал готов: ${task.data.title}`} checked={task.status==='completed'} disabled={busy} onChange={e=>{void complete(task,e.target.checked);}}/><span><strong>{task.data.title}</strong><small>{selectedPlacements.map(l=>l.name).join(', ')}</small></span></label></div>
           <details className="calculator-task-details" onToggle={e=>{const open=e.currentTarget.open;setOpenTasks(previous=>{const next=new Set(previous);if(open)next.add(task.id);else next.delete(task.id);return next;});}}><summary>Публикации</summary>
-          {openTasks.has(task.id)&&task.data.kind==='content'&&<MaterialEditor partnerId={partnerId} materialId={task.data.materialId??task.id}/>}
+          {openTasks.has(task.id)&&task.data.kind==='content'&&<MaterialEditor partnerId={partnerId} materialId={task.data.materialId??task.id} adminContext={prefix.startsWith('/admin/')}/>}
           </details>
         </div>;})}</section>)}
       </>}

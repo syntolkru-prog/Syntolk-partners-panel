@@ -50,7 +50,7 @@ export function FraudReviewPage() {
           </div>
         </Card>
       )}
-      {isLoading ? (
+      {error ? null : isLoading ? (
         <Card>Загрузка…</Card>
       ) : rows.length === 0 ? (
         <EmptyState
